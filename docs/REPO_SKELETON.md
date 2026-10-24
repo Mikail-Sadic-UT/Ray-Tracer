@@ -1,6 +1,6 @@
 # Recommended Repo Skeleton
 
-**Recommendation only. Nothing here exists yet.** Mikail creates the skeleton in Task 1 ([ROADMAP.md](ROADMAP.md#task-1-repo-skeleton-build-ci)). File names below are suggestions; owners can adjust within their directories.
+**Recommendation only. Nothing here exists yet.** Mikail creates the skeleton in task C1 ([ROADMAP.md](ROADMAP.md#c1-skeleton-build-ci-vista-verification)). File names below are suggestions; owners can adjust within their directories.
 
 ## Directory tree
 
@@ -15,14 +15,16 @@
 │   └── pull_request_template.md
 ├── src/
 │   ├── core/       (Arek)      hostdev.hpp  math.hpp  ray.hpp  aabb.hpp  color.hpp
-│   ├── scene/      (Po)        scene.hpp  scene_io.hpp  scene_io.cpp  binary_format.hpp  generator.hpp  generator.cpp  pcg32.hpp
+│   ├── scene/      (Po)        scene.hpp (Scene view)  scene_host.hpp  scene_io.cpp  binary_format.hpp  hash.hpp
+│   │                           generator.cpp  pcg32.hpp      # generator.cpp + hash: -ffp-contract=off
 │   ├── camera/     (Jett)      camera.hpp  camera.cpp
-│   ├── bvh/        (Jett)      bvh.hpp  build_median.cpp  build_lbvh.cpp  build_sah.cpp  validate.cpp  morton.hpp  radix_sort.hpp
+│   ├── bvh/        (Jett)      bvh.hpp  bounds.cpp  build_median.cpp  build_lbvh.cpp  layout.cpp  build_sah.cpp  validate.cpp
+│   │                           morton.hpp  radix_sort.hpp
 │   ├── trace/      (Mikail)    intersect.hpp  traverse.hpp  brute.hpp
 │   ├── shade/      (Arek)      shade.hpp  lights.hpp  offset.hpp
 │   ├── cpu/        (Po)        cpu_backend.hpp  cpu_backend.cpp
 │   ├── gpu/        (Mikail, Arek)
-│   │   ├── device_memory.hpp  device_memory.cu
+│   │   ├── device_scene.hpp   device_scene.cu      # DeviceScene, memory modes
 │   │   ├── cuda_backend.hpp   cuda_backend.cu
 │   │   ├── megakernel.cu
 │   │   └── wavefront/          queues.hpp  trace_kernels.cu (Mikail)  shade_kernels.cu  accumulate.cu (Arek)
@@ -39,6 +41,7 @@
 │   ├── obj2bin/    main.cpp
 │   └── hello_cuda/ main.cu
 ├── tests/                      # GoogleTest: test_math.cpp, test_intersect.cpp, test_bvh.cpp, ...
+│   └── oracle/                 # independent checks: double-precision intersection (Arek), shading expected values (Jett)
 ├── scenes/
 │   ├── known/                  # Small hand-written inline JSON scenes
 │   └── golden/                 # Small golden PNG/PFM images for regression tests
@@ -63,10 +66,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(RT_ENABLE_CUDA   "Build CUDA backend"           ON)
-option(RT_ENABLE_EMBREE "Build Embree backend"         OFF)
+option(RT_ENABLE_EMBREE "Build Embree backend (ext)"   OFF)
 option(RT_ENABLE_OPTIX  "Build OptiX backend (stretch)" OFF)
 option(RT_BUILD_TESTS   "Build tests"                  ON)
-set(RT_CUDA_ARCH "89" CACHE STRING "CUDA arch: 89 laptop, 90 H100, 80 A100")
+set(RT_CUDA_ARCH "89" CACHE STRING "CUDA arch: 89 laptop, 90 Vista Hopper, 80 A100")
 
 find_package(OpenMP REQUIRED)
 
@@ -173,16 +176,22 @@ The team can change the base style at the contract meeting. Pick once and don't 
 
 ## Checks
 - [ ] CPU CI green
-- [ ] GPU-checked locally and/or on TACC (required if rendering code changed)
-      Machine(s):
-      rt_compare vs CPU reference (max err, % over threshold):
+- [ ] Rendering code changed? GPU check per WORKFLOW.md:
+      Before the CUDA megakernel (C10) is on dev:
+      - [ ] CUDA build compiles (-DRT_ENABLE_CUDA=ON) on: ______
+      - [ ] hello_cuda / CUDA smoke tests pass
+      After C10 is on dev:
+      - [ ] rt_compare GPU vs CPU on known scenes (+ bench_100k if traversal/BVH/shading)
+            Machine(s):
+            Result (per-category counts, max errors):
 
 ## Performance impact
 <!-- Before/after numbers, or "none expected" -->
 
 ## Contract change?
 - [ ] No
-- [ ] Yes: edits docs/INTERFACES.md, needs approval from all four members
+- [ ] Yes: edits docs/INTERFACES.md. Author signs off here: ______
+      Requires approving reviews from all three other members.
 ```
 
 ## CI workflow outline
@@ -199,8 +208,13 @@ on:
 jobs:
   cpu:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash      # GitHub runs bash steps with -e -o pipefail
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so the base branch can be diffed
       - name: Install
         run: sudo apt-get update && sudo apt-get install -y g++-13 cmake ninja-build clang-format
       - name: Configure
@@ -212,10 +226,21 @@ jobs:
       - name: Golden-image regression
         run: ./scripts/ci/golden_check.sh build    # renders scenes/known/*, compares to scenes/golden/*
       - name: Format check
-        run: git diff --name-only origin/${{ github.base_ref || 'dev' }} -- '*.cpp' '*.hpp' '*.cu' | xargs -r clang-format --dry-run --Werror
+        env:
+          BASE: ${{ github.base_ref || 'dev' }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE"
+          # Capture the list first so a failing git diff fails the step instead of
+          # silently producing an empty list for xargs.
+          files="$(git diff --name-only --diff-filter=ACMR "origin/$BASE...HEAD" -- '*.cpp' '*.hpp' '*.cu' '*.cuh')"
+          if [ -n "$files" ]; then
+            printf '%s\n' "$files" | xargs clang-format --dry-run --Werror
+          fi
 ```
 
-Pin action versions. Add FetchContent caching once builds get slow.
+- On push events (no `base_ref`), the step diffs against `dev`. A push to `dev` itself then diffs against itself and checks nothing, which is fine because every change reached `dev` through a checked PR.
+- Pin action versions and the `clang-format` version (different versions format differently). Add FetchContent caching once builds get slow.
 
 ## sbatch template
 
@@ -242,17 +267,30 @@ SCENE=$SCRATCH/scenes/bench_1m_seed1.json
 OUT=$SCRATCH/results/$SLURM_JOB_ID
 mkdir -p "$OUT"
 
-nvidia-smi > "$OUT/nvidia-smi.txt"
+# Machine identity, recorded on the allocated node
+nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv > "$OUT/gpu.csv"
+lscpu > "$OUT/lscpu.txt"
+{ gcc --version; nvcc --version; module list 2>&1; } > "$OUT/toolchain.txt"
 
+COMMON="--scene $SCENE --bvh lbvh --width 1920 --height 1080 --runs 5"
+
+# CPU scaling: build and render threads set explicitly; T = 1 is the 1-core baseline
 for T in 1 2 4 8 16 32 64 72; do
-  OMP_NUM_THREADS=$T $BIN --scene "$SCENE" --backend cpu --bvh sah --threads $T \
-      --width 1920 --height 1080 --runs 5 --results "$OUT/cpu_t$T.json" --out "$OUT/cpu_t$T.png"
+  $BIN $COMMON --backend cpu --build-threads $T --render-threads $T \
+       --mode prepared --results "$OUT/cpu_t$T.json" --pfm "$OUT/cpu_t$T.pfm"
 done
 
-for MEM in explicit managed system; do
-  OMP_NUM_THREADS=72 $BIN --scene "$SCENE" --backend cuda --pipeline mega --mem $MEM --bvh sah \
-      --threads 72 --width 1920 --height 1080 --runs 5 --results "$OUT/cuda_$MEM.json" --out "$OUT/cuda_$MEM.png"
+# GPU, explicit memory (Core)
+$BIN $COMMON --backend cuda --pipeline mega --mem explicit --build-threads 72 \
+     --mode prepared --results "$OUT/cuda_explicit.json" --pfm "$OUT/cuda_explicit.pfm"
+
+# T_app: 5 fresh processes
+for i in 1 2 3 4 5; do
+  $BIN $COMMON --backend cuda --pipeline mega --mem explicit --build-threads 72 \
+       --mode app --results "$OUT/cuda_app_$i.json"
 done
 ```
+
+Extension E1 adds a loop over `--mem managed|system` (plus a separate `system-reuse` experiment) with the `--mem-advice` and `--prefetch` settings recorded in each results file.
 
 Log each job in the node-hour log ([BENCHMARKING.md](BENCHMARKING.md#node-hour-budget)).

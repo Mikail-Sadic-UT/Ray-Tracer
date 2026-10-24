@@ -2,76 +2,74 @@
 
 ## 1. Role
 
-- **Original:** GPU lighting and shadows, render-time and component measurement.
-- **Added:** shared math library, benchmark harness + timing schema, wavefront queues/shade/accumulate kernels (Extended), plotting scripts, OptiX pairing (Stretch).
+- **Core:** math library and slab test; Lambert shading with point-light shadows (frozen shadow-ray and accumulation rules); harness for T_app, T_br, T_frame and results schema v2; double-precision intersection oracle (independent check on Mikail's code); plots.
+- **Extensions:** E2 Blinn-Phong + directional lights; E5 wavefront queues, shade, and accumulate.
+- **Stretch:** OptiX pairing.
 
 ## 2. Owns
 
-`src/core/`, `src/shade/`, `src/bench/`, `src/gpu/wavefront/` (queues, shade, accumulate), `scripts/plot/`.
+`src/core/`, `src/shade/`, `src/bench/`, `src/gpu/wavefront/` (queues, shade, accumulate), `tests/oracle/` intersection oracle, `scripts/plot/`.
 
 ## 3. Deliverables
 
-| When | Deliverable | Size | Task | Unblocks |
-|---|---|---|---|---|
-| Sept 22–29 | Math library, `Material`/`Light` structs, shading API contract | M | 2 | Everyone (**first-week critical item**) |
-| By ~Oct 10 | `shade()`: Lambert, point + directional lights, robust offset, analytic tests on synthetic hits | M | 4 | CPU reference, megakernel |
-| By Oct 26 | Blinn-Phong behind `MAT_SPECULAR` | S | 12 | Final image quality |
-| By Oct 26 | Benchmark harness: timers, cold/warm, median of 5, JSON/CSV | M | 8 | Everyone's measurements |
-| By Nov 20 | Wavefront: queues, shade + accumulate kernels, compaction | L | 16 | Pipeline comparison, stage timings |
-| By Nov 20 | Render-time study: sizes, light-count sweep, per-stage breakdown | M | 20 | Report |
-| Late Nov | Plotting scripts | S | 20 | Report, slides |
-| If go | OptiX raygen + shading integration with Mikail | M | 21 | RT-core comparison |
+| Gate | Deliverable | Size | Task |
+|---|---|---|---|
+| G0 (Oct 30) | Math library + `intersect_aabb` with the required tests; merged by Oct 27 | M | C2 |
+| G1 (Nov 6) | `surface_at`, `offset_ray_origin`, `light_sample`, `shade_hit` returning `PixelResult` (Lambert, point lights, `prim_id`, `light_mask`) | M | C4 |
+| G1 (Nov 6) | Double-precision intersection oracle | S | C8 |
+| G1 (Nov 6) | Harness on CPU: three quantities, components, `unattributed`, spread, results v2, T_app process script | M | C9 |
+| G2 (Nov 13) | Harness on GPU: `cuda_init`, sync points, `render_kernel` events, `--no-components` check | S | C9 |
+| G3 (Nov 18) | Target ratios (T_br, plus T_frame and T_app); breakdown and cold-vs-prepared plots | M | C13 |
+| After G1 | E2 Blinn-Phong + directional lights (2-day timebox) | S | E2 |
+| After G3 | E5 wavefront with fixed-slot accumulation | L | E5 |
 
 ## 4. Contracts
 
-- **Owns:** math library, shading API, timing/results schema in [INTERFACES.md](../INTERFACES.md#1-math-library).
-- **Consumes:** Scene (Po), `Hit` + `traverse_any` (Mikail), backend interface (Mikail).
+- **Owns:** [Math library](../INTERFACES.md#1-math-library), [Shading](../INTERFACES.md#6-shading), [Timing and results schema](../INTERFACES.md#8-timing-and-results-schema).
+- **Consumes:** `SceneHost` (Po), `Hit` and `traverse_any` (Mikail), backend lifecycle (Mikail).
 
 ## 5. Dependencies
 
-- **Blocked by:** only Mikail's traversal, and only for integration.
-- **Blocks:** everyone in week 1 (math library), CPU reference and megakernel (shading), all measurements (harness).
-- **Stubs while waiting:** synthetic `Hit` arrays and hand-placed surface points. `shade()` is fully testable without traversal.
+- **Blocked by:** nothing for C2. Mikail's `brute_any` for integrated shadow tests.
+- **Blocks:** everyone in week 1 (math library); the CPU and GPU renderers (shading); all measurements (harness).
+- **Stubs:** synthetic `SurfacePoint` / `Hit` arrays; `shade_hit` is unit-testable with hand-made `Hit`s and `brute_any`.
 
 ## 6. Tests
 
-- Math: dot/cross/normalize, AABB grow/union/surface area, ray-box with zero direction components.
-- Lambert at a sphere's pole under an overhead point light matches the closed form.
-- Inverse-square falloff: doubling distance quarters irradiance.
-- Back-facing lights contribute nothing and emit no shadow ray.
-- Shadow boundary of a sphere on a plane lands where geometry predicts.
-- No shadow acne on a lit plane (all pixels lit when no occluder).
-- Blinn-Phong highlight position matches the half-vector prediction.
-- Harness: schema validation; components sum ≈ total; median of 5 computed correctly.
+- Slab test cases listed in INTERFACES (on-face, just outside, inside, negative zero, behind).
+- Jett's expected values: pole irradiance, 1/d² falloff, shadow boundary location, no acne on an unoccluded plane (relative 1e-5).
+- A light behind the surface gives no contribution and no shadow ray.
+- Shadow-ray `tmax` equals the distance from the offset origin to the light.
+- Harness: schema validation; median and spread correct on synthetic data; `unattributed` computed rather than assumed zero.
+- E2: highlight position matches the half-vector prediction. No per-feature tolerance loosening.
 
 ## 7. References
 
-- Ray Tracing Gems I, Ch. 6, "A Fast and Robust Method for Avoiding Self-Intersection".
-- PBRT v4: floating-point error and robust spawn-ray offsets.
-- Laine, Karras & Aila 2013, "Megakernels Considered Harmful".
-- *Ray Tracing in One Weekend* (vec3 and basic shading).
-- CUDA Programming Guide: events, atomics, occupancy.
+- Ray Tracing Gems I, Ch. 6 (self-intersection offset).
+- PBRT v4: floating-point error, ray-box robustness (`gamma(3)`).
+- Laine, Karras & Aila 2013 (E5).
+- CUDA Programming Guide: events, synchronization.
 
-## 8. First-week checklist (before Sept 29)
+## 8. This week (Oct 24–30)
 
-- [ ] Draft math library + `Material`/`Light` + shading + timing sections of INTERFACES.md for the Sept 24–25 meeting.
-- [ ] Write `hostdev.hpp`, `math.hpp`, `ray.hpp`, `aabb.hpp` with unit tests (branch `arek/math`).
-- [ ] Set up WSL2 + CUDA per [BUILD.md](../BUILD.md#laptop-wsl2-setup); confirm a `RT_HOSTDEV` function compiles in both g++ and nvcc.
-- [ ] Confirm Vista login.
-- [ ] Sketch the results JSON fields with Mikail and Po.
+- [ ] Review INTERFACES v0.3 sections 1, 6, 8; sign off by Oct 27.
+- [ ] Merge `hostdev.hpp`, `math.hpp`, `ray.hpp`, `aabb.hpp` + slab tests by Oct 27 (branch `arek/math`). Everyone is blocked on this.
+- [ ] Confirm an `RT_HOSTDEV` function compiles under both g++ 13 and nvcc.
+- [ ] WSL2 + CUDA setup per [BUILD.md](../BUILD.md#laptop-wsl2-setup); confirm Vista login.
+- [ ] Sketch the timer API and results v2 writer.
 
 ## 9. Risks
 
 | Risk | Mitigation |
 |---|---|
-| Math library late, everyone blocked | It's small; aim to merge by Sept 26 |
-| Wavefront complexity in November | Build after megakernel works; it's the first cut candidate |
-| CPU/GPU mismatches near highlights | Diffuse-only compare mode; looser specular threshold |
-| Timer overhead skews small scenes | Sync only at stage boundaries; report cold and warm separately |
+| Math library late, everyone blocked | Small and fully specified; merge by Oct 27 |
+| Instrumentation distorts small-scene timings | `--no-components` comparison; report `unattributed` |
+| CPU/GPU mismatches in shading | Investigate the cause (FMA contraction, `pow`) before touching tolerances |
+| Wavefront complexity | Only after G3; first to cut |
 
 ## 10. Contribution log
 
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|
-| Sept 22–28 | | | |
+| Oct 24–30 | | | |
 | | | | |

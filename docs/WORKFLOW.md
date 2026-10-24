@@ -15,7 +15,7 @@ flowchart RL
 
 | Branch | Protected | Receives | Rules |
 |---|---|---|---|
-| `main` | Yes | PRs from `dev` only, at check-ins | Tagged `checkin-1`, `checkin-2`, `checkin-3`, `final` |
+| `main` | Yes | PRs from `dev` only, at gates and check-ins | Tagged `g0` … `g3`, `checkin-2`, `checkin-3`, `final` |
 | `dev` | Yes | PRs from feature branches | ≥ 1 approving review, CPU CI green, GPU checkbox for rendering changes |
 | `<member>/<topic>` | No | Your commits | Branch from `dev`, keep short-lived |
 
@@ -44,9 +44,16 @@ PR template contents (file text in [REPO_SKELETON.md](REPO_SKELETON.md#pr-templa
 - **Area**: bvh / gpu / shading / cpu / scene / infra / bench / docs.
 - **Tests added or updated.**
 - **CPU CI**: green (automatic).
-- **GPU check** (required if rendering code changed): laptop and/or TACC, with `rt_compare` output vs CPU reference.
+- **GPU check** for PRs that change rendering code (`core`, `trace`, `shade`, `bvh`, `camera`, `gpu`). What's required depends on whether the CUDA megakernel (C10) has merged to `dev`:
+
+  | Phase | Required GPU evidence |
+  |---|---|
+  | **Before C10 merges** | CPU CI green (unit tests + CPU goldens). A CUDA build with `-DRT_ENABLE_CUDA=ON` compiles on the laptop or Vista, so `RT_HOSTDEV` code still compiles under nvcc. Run `hello_cuda` / available CUDA smoke tests. No GPU image comparison, because none exists yet. |
+  | **After C10 merges** | All of the above, plus `rt_compare` of GPU vs CPU on the known-case scenes (and `bench_100k` for traversal, BVH, or shading changes), with the output pasted in the PR. |
+
+  The switch happens automatically when C10 lands. Mikail announces it in the team chat.
 - **Performance impact**: before/after numbers if relevant.
-- **Contract change?** y/n. If yes, needs all four approvals (see [INTERFACES.md](INTERFACES.md#contract-change-process)).
+- **Contract change?** y/n. If yes: the author signs off in the PR, and all three other members must approve the review (GitHub authors can't approve their own PRs). See [INTERFACES.md](INTERFACES.md#contract-change-process).
 
 Review rules:
 
@@ -70,24 +77,26 @@ GPU checks run manually (laptop or TACC) and are recorded in the PR. Outline in 
 
 ## Issues
 
-Every task in [ROADMAP.md](ROADMAP.md) becomes a GitHub issue, assigned to its owner and linked to a milestone (check-in 1/2/3, final).
+Every Core task (C1–C14) in [ROADMAP.md](ROADMAP.md) becomes a GitHub issue, assigned to its owner and linked to a gate milestone (G0–G3, final). Extensions (E1–E6) get issues too.
 
 | Label | Use |
 |---|---|
 | `area:bvh`, `area:gpu`, `area:shading`, `area:cpu`, `area:scene`, `area:infra`, `area:bench` | Code area |
-| `core`, `extended`, `stretch` | Scope tier |
+| `core`, `extension`, `stretch` | Scope tier ([ROADMAP.md](ROADMAP.md#scope)). Extension issues stay unassigned until their gate passes |
 | `contract` | Touches [INTERFACES.md](INTERFACES.md) |
 | `blocked` | Waiting on another issue (link it) |
 | `bug` | Defect |
 
-## Check-ins
+## Gates and check-ins
 
-Before each check-in:
+At each gate (G0 Oct 30, G1 Nov 6, G2 Nov 13, G3 Nov 18) and before each check-in:
 
-1. Feature freeze on `dev` 1–2 days before.
-2. Run the full test suite plus a GPU check on both machines.
-3. PR `dev` → `main`, whole-team review.
-4. Tag `main` (`checkin-N`). Tags are what instructors and the report reference.
+1. Stop feature merges on `dev` the day before.
+2. Run the full test suite, plus a GPU `rt_compare` check on both machines from G2 on.
+3. Open a `dev` → `main` PR for whole-team review against the gate's exit criteria in [ROADMAP.md](ROADMAP.md#gates-and-schedule).
+4. Tag `main` (`g0` … `g3`, `checkin-N`). Instructors and the report reference these tags.
+
+A gate that misses its criteria is recorded as missed in the status table. Don't redefine it.
 
 ## Routines
 

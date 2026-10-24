@@ -2,74 +2,75 @@
 
 ## 1. Role
 
-- **Original:** parallel CPU scene preparation (BVH build), camera controls, preparation scaling measurement, milestone tracking.
-- **Added:** `obj2bin` + Blender export script (Extended). Backup owner for the Embree backend.
+- **Core:** camera; serial median builder + validator; LBVH (the required parallel builder) with layout conversion and depth fallback; preparation scaling study; independent expected values for shading tests; milestone tracking.
+- **Extensions:** E3 parallel binned SAH; E6 `obj2bin` + Blender export; backup for E4 Embree.
 
 ## 2. Owns
 
-`src/bvh/`, `src/camera/`, `apps/obj2bin/`, `scripts/blender/`, milestone status in [ROADMAP.md](../ROADMAP.md#milestone-status).
+`src/bvh/`, `src/camera/`, `apps/obj2bin/`, `scripts/blender/`, shading expected values in `tests/oracle/`, the [status table](../ROADMAP.md#status).
 
 ## 3. Deliverables
 
-| When | Deliverable | Size | Task | Unblocks |
-|---|---|---|---|---|
-| Sept 22–29 | BVH layout contract, `Camera` struct | S | 2 | Mikail, Po |
-| By ~Oct 3 | Serial median-split builder + validator | M | 5 | Mikail's real traversal, Po's BVH reference |
-| By Oct 26 | Camera: look-at, vfov, aspect, JSON + CLI overrides | S | 3 | Everyone's renders |
-| By Oct 26 | LBVH: Morton codes, OpenMP radix sort, Karras hierarchy, atomic refit | L | 11 | Large-scene runs |
-| By Nov 20 | Parallel binned SAH (16–32 bins, parallel top levels, OpenMP tasks below) | L | 14 | Final benchmarks |
-| By Nov 20 | Prep scaling study (1→72 threads), SAH cost metric | M | 14, 20 | Report |
-| Late Nov | `obj2bin` + Blender export | M | 19 | Demo scenes |
-| Ongoing | Milestone + issue tracking, weekly status | S/week | | |
+| Gate | Deliverable | Size | Task |
+|---|---|---|---|
+| G0 (Oct 30) | BVH and camera sections of INTERFACES v0.3 signed off (Oct 27); `camera_ray` per spec | S | C2, C3 |
+| G1 (Nov 6) | Bounds stage; median builder (canonical order, tie rules, edge cases); validator | M | C5 |
+| G1 (Nov 6) | Shading expected values (hand or Python) for Arek's analytic tests | S | C8 |
+| G2 (Nov 13) | LBVH: Morton quantization, stable OpenMP radix sort, Karras hierarchy, atomic refit | L | C11 |
+| G2 (Nov 13) | Layout conversion (collapse, adjacent pairs, top-down slot assignment); depth fallback at depth 32 | M | C11 |
+| Nov 10 check | If LBVH fails the validator or determinism tests: switch to the task-parallel median builder (byte-identical to serial) | S | C11 contingency |
+| G3 (Nov 18) | Preparation scaling, B = 1→72, per stage (`bounds`, `build`, `layout`); BVH stats | M | C13 |
+| After G2 | E3 binned SAH (1-week timebox) | L | E3 |
+| After G3 | E6 `obj2bin` + Blender | M | E6 |
+| Weekly | Status table, weekly meeting | S | |
 
 ## 4. Contracts
 
-- **Owns:** BVH layout (`BvhNode`, `PrimRef`, `build_bvh`, validator) and `Camera` in [INTERFACES.md](../INTERFACES.md#3-bvh-layout).
-- **Consumes:** `AABB`, `vec3` (Arek), `Scene` arrays (Po), traversal correctness tests (Mikail).
+- **Owns:** [BVH layout and build pipeline](../INTERFACES.md#3-bvh-layout-and-build-pipeline), [Camera](../INTERFACES.md#4-camera).
+- **Consumes:** `AABB`, slab test (Arek); `SceneHost`/`Scene` (Po); traversal rules (Mikail).
 
 ## 5. Dependencies
 
-- **Blocked by:** math library `AABB` and Scene struct (week 1).
-- **Blocks:** Mikail's traversal (needs layout + median builder), Po's BVH reference.
-- **Stubs while waiting:** synthetic AABB/centroid arrays. The builder never needs a real scene.
+- **Blocked by:** math library (C2).
+- **Blocks:** Mikail's traversal tests on real trees; Po's CPU backend through the BVH; every scaling result.
+- **Stubs:** synthetic AABB and centroid arrays. The builder never needs a real scene.
 
 ## 6. Tests
 
-- Validator on random inputs: coverage (each primitive once), containment, depth ≤ 64.
-- Each builder: validator passes on random, clustered, and degenerate inputs (all centroids equal, 1 primitive, 2 primitives).
-- Determinism: repeated builds with any thread count produce identical node arrays.
-- SAH cost ordering: SAH ≤ LBVH on benchmark scenes (sanity, not strict).
-- Camera: center ray hits `look_at`; corner rays match the vfov and aspect.
-- `obj2bin`: a cube OBJ gives 12 triangles with correct Y-up coordinates.
+- Validator on random, clustered, all-equal-centroid, 0, 1, and 2 primitive inputs.
+- Determinism: byte-identical `nodes` and `prim_refs` for B = 1, 8, 72.
+- Median depth ≤ ceil(log2 N). LBVH depth within 30 + ceil(log2 N) + 1; `fallbacks` reported.
+- Fallback path exercised by a synthetic tree forced deeper than 32.
+- `sah_cost` reported as a diagnostic, not asserted.
+- Camera: center ray hits `look_at`; corner rays match vfov and aspect; row 0 is the top.
 
 ## 7. References
 
-- Jacco Bikker, "How to build a BVH" (jacco.ompf2.com): parts on binned SAH and fast builds.
 - Karras 2012, "Maximizing Parallelism in the Construction of BVHs, Octrees, and k-d Trees".
-- Wald 2007, "On Fast Construction of SAH-based BVHs".
-- PBRT v4 Ch. 7 (BVH, SAH, LBVH section).
-- *Ray Tracing in One Weekend* (camera chapter).
+- PBRT v4 Ch. 7 (BVH, LBVH section, SAH).
+- Jacco Bikker, "How to build a BVH" (jacco.ompf2.com).
+- Wald 2007, "On Fast Construction of SAH-based BVHs" (E3).
 
-## 8. First-week checklist (before Sept 29)
+## 8. This week (Oct 24–30)
 
-- [ ] Draft BVH layout + `Camera` section of INTERFACES.md before the Sept 24–25 meeting.
-- [ ] Confirm Vista login and run a CPU OpenMP hello world on a GH200 node.
-- [ ] Set up WSL2 per [BUILD.md](../BUILD.md#laptop-wsl2-setup).
-- [ ] Create GitHub issues for Tasks 1–21 with owners and milestones.
-- [ ] Start the median-split builder on synthetic bounds (branch `jett/median-bvh`).
-- [ ] Set up the weekly meeting and the milestone status table.
+- [ ] Review INTERFACES v0.3 sections 3–4; sign off by Oct 27.
+- [ ] Create GitHub issues for C1–C14 and E1–E6, with gate milestones.
+- [ ] Confirm Vista login; run an OpenMP hello world on a GH node.
+- [ ] WSL2 setup per [BUILD.md](../BUILD.md#laptop-wsl2-setup).
+- [ ] `camera_ray` + tests (branch `jett/camera`).
+- [ ] Start the bounds stage + median builder on synthetic input (branch `jett/median-bvh`).
 
 ## 9. Risks
 
 | Risk | Mitigation |
 |---|---|
-| SAH top levels serialize, scaling stalls | Data-parallel binning per node near the root; measure early; fall back to LBVH as the scaling result |
-| LBVH depth > 64 with duplicate Morton codes | Break ties with primitive index (Karras); enforce depth cap in validator |
-| Milestone tracking eats time | Keep it to the weekly meeting + status table |
+| LBVH scaling limited by sort or refit | Time each stage separately; profile before optimizing |
+| Layout conversion bugs | Validator plus BVH-vs-brute-force tests on every builder |
+| SAH tempting before LBVH is solid | E3 starts only after G2 |
 
 ## 10. Contribution log
 
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|
-| Sept 22–28 | | | |
+| Oct 24–30 | | | |
 | | | | |

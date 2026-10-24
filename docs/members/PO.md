@@ -2,79 +2,73 @@
 
 ## 1. Role
 
-- **Original:** single- and multicore CPU reference, scene generator, image comparisons, automated CPU checks.
-- **Added:** `scene_io` + Scene struct, Embree baseline (Extended; Jett is backup), CPU optimization pass, final quality review and reproducibility instructions.
+- **Core:** `SceneHost`, `scene_io`, `.bin`, and scene hash; seeded generator sized in primitives; CPU backend on one core and many cores; `rt_compare` with AOV-based checks; golden images in CI; CPU render scaling; final reproducibility instructions.
+- **Extension:** E4 Embree baseline (Jett is backup).
 
 ## 2. Owns
 
-`src/scene/`, `src/cpu/`, `src/embree/`, `src/image/`, `apps/rt_gen/`, `apps/rt_compare/`, `apps/scene_dump/`, `tests/` structure (GoogleTest), `scenes/known/`, `scenes/golden/`.
-
-CI wiring is Mikail's. Po owns the tests it runs.
+`src/scene/`, `src/cpu/`, `src/image/`, `src/embree/`, `apps/rt_gen/`, `apps/rt_compare/`, `apps/scene_dump/`, `scenes/known/`, `scenes/golden/`, test layout (GoogleTest). CI wiring is Mikail's.
 
 ## 3. Deliverables
 
-| When | Deliverable | Size | Task | Unblocks |
-|---|---|---|---|---|
-| Sept 22–29 | Scene struct + `scene_io` (JSON inline + `.bin` reference) | M | 2 | Everyone |
-| Sept 22–29 | GoogleTest setup | S | 1 | All tests |
-| By ~Oct 10 | Seeded generator: spheres, icospheres, triangle terrain, floor; 10K→1M | M | 6 | Benchmarks, Jett's tests |
-| By ~Oct 10 | Known-case inline JSON scenes | S | 3, 4 | Everyone's tests |
-| By Oct 26 | Single-thread CPU reference: brute force, then BVH | M | 3, 5 | Ground-truth images |
-| By Oct 26 | `rt_compare`: max error, % over threshold, diff heatmap; goldens in CI | M | 7 | GPU validation |
-| By Oct 26 | Multicore renderer (OpenMP 16×16 tiles, dynamic) + scaling script | S | 9 | Multicore baseline |
-| By Nov 20 | Embree backend (triangles + native spheres, shared `shade()`) | M | 17 | Best-possible CPU tier |
-| By Nov 20 | CPU optimization pass + CPU render scaling study | M | 18, 20 | Fair baseline |
-| Late Nov | Final quality review, reproducibility instructions | M | 20 | Release |
+| Gate | Deliverable | Size | Task |
+|---|---|---|---|
+| G0 (Oct 30) | `SceneHost`, `Scene` view, `Image`; JSON v2 reader/writer; scene hash; `scene_dump` | M | C2 |
+| G0 (Oct 30) | Brute-force CPU render loop over `render_pixel`; PNG, PFM, and `.u32img` writers/readers; 3–4 known-case scenes | S | C3 |
+| G1 (Nov 6) | `rt_gen` (`--spheres`, `--terrain-tris`, `--seed`); PCG32; `.bin` with `content_hash`; `-ffp-contract=off` | M | C6 |
+| G1 (Nov 6) | CPU backend: 16×16 tiles, dynamic schedule, `num_threads(R)`, AOVs | S | C7 |
+| G1 (Nov 6) | `rt_compare`: nonfinite, primary-hit, shadow, shading, localization, sRGB summary; heatmap; CI goldens | M | C8 |
+| G3 (Nov 18) | CPU render scaling R = 1→72; optimization pass driven by profiles | M | C13 |
+| After G2 | E4 Embree (4-day timebox): triangles + native spheres, `PrimRef` mapping, shared shading | M | E4 |
+| Final | Quality review (2 reviewers); reproducibility instructions with exact commands, hashes, modules | M | C14 |
 
 ## 4. Contracts
 
-- **Owns:** Scene struct, JSON schema, `.bin` format in [INTERFACES.md](../INTERFACES.md#2-scene-struct-and-file-format). Image comparison thresholds (with the team).
+- **Owns:** [Scene, image, and file formats](../INTERFACES.md#2-scene-image-and-file-formats), the `rt_compare` rules in the [quality protocol](../BENCHMARKING.md#2-image-comparison-rt_compare).
 - **Consumes:** math (Arek), traversal (Mikail), BVH (Jett), shading (Arek), harness (Arek).
 
 ## 5. Dependencies
 
-- **Blocked by:** math library (week 1). Later, Mikail's traversal for the BVH-based reference.
-- **Blocks:** everyone (Scene struct), GPU validation (reference + `rt_compare`), benchmarks (generator).
-- **Stubs while waiting:** brute-force traversal (`brute_closest`/`brute_any`) so the reference needs no BVH early. Inline JSON scenes before the generator.
+- **Blocked by:** math library (C2); Mikail's intersection for the brute-force image (C3).
+- **Blocks:** everyone (scene types); benchmarks (generator); every GPU validation (`rt_compare`).
+- **Stubs:** inline JSON scenes; `brute_*` before the BVH exists.
 
 ## 6. Tests
 
-- JSON and `.bin` round-trip: write then read gives identical structs.
-- Reader rejects bad magic, unknown version, truncated files.
-- Generator determinism: same seed gives identical bytes on x86 (CI) and ARM (manual check on Vista).
+- JSON and `.bin` round trips; readers reject bad magic, unknown version, truncation, and hash mismatch.
+- Same `rt_gen` arguments give the same `content_hash` on the laptop and on Vista.
 - PCG32 matches its published reference outputs.
-- Reference: 1 thread vs N threads bit-identical; brute force vs BVH images match.
-- `rt_compare`: identical images pass; a perturbed image fails; heatmap written.
-- Embree vs CPU reference within tolerance.
+- CPU backend: 1 vs N threads bit-identical (PFM and AOVs).
+- `rt_compare` must fail on an injected NaN, a shifted object, a 10×10 wrong block, and a flipped shadow region, and must pass on identical images.
 
 ## 7. References
 
-- PCG random (pcg-random.org) for PCG32.
-- Embree 4 documentation (user geometry not needed: use native triangles and `RTC_GEOMETRY_TYPE_SPHERE_POINT`).
-- PBRT v4 (reference renderer structure).
-- *Ray Tracing in One Weekend* (camera, sphere scenes).
-- stb_image_write, PFM format notes.
+- PCG (pcg-random.org).
+- PBRT v4 (renderer structure).
+- PFM format notes; stb_image_write.
+- Embree 4 docs (E4).
 
-## 8. First-week checklist (before Sept 29)
+## 8. This week (Oct 24–30)
 
-- [ ] Draft Scene struct, JSON schema, `.bin` header sections of INTERFACES.md for the Sept 24–25 meeting.
-- [ ] Implement `scene.hpp` + JSON reader/writer + `scene_dump` (branch `po/scene-io`).
-- [ ] Write `scenes/known/two_spheres.json` and 2–3 more known-case scenes.
-- [ ] GoogleTest wired into CMake with Mikail.
-- [ ] Set up WSL2 per [BUILD.md](../BUILD.md#laptop-wsl2-setup); confirm Vista login.
+- [ ] Review INTERFACES v0.3 section 2 (incl. canonical hash and `.u32img` AOV format); sign off by Oct 27.
+- [ ] `scene_host.hpp`, JSON v2 reader, hash, `scene_dump` (branch `po/scene-io`).
+- [ ] `scenes/known/two_spheres.json` plus 2–3 more known-case scenes.
+- [ ] Brute-force CPU loop and PNG/PFM output for G0.
+- [ ] GoogleTest wired in with Mikail.
+- [ ] WSL2 setup per [BUILD.md](../BUILD.md#laptop-wsl2-setup); confirm Vista login.
 
 ## 9. Risks
 
 | Risk | Mitigation |
 |---|---|
-| Broadest set of tasks | Embree moves to Jett if Oct 26 items slip; Jett and Arek help validate the reference |
-| Reference called a "weak baseline" | Optimization pass + Embree comparison |
-| Generator differs across machines | Own PRNG + float conversion; no `std::` distributions; byte-compare on Vista |
-| Embree ARM64 build trouble on Vista | Check early (module or source build); verify on Vista |
+| Broadest workload (C2, C3, C6, C7, C8 by G1) | Arek takes CI golden wiring if needed; Jett takes terrain generation; Embree only after G2 |
+| Generator bytes differ across machines | Own PRNG and float conversion; `-ffp-contract=off`; hash compare on Vista |
+| `rt_compare` too lenient | Required failure cases above; tile localization check |
+| Embree ARM64 trouble on Vista | Check early; it's an Extension and can be dropped |
 
 ## 10. Contribution log
 
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|
-| Sept 22–28 | | | |
+| Oct 24–30 | | | |
 | | | | |

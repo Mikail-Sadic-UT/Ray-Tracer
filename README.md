@@ -1,6 +1,6 @@
 # Hybrid Ray Tracer
 
-ECE 379K project. A ray tracer for spheres and triangles that splits work between CPU and GPU. The CPU builds the acceleration structure (BVH) in parallel. The GPU renders visibility, lighting, and hard shadows. We measure speedup against single-core and multicore CPU rendering, and identify when preparation and CPU-GPU transfers limit that speedup.
+ECE 379K project. A ray tracer for spheres and triangles that splits work between CPU and GPU. The CPU builds the acceleration structure (BVH) in parallel. The GPU renders visibility, lighting, and hard shadows. We measure the speedup over single-core and multicore CPU rendering, and identify when preparation and CPU-GPU data movement limit it.
 
 | Member | EID | Proposal role | Member file |
 |---|---|---|---|
@@ -9,68 +9,71 @@ ECE 379K project. A ray tracer for spheres and triangles that splits work betwee
 | Arek Plate | AWP688 | Member 3 | [AREK.md](docs/members/AREK.md) |
 | Po Han Ai | PA22435 | Member 4 | [PO.md](docs/members/PO.md) |
 
-**Status:** planning. No code yet. See [ROADMAP.md](docs/ROADMAP.md).
+**Status (Oct 24):** planning docs only; no code merged in this repository. The schedule was re-baselined to start from today. See [ROADMAP.md](docs/ROADMAP.md#status).
+
+## Required deliverable
+
+1. Spheres + triangles, Lambert lighting with point lights, hard shadows.
+2. Serial median BVH (correctness baseline) and one scalable parallel builder (LBVH).
+3. CPU rendering on one core and on many cores.
+4. A CUDA megakernel that matches the CPU under the [quality protocol](docs/BENCHMARKING.md#quality-protocol).
+5. Validation: analytic tests, independent oracle, BVH vs brute force, image/AOV comparison.
+6. Measurements: application, build-and-render, and prepared-frame times, with scaling and breakdowns.
+
+Extensions (memory modes, Blinn-Phong, SAH, Embree, wavefront, `obj2bin`) start only after the Core gates they depend on pass, in [priority order](docs/ROADMAP.md#extensions-in-priority-order-each-timeboxed). OptiX and the other [stretch items](docs/STRETCH.md) are future work.
 
 ## Goals (from proposal)
 
-These are goals to evaluate, not predictions.
+Hypotheses to evaluate, all measured with the same workload and the same timing definition (T_br, [defined here](docs/BENCHMARKING.md#timing-quantities)):
 
-| Comparison | Target | Measured on |
-|---|---|---|
-| Multicore CPU vs 1 core | ~10× | Largest benchmark scene, up to 72 Grace cores |
-| GPU vs fastest multicore CPU | ~2× | Same scene and settings |
-| Overall | ~20× | Total time: preparation + transfers + rendering |
+| Comparison | Target |
+|---|---|
+| Fastest tested multicore CPU vs 1 core (build and render threads both 1) | ~10× |
+| GPU vs fastest tested multicore CPU (best thread count, not assumed 72) | ~2× |
+| GPU vs 1 core, measured directly | ~20× |
 
-- Output: 1920×1080 images (smaller during development).
-- Timing: median of 5 runs on the same node, with component breakdown. Cold and warm both reported.
-- Quality: no visible differences from the CPU reference in side-by-side review by 2+ reviewers, backed by automated image comparison and known-case tests.
+Fixed 72-thread comparisons are reported alongside, labeled separately ([details](docs/BENCHMARKING.md#targets-from-proposal)).
+
+Output 1920×1080. Median of 5 runs, with spread reported. Quality: no visible differences in side-by-side review by 2+ reviewers, backed by automated checks.
 
 ## Platforms
 
 | Machine | CPU | GPU | Notes |
 |---|---|---|---|
-| TACC Vista GH200 node (primary benchmark) | Grace, 72 Neoverse V2 cores, aarch64 | H100, sm_90, no RT cores | NVLink-C2C CPU-GPU link |
-| Developer laptop, WSL2 Ubuntu 24.04 | i9-13980HX, 8P + 16E cores | RTX 4070 Laptop, sm_89, RT cores | PCIe link |
-| Fallback: Lonestar6 | AMD EPYC | A100, sm_80 | Only if Vista access fails |
+| TACC Vista GH node (primary) | Grace, aarch64 (record core count via `lscpu`) | Hopper, sm_90, no RT cores (record exact name via `nvidia-smi`) | NVLink-C2C |
+| Laptop, WSL2 Ubuntu 24.04 | i9-13980HX, 8P + 16E | RTX 4070 Laptop, sm_89 | PCIe |
+| Fallback: Lonestar6 | AMD EPYC | A100, sm_80 | Only if Vista fails |
 
-The renderer is an offline CLI program. No native Windows build is needed.
+Offline CLI renderer. No native Windows build.
+
+## Schedule
+
+| Date | Gate / event | Exit criteria (summary) |
+|---|---|---|
+| Oct 27 | Contract sign-off | [INTERFACES.md](docs/INTERFACES.md) v0.3 accepted |
+| Oct 30 | **G0** | Builds on WSL2 + Vista, CI green, brute-force CPU image |
+| ~Oct 31–Nov 7 | Check-in 2 (postponed, date TBD) | Latest passed gate (G0 or G1) plus the re-baselined plan; see [ROADMAP.md](docs/ROADMAP.md#gates-and-schedule) |
+| Nov 6 | **G1** | Correct CPU renderer, median BVH, multicore, generator, `rt_compare`, CPU timings, benchmark scenes fixed |
+| Nov 13 | **G2** | CUDA matches CPU; LBVH; first Vista timings. Reduced scope if missed |
+| Nov 16–20 | Check-in 3; **G3** Nov 18 | Scaling, breakdowns, profiling, preliminary ratios; extensions chosen |
+| Nov 30 | Ready | Final runs, review, slides |
+| Dec 1/3 | Presentation | |
+| Dec 6 | Release | Report, reproducible release |
 
 ## Quick start
 
-To be filled once Task 1 (repo skeleton and build) lands. See [BUILD.md](docs/BUILD.md) for the planned setup.
-
-## Scope
-
-| Tier | Contents |
-|---|---|
-| **Core** (proposal) | Parallel CPU BVH build (median, LBVH, SAH), camera, CPU reference (1 and N threads), CUDA megakernel renderer, Lambert + Blinn-Phong lighting, hard shadows, scene generator, image comparison, performance study |
-| **Extended** (added in planning) | Triangles alongside spheres, Embree baseline, GPU memory modes (`managed`/`system`), wavefront pipeline, `obj2bin` + Blender export |
-| **Stretch** (go/no-go at check-in 3) | OptiX RT-core backend, mirror reflections, GPU BVH build, SIMD packet tracing |
-
-Fallback (reduced scope): one fixed scene of spheres + floor, one light, shadows, 640×480. Keeps parallel CPU prep, GPU rendering, quality checks, and single/multicore comparison.
-
-## Milestones
-
-| Date | Milestone | What exists |
-|---|---|---|
-| Sept 24–25 | Contract meeting | [INTERFACES.md](docs/INTERFACES.md) signed off |
-| Sept 29 | Check-in 1 | Shared inputs agreed; Vista CPU+GPU access verified; repo builds |
-| Oct 26–30 | Check-in 2 | CPU reference + first CPU/GPU image; benchmark scenes fixed; initial timings |
-| Nov 16–20 | Check-in 3 | Full renderer, multicore comparison, preliminary results; scope frozen; OptiX go/no-go |
-| Nov 30 | Ready | Final runs, quality review, slides |
-| Dec 1/3 | Presentation | |
-| Dec 6 | Release | Report and reproducible release |
+To be filled once task C1 (skeleton and build) lands. Planned setup: [BUILD.md](docs/BUILD.md).
 
 ## Documentation
 
 | File | Contents |
 |---|---|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Modules, data flow, backends, megakernel vs wavefront, CLI, references |
-| [INTERFACES.md](docs/INTERFACES.md) | Shared structs, function signatures, file formats, precision rules |
-| [BUILD.md](docs/BUILD.md) | WSL2 and Vista setup, CMake options, compilers, dependencies |
-| [BENCHMARKING.md](docs/BENCHMARKING.md) | Methodology, timing, sweeps, quality protocol, plots |
-| [WORKFLOW.md](docs/WORKFLOW.md) | Git branching, PRs, CI, issues, contribution log |
-| [ROADMAP.md](docs/ROADMAP.md) | Tasks, owners, dependencies, milestones, risks |
-| [STRETCH.md](docs/STRETCH.md) | OptiX, SIMD, reflections, GPU BVH build, extras |
-| [REPO_SKELETON.md](docs/REPO_SKELETON.md) | Recommended directory layout and config file contents |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, ownership vs views, backend lifecycle, GPU pipelines, memory modes, CLI |
+| [INTERFACES.md](docs/INTERFACES.md) | Types, frozen numeric rules, BVH pipeline, file formats, results schema |
+| [BUILD.md](docs/BUILD.md) | WSL2 and Vista setup, pinned toolchains, CMake options, flags |
+| [BENCHMARKING.md](docs/BENCHMARKING.md) | Timing quantities, threads, targets, sweeps, memory-mode protocol, quality protocol |
+| [WORKFLOW.md](docs/WORKFLOW.md) | Branching, PRs, CI, issues, gates |
+| [ROADMAP.md](docs/ROADMAP.md) | Scope, gates, owners, tasks, risks, status |
+| [STRETCH.md](docs/STRETCH.md) | OptiX, SIMD, reflections, GPU BVH build |
+| [REPO_SKELETON.md](docs/REPO_SKELETON.md) | Recommended layout and config file contents |
 | [members/](docs/members/) | Per-member scope, deliverables, checklist, contribution log |

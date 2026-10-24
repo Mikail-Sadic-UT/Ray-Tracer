@@ -1,6 +1,6 @@
 # Build
 
-Planned build setup. Commands become final when Task 1 lands (see [ROADMAP.md](ROADMAP.md)). Items marked **verify on Vista** need confirmation at check-in 1.
+Planned build setup. Commands become final when task C1 lands (see [ROADMAP.md](ROADMAP.md#c1-skeleton-build-ci-vista-verification)). Items marked **verify on Vista** must be confirmed in C1, by gate G0 (Oct 30).
 
 ## Toolchain targets
 
@@ -8,13 +8,23 @@ Planned build setup. Commands become final when Task 1 lands (see [ROADMAP.md](R
 |---|---|---|
 | OS | Ubuntu 24.04 | Linux, aarch64 (**verify on Vista** distro) |
 | Host compiler | GCC 13.3 (Ubuntu default) | `gcc/13.2.0` module |
-| CUDA | 12.x toolkit for WSL | `cuda` module, 12.x (**verify on Vista**: `module spider cuda`) |
+| CUDA | WSL-Ubuntu toolkit, exact version TBD in C1 | `cuda` module, exact version TBD in C1 (`module spider cuda`) |
+| GPU | RTX 4070 Laptop (Ada) | Hopper; record the exact name from `nvidia-smi` (docs list both H100 and H200) |
 | CUDA arch | `sm_89` (`RT_CUDA_ARCH=89`) | `sm_90` (`RT_CUDA_ARCH=90`) |
 | C++ standard | C++17 | C++17 |
 | CMake | ≥ 3.24 (suggested) | `cmake` module (**verify on Vista**) |
 | Generator | Ninja | Ninja or Make |
 
-Why GCC 13 and not 15: CUDA 12.x supports host GCC versions up to 14. Vista also has `gcc/15.1.0`, but avoid it with nvcc unless the loaded CUDA version supports it. The 13.2 vs 13.3 difference does not matter for C++17.
+### Pinned toolchain pairs
+
+Supported host compilers depend on the **CUDA minor release**, not just "12.x". For each machine, check the "Host Compiler Support Policy" table in the NVIDIA CUDA installation guide for that exact version, then pin a pair that actually builds and passes tests. GCC 13 is the target because Ubuntu 24.04 ships 13.3 and Vista has `gcc/13.2.0`. Vista's `gcc/15.1.0` is only usable if the loaded CUDA release lists it.
+
+| Machine | GCC | CUDA | Driver | Tested on (date, commit) |
+|---|---|---|---|---|
+| Laptop (WSL2) | 13.3 | TBD | TBD | TBD |
+| Vista GH node | 13.2.0 | TBD | TBD | TBD |
+
+C1 fills this table. Changing a pair requires a PR that reruns the test suite on that machine.
 
 ## Laptop: WSL2 setup
 
@@ -46,6 +56,14 @@ module list
 ```
 
 NVIDIA HPC SDK (`nvc`, `nvc++`) is Vista's default compiler suite. Always load `gcc` explicitly before CMake so CMake and nvcc use GCC.
+
+Record machine identity on the allocated node every time (the sbatch template does this automatically):
+
+```bash
+nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv
+lscpu | head -20
+gcc --version; nvcc --version; module list
+```
 
 Interactive GPU session for development:
 
@@ -81,8 +99,8 @@ ctest --test-dir build --output-on-failure
 | Option | Default | Effect |
 |---|---|---|
 | `RT_ENABLE_CUDA` | `ON` if a CUDA compiler is found | Builds `src/gpu`, the `cuda` backend |
-| `RT_CUDA_ARCH` | `89` | `89` laptop, `90` H100, `80` A100 |
-| `RT_ENABLE_EMBREE` | `OFF` | Builds the `embree` backend (Extended). Needs Embree 4 installed or fetched |
+| `RT_CUDA_ARCH` | `89` | `89` laptop, `90` Vista Hopper, `80` A100 |
+| `RT_ENABLE_EMBREE` | `OFF` | Builds the `embree` backend (Extension E4). Needs Embree 4 installed or fetched |
 | `RT_ENABLE_OPTIX` | `OFF` | Builds the `optix` backend (Stretch). Needs `OptiX_INSTALL_DIR` |
 | `RT_BUILD_TESTS` | `ON` | GoogleTest unit and regression tests |
 
@@ -95,14 +113,15 @@ A CPU-only build must always work. CI uses it.
 | `-O3 -fopenmp` | All Release builds |
 | `-march=native` | x86 laptop |
 | `-mcpu=native` (or `-mcpu=neoverse-v2`) | Grace (**verify on Vista** which GCC 13.2 accepts) |
-| No `-ffast-math`, no `--use_fast_math` | Everywhere (see [INTERFACES.md](INTERFACES.md#precision-and-tolerance-rules)) |
-| `-Xcompiler -fopenmp`, `-lineinfo` | nvcc (lineinfo for Nsight) |
+| No `-ffast-math`, no `--use_fast_math` | Everywhere (the NaN-safe slab test depends on IEEE comparisons; see [INTERFACES.md](INTERFACES.md#ray-box-slab-test-frozen)) |
+| `-ffp-contract=off` | Generator and scene-hash sources only, so x86 and ARM produce identical bytes |
+| `-Xcompiler -fopenmp`, `-lineinfo`, `-Xptxas -v` | nvcc (lineinfo for Nsight; `-v` reports registers and local memory) |
 
 Benchmark binaries on Vista must be built on Vista. Don't copy laptop binaries.
 
 ## Dependencies
 
-Fetched with CMake `FetchContent`, pinned to **exact tags** (filled in during Task 1):
+Fetched with CMake `FetchContent`, pinned to **exact tags** (filled in during C1):
 
 | Library | Use | Pin |
 |---|---|---|
@@ -110,13 +129,13 @@ Fetched with CMake `FetchContent`, pinned to **exact tags** (filled in during Ta
 | stb (stb_image_write) | PNG output | commit hash |
 | CLI11 | Command line | `vX.Y.Z` |
 | GoogleTest | Tests | `vX.Y.Z` |
-| tinyobjloader | `obj2bin` (Extended) | `vX.Y.Z` |
-| Embree 4 | Embree backend (Extended) | `v4.x` (**verify on Vista** ARM64 build or module) |
+| tinyobjloader | `obj2bin` (Extension E6) | `vX.Y.Z` |
+| Embree 4 | Embree backend (Extension E4) | `v4.x` (**verify on Vista** ARM64 build or module) |
 | OptiX SDK | OptiX backend (Stretch) | `8.x` or newer, manual download |
 
 ## OptiX on WSL2 (Stretch)
 
-NVIDIA's recent Windows drivers support OptiX inside WSL2. Verify this early on the 4070 by building and running the `optixSphere` SDK sample in WSL2. If it fails, build only the `optix` backend natively on Windows (MSVC + CUDA). The rest of the project stays WSL2-only. On Vista, OptiX runs on the H100 without RT-core hardware. See [STRETCH.md](STRETCH.md#optix-backend).
+NVIDIA's recent Windows drivers support OptiX inside WSL2. Verify this early on the 4070 by building and running the `optixSphere` SDK sample in WSL2. If it fails, build only the `optix` backend natively on Windows (MSVC + CUDA). The rest of the project stays WSL2-only. On Vista, OptiX runs on the Hopper GPU without RT-core hardware. See [STRETCH.md](STRETCH.md#optix-backend).
 
 ## Profiling tools
 

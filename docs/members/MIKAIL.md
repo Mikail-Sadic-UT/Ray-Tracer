@@ -2,81 +2,78 @@
 
 ## 1. Role
 
-- **Original:** GPU visibility (intersection + traversal), TACC access and builds, batch scripts.
-- **Added:** top-level CMake/CUDA build, GitHub Actions CI, GPU memory modes (Extended), OptiX backend (Stretch), node-hour log.
+- **Core:** skeleton, CMake, CI, Vista verification; intersection and traversal; backend interface; `DeviceScene` (explicit) and the CUDA megakernel; sweep scripts; GPU profiling; node-hour log.
+- **Extensions:** E1 `managed`/`system` memory modes on the GH node; E5 wavefront trace kernels.
+- **Stretch:** OptiX (with Arek).
 
 ## 2. Owns
 
-`CMakeLists.txt`, `cmake/`, `.github/`, `src/trace/`, `src/gpu/` (except wavefront shade/accumulate/queues), `src/optix/`, `apps/rt_render/`, `apps/hello_cuda/`, `scripts/tacc/`.
+`CMakeLists.txt`, `cmake/`, `.github/`, `src/trace/`, `src/backend.hpp`, `src/gpu/` (except wavefront shade, accumulate, and queues), `src/optix/`, `apps/rt_render/`, `apps/hello_cuda/`, `scripts/tacc/`.
 
 ## 3. Deliverables
 
-| When | Deliverable | Size | Task | Unblocks |
-|---|---|---|---|---|
-| Sept 22–29 | Vista CPU+GPU access test, hello_cuda on GH200, module list | S | 1 | Check-in 1 |
-| Sept 22–29 | Repo skeleton, CMake options, CI, sbatch template, branch protection | M | 1 | Everyone's builds |
-| By ~Oct 6 | Sphere/triangle intersection + `traverse_closest`/`traverse_any`, CPU-tested first | M | 3, 5 | Po's reference, Arek's integration (**critical path**) |
-| By Oct 26 | `DeviceMemory` (explicit), megakernel, first GPU image | M | 10 | Check-in 2 |
-| By Nov 20 | `managed` + `system` modes on GH200 | M | 15 | NVLink-C2C study |
-| By Nov 20 | Wavefront trace kernels (with Arek); traversal tuning: nearer-child-first, node layout, occupancy | M | 16, 18 | Pipeline comparison |
-| By Nov 20 | Sweep sbatch scripts, results collection | S | 13 | Final measurements |
-| Check-in 3 | OptiX go/no-go; backend in late Nov if go | L | 21 | RT-core comparison |
+| Gate | Deliverable | Size | Task |
+|---|---|---|---|
+| G0 (Oct 30) | Repo, protection rules, PR template; CMake with CPU-only fallback; CI per the fixed outline | M | C1 |
+| G0 (Oct 30) | `hello_cuda` on a GH node; record the tested GCC + CUDA pair and the GPU name in BUILD.md | S | C1 |
+| G0 (Oct 30) | Intersection: watertight triangle, stable sphere quadratic, frozen interval and tie rules; `brute_*` | M | C3 |
+| G1 (Nov 6) | `traverse_closest` / `traverse_any` (inclusive culling, near-first, 64-entry stack, empty BVH) | M | C5 |
+| G2 (Nov 13) | Backend interface with `RenderSettings`; `DeviceScene` uploading scene + BVH; megakernel calling `render_pixel`; AOV download | M | C10 |
+| G2 (Nov 13) | Sweep sbatch scripts with identity recording; node-hour log | S | C12 |
+| G3 (Nov 18) | GPU profiling: `-Xptxas -v`, Nsight Compute (occupancy, local memory), Nsight Systems | M | C13 |
+| After G2 | E1 memory modes with advice, prefetch, and residency recording (4-day timebox) | M | E1 |
+| After G3 | E5 trace kernels with Arek | M | E5 |
 
 ## 4. Contracts
 
-- **Owns:** traversal + intersection API (`Hit`, `intersect_*`, `traverse_*`, `brute_*`) in [INTERFACES.md](../INTERFACES.md#4-traversal-and-intersection). Backend interface in [ARCHITECTURE.md](../ARCHITECTURE.md#backend-interface).
-- **Consumes:** math (Arek), Scene (Po), BVH layout (Jett), shading (Arek), timers (Arek).
+- **Owns:** [Intersection and traversal](../INTERFACES.md#5-intersection-and-traversal), [Backend interface](../INTERFACES.md#7-backend-interface), `DeviceScene`.
+- **Consumes:** math and slab test (Arek), `SceneHost` (Po), BVH layout (Jett), shading (Arek), timers (Arek).
 
 ## 5. Dependencies
 
-- **Blocked by:** BVH layout contract and Scene struct (week 1).
-- **Blocks:** Po's BVH reference, Arek's GPU integration, everyone's builds (Task 1).
-- **Stubs while waiting:**
-  - Hand-built 3-node BVH for traversal tests before Jett's builder lands.
-  - Constant-color `shade()` for the first megakernel.
-  - Inline JSON scenes.
+- **Blocked by:** math library (C2). Traversal also needs Jett's median builder, but a hand-built 3-node BVH suffices to start.
+- **Blocks:** everyone's builds (C1); the brute-force image (C3); the CPU BVH path (C5); G2.
+- **Stubs:** hand-built BVH; normal-as-color shading for the first kernel; inline JSON scenes.
 
 ## 6. Tests
 
-- Intersection: hit, miss, grazing, origin inside sphere, behind origin, degenerate triangle, edge/vertex hits.
-- Traversal vs brute force: identical `Hit` on 10K random rays over random scenes (CPU).
-- Any-hit respects `tmax` (occluder past the light is ignored).
-- GPU vs CPU image within tolerance on known-case and `bench_100k`, both machines.
-- All `--mem` modes produce matching images on GH200; unsupported mode fails cleanly on laptop.
+- Intersection: hit, miss, grazing, inside sphere, behind origin, degenerate triangle, shared edge (exactly one winner by `PrimRef`), vertex hits.
+- Arek's double-precision oracle agrees on random rays away from edges.
+- BVH vs brute force: identical `prim` and bit-identical `t`.
+- Any-hit respects `tmax`. Empty scene returns a miss.
+- GPU vs CPU passes `rt_compare` on known scenes and `bench_100k`, on both machines. Repeated GPU runs are bit-identical.
+- E1: all modes pass `rt_compare`; unsupported modes fail cleanly on the laptop.
 
 ## 7. References
 
+- PBRT v4 Ch. 6 (watertight triangle test, sphere quadratic, ray-box robustness).
+- Woop, Benthin, Wald 2013, "Watertight Ray/Triangle Intersection".
 - Aila & Laine 2009, "Understanding the Efficiency of Ray Traversal on GPUs".
-- PBRT v4 Ch. 6 (triangle intersection, watertight test).
-- Jacco Bikker BVH series (GPU traversal part).
-- Laine, Karras & Aila 2013, "Megakernels Considered Harmful".
-- TACC Vista user guide; NVIDIA Grace Hopper unified memory blog posts.
-- OptiX SDK samples `optixSphere`, `optixWhitted`.
+- CUDA Programming Guide: local memory, unified memory; NVIDIA CUDA installation guide (host compiler table for the exact CUDA version).
+- TACC Vista user guide.
 
-## 8. First-week checklist (before Sept 29)
+## 8. This week (Oct 24–30)
 
-- [ ] Vista: `idev -p gh-dev -N 1 -n 1 -t 1:00:00`, `nvidia-smi`, build and run hello_cuda with `gcc/13.2.0` + `cuda`.
-- [ ] Record `module spider cuda`, `gcc`, `cmake` versions in [BUILD.md](../BUILD.md). Confirm CUDA supports GCC 13.2.
-- [ ] Create the GitHub repo, `main` + `dev` with protection rules, PR template.
-- [ ] Root CMakeLists with options, pinned FetchContent, CPU-only fallback.
-- [ ] CI workflow running a placeholder test.
-- [ ] sbatch template + node-hour log started.
-- [ ] Draft traversal/intersection section of INTERFACES.md for the Sept 24–25 meeting.
-- [ ] Optional: check OptiX `optixSphere` sample on the 4070 in WSL2.
+- [ ] Vista: `idev -p gh-dev -N 1 -n 1 -t 1:00:00`; run `nvidia-smi` identity query; build `hello_cuda` with `gcc/13.2.0` + `cuda`.
+- [ ] Check the CUDA install guide for the loaded version's supported GCC; fill the pinned-pairs table in [BUILD.md](../BUILD.md#pinned-toolchain-pairs).
+- [ ] Create the repo with `main` + `dev` protection and the PR template.
+- [ ] Root CMake; CI with the fixed format check.
+- [ ] Review INTERFACES v0.3 sections 5 and 7; sign off by Oct 27.
+- [ ] Start intersection with tests (branch `mikail/intersect`).
 
 ## 9. Risks
 
 | Risk | Mitigation |
 |---|---|
-| Heavy, front-loaded September | Keep Task 1 minimal; skeleton first, polish later |
-| Traversal delays block Po and Arek | Brute-force functions ship first with the same signatures |
-| CUDA/GCC mismatch on Vista | Try module pairs early; document the working pair |
-| `system` mode behaves unexpectedly | Start with `explicit`; treat `system` as an experiment and report what happens |
-| OptiX on WSL2 fails | Native Windows build for that backend only, or no-go |
+| Front-loaded: C1 and C3 in the same week | Keep C1 minimal; intersection is small and well-specified |
+| Traversal on the critical path | `brute_*` ships first with the same rules |
+| CUDA/GCC pair unsupported on Vista | Check the versioned compatibility table; try module pairs early |
+| Megakernel slower than expected | Profile local-memory stack traffic before redesigning |
+| `system` mode results drift between runs | Record per-frame times and residency settings (E1 protocol) |
 
 ## 10. Contribution log
 
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|
-| Sept 22–28 | | | |
+| Oct 24–30 | | | |
 | | | | |

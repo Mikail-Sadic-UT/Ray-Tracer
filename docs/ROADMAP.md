@@ -1,317 +1,273 @@
 # Roadmap
 
-Owners, tasks, dependencies, milestones, and risks. Per-person views are in [members/](members/). Jett tracks milestone status here.
+**Re-baselined Oct 24.** As of this date the repository contains planning docs only, with no code merged. The original September dates no longer describe an executable plan. If work exists outside this repo, merge it and update [Status](#status) before using these dates.
 
-Scope tags: **Core** = in the original proposal. **Extended** = added in planning. **Stretch** = go/no-go at check-in 3.
+Owners, gates, tasks, and risks are below. Per-person views are in [members/](members/). Jett updates the status table weekly.
 
-## Before check-in 1
+## Scope
 
-- **Contract meeting, Sept 24–25.** All four sign off [INTERFACES.md](INTERFACES.md). Later changes follow the contract-change process.
-- **Present extended goals at check-in 1.** Triangles, Embree, memory modes, wavefront, and OptiX go beyond the proposal. Present them to the instructor as extended goals layered on the original plan. The [reduced scope](#reduced-scope-fallback) stays the fallback, so missing an extension is not missing a commitment.
+Tags: **Core** = required deliverable. **Extension** = earns its place only after the Core gates pass, in priority order. **Stretch** = future work, unlikely this term.
+
+### Required deliverable (Core)
+
+1. Spheres and triangles, one Lambert point-light model, hard shadows (multiple point lights allowed).
+2. Serial median BVH (correctness baseline) and **one** scalable parallel builder: **LBVH**.
+3. CPU renderer, single-core and multicore.
+4. CUDA megakernel with explicit memory, matching the CPU per the [quality protocol](BENCHMARKING.md#quality-protocol).
+5. Validation: analytic tests, double-precision oracle, BVH vs brute force, `rt_compare`, determinism.
+6. Measurements: T_app, T_br, T_frame; CPU and preparation scaling; GPU breakdown; profiling.
+
+Triangles are Core: the floor in every known-case scene is two triangles, and triangle support is a single intersection function plus a type tag.
+
+### Extensions (in priority order, each timeboxed)
+
+| # | Extension | Owner | Earliest start | Timebox | Why this order |
+|---|---|---|---|---|---|
+| E1 | `managed` + `system` memory modes on the GH node | Mikail | After G2 | 4 days | Directly answers the proposal's "when does data movement limit the gain" |
+| E2 | Blinn-Phong + directional lights | Arek | After G1 | 2 days | Small; better images |
+| E3 | Parallel binned SAH | Jett | After G2 | 1 week | Build cost vs tree quality, the preparation tradeoff |
+| E4 | Embree baseline | Po (Jett backup) | After G2 | 4 days | "Best possible CPU" tier |
+| E5 | Wavefront pipeline | Arek, Mikail | After G3 | 1 week | Per-stage GPU timing; first to cut |
+| E6 | `obj2bin` + Blender export | Jett | After G3 | 3 days | Demo images only |
+
+At check-in 3 the team picks which extensions to run, based on remaining time and on what the preliminary results raise. Realistically E1–E3 fit; the rest are likely cut. Extensions never block a Core gate.
+
+### Stretch (not planned)
+
+OptiX backend, mirror reflections, GPU-side LBVH build, SIMD packet tracing. See [STRETCH.md](STRETCH.md).
+
+## Gates and schedule
+
+```mermaid
+flowchart LR
+  G0["G0 · Oct 30<br/>skeleton, contracts,<br/>Vista verified, first CPU image"] --> G1["G1 · Nov 6<br/>correct CPU renderer<br/>+ median BVH + tools"]
+  G1 --> G2["G2 · Nov 13<br/>CUDA matches CPU<br/>+ LBVH"]
+  G2 --> G3["G3 · Nov 18<br/>scaling, measurements,<br/>profiling"]
+  G3 --> F["Nov 30<br/>final runs, review, slides"]
+```
+
+| Gate | Date | Exit criteria | Event |
+|---|---|---|---|
+| **G0** | Oct 30 | INTERFACES v0.3 signed off (Oct 27). Repo builds CPU-only in CI and with CUDA on the laptop and Vista. `hello_cuda` prints the recorded GPU name on a GH node. Brute-force CPU image of `known_two_spheres` (normal shading). | |
+| **G1** | Nov 6 | Lambert + point-light shadows on CPU passing analytic tests. Median BVH + validator; BVH = brute force exactly. Multicore CPU bit-identical to 1 thread. `rt_gen` + `.bin` + hash. `rt_compare` with AOV checks. Harness reports T_br and T_frame on CPU. Benchmark scene sizes fixed. | Check-in 2 (postponed to ~Oct 31–Nov 7, date TBD) |
+| **G2** | Nov 13 | CUDA megakernel passes `rt_compare` against CPU on known scenes and `bench_100k`, on laptop and Vista. LBVH + layout conversion: validator passes, deterministic for any thread count. First Vista T_app / T_br / T_frame at 3 sizes. Tolerances fixed with evidence. | |
+| **G3** | Nov 18 | Preparation scaling (B = 1→72) and CPU render scaling. GPU breakdown. Profiling done (`-Xptxas -v`, Nsight). Preliminary 10× / 2× / 20× ratios. Scope frozen; extensions chosen. | Check-in 3 (Nov 16–20) |
+| Final | Nov 30 | Final sweeps, quality review (2 reviewers), slides. Thanksgiving is Nov 26; plan around it. | |
+| | Dec 1/3 | | Presentation |
+| | Dec 6 | Report, reproducibility instructions, `final` tag | Release |
+
+**Check-in 2 (postponed).** It moved from Oct 26–30 to roughly 1–2 weeks after Oct 24. Record the exact date in [Status](#status) once it's announced. The gate dates don't move: the postponement buys no extra time before check-in 3 and the final deadline, so the team keeps working to G0 (Oct 30) and G1 (Nov 6). Present the latest gate that has passed:
+
+| If check-in 2 falls on | Present |
+|---|---|
+| Oct 31–Nov 5 | G0 complete, the re-baselined plan, G1 progress (shaded CPU image, median BVH if merged) |
+| Nov 6–7 | G1 complete: correct CPU renderer with shadows, BVH, multicore, `rt_compare`, first CPU timings, fixed benchmark scenes |
+
+The first GPU image remains a G2 item (Nov 13). Don't pull it forward at the cost of G1's correctness checks. Check-in 3 (Nov 16–20) is assumed unchanged; update this table if it moves too.
+
+**Reduced-scope trigger:** if G2 is not met by **Nov 13**, adopt the [reduced scope](#reduced-scope-fallback) immediately (earlier than the proposal's Nov 20) and spend the remaining time on measurement.
 
 ## Ownership
 
-| Member | Original scope | Added in planning |
+| Member | Core | Extensions |
 |---|---|---|
-| Jett (M1) | Parallel BVH build, camera, prep scaling, milestones | `obj2bin` + Blender export; Embree backup |
-| Mikail (M2) | GPU visibility, TACC builds, batch scripts | Top-level CMake/CUDA build, GitHub Actions CI, memory modes, OptiX (stretch) |
-| Arek (M3) | GPU lighting/shadows, render timing | Math library, benchmark harness + timing schema, wavefront queues/shade/accumulate, OptiX pairing |
-| Po (M4) | CPU reference, generator, image compare, CPU checks | `scene_io`, Embree baseline, CPU optimization pass |
+| Jett (M1) | Camera; median builder + validator; LBVH + layout conversion + depth fallback; preparation scaling; shading expected values (independent check); milestones | E3 SAH, E6 `obj2bin`, E4 backup |
+| Mikail (M2) | Skeleton, CMake, CI, Vista; intersection + traversal; `DeviceScene` + megakernel; sweep scripts; GPU profiling; node-hour log | E1 memory modes, E5 trace kernels |
+| Arek (M3) | Math library; Lambert shading + shadow rays; harness (T_app / T_br / T_frame); double-precision intersection oracle; plots | E2 Blinn-Phong, E5 queues/shade/accumulate |
+| Po (M4) | `SceneHost` + `scene_io` + hash; generator; CPU backend (1 and N threads); `rt_compare` + AOV checks; CPU render scaling; final reproducibility | E4 Embree |
 
-Size key (part-time): **S** ≈ 1 day, **M** ≈ 2–4 days, **L** ≈ 1–2 weeks.
+Cross-checks: each shared function's independent check is written by someone other than its author. Arek checks Mikail's intersection; Jett checks Arek's shading values; Mikail and Po check Jett's builders through BVH-vs-brute-force tests.
 
-| Member | Load | Peak | Main risk |
-|---|---|---|---|
-| Jett | M–L | Oct–Nov | SAH scaling |
-| Mikail | L | Sept–Oct (front-loaded) | Traversal on the critical path |
-| Arek | M–L | Nov (wavefront) | Wavefront complexity |
-| Po | Broadest (many M items) | All term | Breadth |
-
-## Dependency graph
+## Dependency graph (Core only)
 
 ```mermaid
 flowchart TD
-  M[Math lib - Arek] --> S[Scene struct + scene_io - Po]
+  M[Math lib - Arek] --> S[SceneHost + scene_io - Po]
   M --> BL[BVH layout - Jett]
+  M --> I[Intersection - Mikail]
+  S --> BR[Brute-force CPU image - Po]
+  I --> BR
+  CAM[Camera - Jett] --> BR
+  BR --> SH[Lambert + shadows - Arek]
+  BL --> MED[Median builder + validator - Jett]
+  MED --> TR[Traversal - Mikail]
+  I --> TR
+  TR --> CPU[CPU backend 1..N - Po]
+  SH --> CPU
   S --> GEN[Generator - Po]
-  BL --> MED[Median-split builder - Jett]
-  M --> SH[shade - Arek]
-  BL --> TR[Traversal + intersection - Mikail]
-  MED --> TR
-  TR --> REF[CPU reference - Po]
-  SH --> REF
+  CPU --> CMP[rt_compare + AOVs - Po]
   TR --> MK[Megakernel - Mikail]
   SH --> MK
-  CM[CMake + CI - Mikail] --> MK
-  REF --> IC[Image compare - Po]
-  MK --> IC
-  IC --> CK2((Check-in 2: first CPU/GPU image))
-  MED --> LB[LBVH - Jett] --> SAH[Binned SAH - Jett]
-  MK --> WF[Wavefront - Arek+Mikail]
-  MK --> MEM[managed/system modes - Mikail]
-  REF --> EMB[Embree - Po]
-  H[Harness - Arek] --> CK3((Check-in 3: results))
-  SAH --> CK3
-  WF --> CK3
-  MEM --> CK3
-  EMB --> CK3
-  CK3 -.go/no-go.-> OPX[OptiX - Mikail+Arek, stretch]
+  CMP --> G2((G2))
+  MK --> G2
+  MED --> LB[LBVH + conversion - Jett] --> G2
+  H[Harness - Arek] --> G2
+  G2 --> G3((G3: scaling, measurements, profiling))
 ```
 
-**Critical path to check-in 2:** math lib → BVH layout → traversal → (CPU reference + megakernel) → image compare.
+**Critical path:** math lib → intersection → brute-force image → traversal → megakernel → `rt_compare` pass at G2.
 
 ### Stubs
 
-Use these to keep working while a dependency isn't ready.
-
 | Stub | Stands in for | Used by |
 |---|---|---|
-| Hand-written inline JSON scenes | Generator | All |
-| Brute-force traversal (`brute_closest`, `brute_any`) | BVH traversal | Po's early reference |
-| Hand-built tiny BVH (3 nodes) | Builders | Mikail |
-| Synthetic `Hit` arrays | Traversal | Arek |
-| Constant-color `shade()` | Real shading | Mikail's first megakernel |
+| Inline JSON known-case scenes | Generator | All |
+| `brute_closest` / `brute_any` | BVH traversal | Po, Arek, Mikail's first kernel |
+| Hand-built 3-node BVH | Builders | Mikail |
+| Synthetic `Hit` / `SurfacePoint` arrays | Traversal | Arek |
+| Normal-as-color shading | Real shading | First CPU and GPU images |
 | Synthetic AABB/centroid arrays | Scene + generator | Jett |
 
-## Milestones
+## Core tasks
 
-| Milestone | Date | Tasks done | Exit criteria |
+| # | Task | Owner(s) | Gate |
 |---|---|---|---|
-| Contract meeting | Sept 24–25 | 2 (draft) | INTERFACES.md signed off |
-| Check-in 1 | Sept 29 | 1, 2 | Repo builds on WSL2 + Vista, hello_cuda runs on GH200, CI green, contracts frozen |
-| Check-in 2 | Oct 26–30 | 3–10, 11 started | CPU reference + first GPU image matching within tolerance; benchmark scenes fixed; initial timings |
-| Check-in 3 | Nov 16–20 | 11–18 | Full renderer, multicore comparison, preliminary results, scope frozen, OptiX go/no-go |
-| Ready | Nov 30 | 19, 20 (+21 if go) | Final runs, quality review, slides |
-| Presentation | Dec 1/3 | | |
-| Release | Dec 6 | | Report, tagged `final`, reproducibility instructions |
+| C1 | Skeleton, build, CI, Vista verification | Mikail | G0 |
+| C2 | Contracts v0.3 sign-off; math lib; `SceneHost`, `scene_io`, hash | Arek, Po (all sign) | G0 |
+| C3 | Intersection (watertight triangle, stable sphere, NaN-safe slab) + camera + brute-force CPU image | Mikail, Jett, Po | G0 |
+| C4 | Lambert + point-light shadows, frozen shadow-ray rules | Arek | G1 |
+| C5 | Median builder, validator, traversal; BVH = brute force | Jett, Mikail | G1 |
+| C6 | Generator, `.bin`, hash, cross-machine determinism | Po | G1 |
+| C7 | CPU backend 1..N threads (16×16 tiles, dynamic) | Po | G1 |
+| C8 | `rt_compare` with AOVs; analytic tests; double oracle; CI goldens | Po, Arek, Jett | G1 |
+| C9 | Harness: T_app, T_br, T_frame, components, results schema v2 | Arek | G1 (CPU), G2 (GPU) |
+| C10 | `DeviceScene` (explicit) + megakernel | Mikail | G2 |
+| C11 | LBVH + layout conversion + depth fallback | Jett | G2 |
+| C12 | Sweep scripts, node-hour log | Mikail | G2 |
+| C13 | Scaling studies, GPU breakdown, profiling, preliminary ratios | All (Jett, Po CPU; Mikail, Arek GPU) | G3 |
+| C14 | Final runs, quality review, report, release | All | Final |
 
-## Tasks
-
-| # | Task | Owner(s) | Tag | Target |
-|---|---|---|---|---|
-| 1 | Repo skeleton, build, CI | Mikail | Core | Sept 29 |
-| 2 | Contracts: math, Scene, scene_io | Arek, Po | Core | Sept 29 |
-| 3 | First CPU image, brute force | Mikail, Jett, Po | Core | ~Oct 6 |
-| 4 | Lighting + shadows on CPU | Arek | Core | ~Oct 10 |
-| 5 | BVH layout, median builder, CPU traversal | Jett, Mikail, Po | Core | ~Oct 6 |
-| 6 | Generator + binary format | Po | Core | ~Oct 10 |
-| 7 | Image compare + regression tests | Po | Core | Oct 26 |
-| 8 | Benchmark harness | Arek | Core | Oct 26 |
-| 9 | Multicore CPU renderer + scaling | Po | Core | Oct 26 |
-| 10 | CUDA megakernel, explicit memory | Mikail | Core | Oct 26 |
-| 11 | LBVH builder | Jett | Core | Oct 26 |
-| 12 | Blinn-Phong + directional lights | Arek | Core | Oct 26 |
-| 13 | TACC sweep tooling | Mikail | Core | Nov 20 |
-| 14 | Parallel binned SAH | Jett | Core | Nov 20 |
-| 15 | Managed + system memory modes | Mikail | Extended | Nov 20 |
-| 16 | Wavefront pipeline | Arek, Mikail | Extended | Nov 20 |
-| 17 | Embree backend | Po (Jett backup) | Extended | Nov 20 |
-| 18 | Optimization pass | Po, Mikail | Core | Nov 20 |
-| 19 | `obj2bin` + Blender export | Jett | Extended | Late Nov |
-| 20 | Final measurements, review, report | All | Core | Nov 30 / Dec 6 |
-| 21 | OptiX backend | Mikail, Arek | Stretch | Late Nov if go |
-
-LBVH (Task 11) and SAH (Task 14) are both Core, but the proposal only requires one parallel builder. If time runs short, keep whichever scales and report the other as partial.
-
-### Task 1: Repo skeleton, build, CI
-Owner: Mikail (all review). Due Sept 29. **Core.**
-- **Objective:** a buildable empty project on WSL2 and Vista.
+### C1: Skeleton, build, CI, Vista verification
+Owner: Mikail.
+- **Objective:** a buildable project on WSL2 and Vista.
 - **Guidance:**
-  - CMake with options from [BUILD.md](BUILD.md#cmake-options); pinned FetchContent deps; `.clang-format`.
-  - GitHub Actions CPU-only build + tests.
-  - `hello_cuda` app; Vista module script + sbatch template.
-  - Branch protection on `main` and `dev`; PR template. See [REPO_SKELETON.md](REPO_SKELETON.md).
-- **Tests:** a placeholder test passes in CI.
-- **Demo:** the same commit builds and runs `hello_cuda` on the laptop and a GH200 node. CI green.
+  - CMake options from [BUILD.md](BUILD.md#cmake-options); pinned FetchContent; `.clang-format`.
+  - CI per [REPO_SKELETON.md](REPO_SKELETON.md#ci-workflow-outline).
+  - `hello_cuda` prints `cudaGetDeviceProperties` name and SM count.
+  - Record the tested GCC + CUDA pair on each machine in BUILD.md.
+  - Branch protection; PR template.
+- **Tests:** placeholder test in CI.
+- **Demo:** the same commit builds on the laptop and a GH node; CI green.
 
-### Task 2: Contracts: math lib, Scene struct, scene_io
-Owners: Arek (math), Po (scene). Jett and Mikail sign off. Due Sept 29. **Core.**
-- **Objective:** freeze shared types and the JSON format with inline geometry.
-- **Guidance:**
-  - vec3, Ray, AABB, `RT_HOSTDEV` macro.
-  - Sphere, Triangle, Material, Light, Camera, Scene as flat arrays.
-  - JSON read/write. Header-only types. No std containers in device code.
-- **Tests:** math unit tests; JSON round-trip.
-- **Demo:** `scene_dump scenes/two_spheres.json` prints the parsed scene.
+### C2: Contracts and core types
+Owners: Arek (math), Po (scene). All four sign off by Oct 27.
+- **Objective:** INTERFACES v0.3 accepted; shared headers merged.
+- **Guidance:** `vec3`, `Ray`, `AABB`, `intersect_aabb`; `SceneHost`, `Scene`, `Image`; JSON v2 read/write; scene hash.
+- **Tests:** slab-test cases listed in INTERFACES; JSON round trip; hash stable across runs.
+- **Demo:** `scene_dump scenes/known/two_spheres.json` prints the scene and its hash.
 
-### Task 3: First CPU image, brute force
-Owners: Mikail (intersection), Jett (camera), Po (renderer). **Core.**
-- **Objective:** an end-to-end image without a BVH.
-- **Guidance:**
-  - `RT_HOSTDEV` sphere + triangle intersection.
-  - Camera ray generation.
-  - Single-thread renderer over all primitives; normal-shading placeholder.
-  - PNG + PFM writer; minimal `rt_render`.
-- **Tests:** intersection (hit, miss, grazing, inside sphere, degenerate triangle); camera corner and center rays.
-- **Demo:** PNG of a sphere on a triangle floor.
+### C3: Intersection, camera, brute-force CPU image
+Owners: Mikail (intersection), Jett (camera), Po (renderer loop, PNG/PFM).
+- **Objective:** first end-to-end image, no BVH.
+- **Guidance:** frozen rules from [INTERFACES.md](INTERFACES.md#5-intersection-and-traversal); `camera_ray` per section 4; normal-as-color; CPU pixel loop over `render_pixel<BruteQuery>`; `rt_render --backend cpu --bvh none`.
+- **Tests:** hit, miss, grazing, inside sphere, degenerate triangle, shared edge (exactly one triangle wins the tie), camera center and corner rays.
+- **Demo:** PNG of a sphere on a two-triangle floor.
 
-### Task 4: Lighting + shadows on CPU
-Owner: Arek. **Core.**
-- **Objective:** real shading through the brute-force path.
-- **Guidance:**
-  - `shade()` with Lambert + point lights.
-  - Shadow rays with the robust offset (RT Gems Ch. 6); brute-force any-hit.
-  - Develop on synthetic `Hit`s first.
-- **Tests:** analytic cases (sphere-pole irradiance, inverse-square falloff, shadow boundary on the floor); no-acne test.
-- **Demo:** shaded, shadowed image of the known-case scene.
+### C4: Lambert + point-light shadows
+Owner: Arek. Expected values: Jett.
+- **Objective:** Core shading.
+- **Guidance:** shadow-ray rules and accumulation order from [INTERFACES.md](INTERFACES.md#6-shading); `light_mask` AOV.
+- **Tests:** analytic cases from the [quality protocol](BENCHMARKING.md#1-independent-correctness-checks-ci); a light behind the surface emits no shadow ray.
+- **Demo:** shaded, shadowed known-case image.
 
-### Task 5: BVH layout, median builder, CPU traversal
-Owners: Jett (builder + validator), Mikail (traversal), Po (integration). **Core.**
-- **Objective:** the CPU renderer uses a BVH.
-- **Guidance:**
-  - 32 B `BvhNode`; `PrimRef` type tag; `build_bvh(...)`.
-  - Validator: containment, coverage, depth ≤ 64.
-  - Stack-based `traverse_closest` / `traverse_any`; `--bvh median`.
-- **Tests:** validator on random inputs; BVH vs brute-force give identical hits on random rays; images match.
-- **Demo:** the Task 4 image, much faster on a 10K scene.
+### C5: Median builder, validator, traversal
+Owners: Jett (builder, validator), Mikail (traversal).
+- **Objective:** CPU rendering through the BVH.
+- **Guidance:** canonical order, median rules, edge cases, and node culling rule from INTERFACES sections 3 and 5.
+- **Tests:** validator on random, clustered, all-equal, 0, 1, and 2 primitives; BVH vs brute force bit-identical hits on random rays.
+- **Demo:** same image as C4, much faster on `bench_10k`.
 
-### Task 6: Generator + binary format
-Owner: Po. **Core.**
-- **Objective:** reproducible large scenes.
-- **Guidance:**
-  - PCG32 with own float conversion (no `std::` distributions).
-  - Sphere fields, icospheres, triangle terrain, floor; size and seed params.
-  - `.bin` with magic/version/counts/offsets; JSON references the `.bin`.
-- **Tests:** same seed gives identical bytes on x86 and ARM (CI on x86, manual check on Vista); binary round-trip.
-- **Demo:** `rt_gen --objects 1000000 --seed 1` output loads and renders on CPU.
+### C6: Generator, `.bin`, hash
+Owner: Po.
+- **Objective:** reproducible large scenes, sized in primitives.
+- **Guidance:** PCG32; generator compiled with `-ffp-contract=off`; `--spheres`, `--terrain-tris`, `--seed`; `generator.command` recorded in JSON.
+- **Tests:** same `content_hash` on laptop and Vista; `.bin` round trip; reader rejects bad headers.
+- **Demo:** `bench_1m` loads and renders on CPU.
 
-### Task 7: Image compare + regression tests
-Owner: Po. **Core.**
-- **Objective:** automated quality gates.
-- **Guidance:** `rt_compare` (max error, % pixels over threshold, diff heatmap PNG); small committed goldens; CI renders known-case scenes and compares.
-- **Tests:** CI fails on a deliberately perturbed image.
-- **Demo:** a PR that breaks shading is blocked.
+### C7: CPU backend, 1..N threads
+Owner: Po.
+- **Objective:** single-core and multicore baselines.
+- **Guidance:** OpenMP over 16×16 tiles, `schedule(dynamic)`, `num_threads(R)`; preparation uses B.
+- **Tests:** 1 vs N threads bit-identical (PFM and AOVs).
+- **Demo:** scaling curve on the laptop.
 
-### Task 8: Benchmark harness
-Owner: Arek. **Core.**
-- **Objective:** consistent timing everywhere.
-- **Guidance:**
-  - `steady_clock` + `cudaEvent` timer API.
-  - Cold from process start; warm = 1 warm-up + median of 5.
-  - Components; JSON/CSV with machine info + git commit; `rt_render --runs`.
-- **Tests:** schema validation; components sum ≈ total.
-- **Demo:** `results.json` from a CPU run with cold and warm breakdown.
+### C8: Validation tooling
+Owners: Po (`rt_compare`, goldens), Arek (double oracle), Jett (shading expected values).
+- **Objective:** automated correctness and comparison gates.
+- **Guidance:** all checks in the [quality protocol](BENCHMARKING.md#quality-protocol).
+- **Tests:** `rt_compare` fails on an injected NaN, a shifted single object, a 10×10 block of wrong pixels, and a flipped shadow region.
+- **Demo:** a PR that breaks shading is blocked by CI.
 
-### Task 9: Multicore CPU renderer + scaling script
-Owner: Po. **Core.**
-- **Objective:** the multicore baseline.
-- **Guidance:** OpenMP over 16×16 tiles, `schedule(dynamic)`; `--threads N`; sweep script 1→max with a speedup plot.
-- **Tests:** 1-thread vs N-thread images are bit-identical.
-- **Demo:** scaling curves on the laptop and Vista.
+### C9: Harness
+Owner: Arek.
+- **Objective:** trustworthy timing.
+- **Guidance:** quantities and rules in [BENCHMARKING.md](BENCHMARKING.md#timing-quantities); results schema v2; `--mode app|prepared` (app = one T_app measurement, then exit; prepared = T_br ×5 + T_frame ×5); a script that runs 5 fresh processes for T_app.
+- **Tests:** schema validation; median and spread computed correctly; `unattributed` reported.
+- **Demo:** results JSON for CPU (G1), then CUDA (G2).
 
-### Task 10: CUDA megakernel, explicit memory → check-in 2
-Owner: Mikail. **Core.**
-- **Objective:** the first GPU image.
-- **Guidance:** `DeviceMemory` explicit mode; upload scene + BVH; one thread per pixel calling shared traverse/shade; copy back; `--backend cuda --pipeline mega`.
-- **Tests:** GPU vs CPU within tolerance on known-case and 100K scenes, on both machines.
-- **Demo:** CPU/GPU side-by-side plus harness timings (upload vs render).
+### C10: DeviceScene + megakernel
+Owner: Mikail.
+- **Objective:** GPU image matching CPU.
+- **Guidance:** per-array uploads; `Scene` view by value as a kernel argument; `DeviceScene` uploads scene and BVH; one thread per pixel calling `render_pixel` and writing its `PixelResult`; framebuffer and AOV buffers allocated in `prepare` from `RenderSettings` and reused.
+- **Tests:** `rt_compare` passes vs CPU on known scenes and `bench_100k`, on laptop and Vista; repeated GPU runs bit-identical.
+- **Demo:** CPU/GPU side by side with T_br and T_frame.
 
-### Task 11: LBVH builder
-Owner: Jett. **Core.**
-- **Objective:** a scalable parallel build.
-- **Guidance:** Morton codes; OpenMP radix sort; Karras 2012 hierarchy; bottom-up refit with atomics; depth cap; `--bvh lbvh`.
-- **Tests:** validator; images match; deterministic builds.
-- **Demo:** 1M-object build scaling, 1→72 threads.
+### C11: LBVH
+Owner: Jett.
+- **Objective:** the required parallel builder.
+- **Guidance:** Morton quantization, stable radix sort, Karras, refit, layout conversion, and depth fallback, all per [INTERFACES.md](INTERFACES.md#3-bvh-layout-and-build-pipeline). Report `bounds`, `build`, and `layout` separately.
+- **Tests:** validator; output bytes identical for B = 1, 8, 72; images pass `rt_compare` vs median; `fallbacks` reported (expected 0).
+- **Demo:** `bench_1m` preparation scaling on Vista.
 
-### Task 12: Blinn-Phong + directional lights
-Owner: Arek. **Core.**
-- **Objective:** the final shading model.
-- **Guidance:** specular behind `MAT_SPECULAR`; directional lights with unbounded shadow rays; multiple lights.
-- **Tests:** analytic highlight position; directional shadow test.
-- **Demo:** multi-light scene with highlights, CPU and GPU matching.
-
-### Task 13: TACC sweep tooling
-Owner: Mikail. **Core.**
-- **Objective:** one-command benchmark runs on Vista.
-- **Guidance:** parameterized sbatch (size, threads, backend, pipeline, mem, bvh); per-job results collection; node-hour log.
+### C12: Sweep scripts
+Owner: Mikail.
+- **Objective:** one-command Vista runs.
+- **Guidance:** parameterized sbatch; records `nvidia-smi`, `lscpu`, `module list`; collects results JSON; logs node-hours.
 - **Tests:** dry run on `gh-dev`.
 - **Demo:** a small sweep produces a merged CSV.
 
-### Task 14: Parallel binned SAH
-Owner: Jett. By Nov 20. **Core.**
-- **Objective:** a best-quality BVH.
-- **Guidance:** 16–32 bins; data-parallel binning at top levels, OpenMP tasks below a size threshold; leaf-size param; report SAH cost.
-- **Tests:** validator; SAH cost < LBVH; images match.
-- **Demo:** build vs render time table for median/LBVH/SAH at 3 sizes.
+### C13: Measurements and profiling
+Owners: all.
+- **Objective:** preliminary results for check-in 3.
+- **Guidance:** Core sweeps and plots from [BENCHMARKING.md](BENCHMARKING.md#sweeps); profiling requirements; preliminary ratios with spread.
+- **Demo:** check-in 3 slides with T_br / T_frame / T_app ratios and breakdowns.
 
-### Task 15: Managed + system memory modes
-Owner: Mikail. GH200 only. **Extended.**
-- **Objective:** the NVLink-C2C study.
-- **Guidance:** `cudaMallocManaged` with and without prefetch; plain `malloc` pointers passed to kernels; runtime detection with graceful failure.
-- **Tests:** images match across modes.
-- **Demo:** per-mode upload/render times on GH200 next to laptop explicit numbers.
-
-### Task 16: Wavefront pipeline
-Owners: Arek (queues, shade, accumulate), Mikail (trace kernels). **Extended.** First cut candidate.
-- **Objective:** a second GPU pipeline with per-stage timing.
-- **Guidance:** HitBuffer, ShadowRayQueue, contribution buffer; atomic counters; compaction; per-stage `cudaEvent`s; `--pipeline wavefront`.
-- **Tests:** matches megakernel within tolerance.
-- **Demo:** mega vs wavefront timings with stage breakdown.
-
-### Task 17: Embree backend
-Owner: Po (Jett backup). **Extended.**
-- **Objective:** the "best possible CPU" baseline.
-- **Guidance:** optional CMake target; triangles + native spheres; shading through the same `shade()`; verify ARM64 build on Vista.
-- **Tests:** matches CPU reference within tolerance.
-- **Demo:** our CPU vs Embree at 72 threads.
-
-### Task 18: Optimization pass
-Owners: Po (CPU), Mikail (GPU traversal). **Core.**
-- **Objective:** strong, fair baselines on both sides.
-- **Guidance:** CPU data layout + `-fopt-info-vec` reports; GPU nearer-child-first traversal, node layout, occupancy via Nsight Compute.
-- **Tests:** regression suite passes.
-- **Demo:** before/after timings.
-
-### Task 19: `obj2bin` + Blender export
-Owner: Jett. **Extended.**
-- **Objective:** demo scenes.
-- **Guidance:** tinyobjloader with triangulation; MTL `Kd`/`Ks`/`Ns` → Blinn-Phong; Z-up → Y-up; Blender Python script exports camera and lights to JSON.
-- **Tests:** a cube OBJ converts to the expected 12 triangles.
-- **Demo:** a Blender-made scene rendered on GPU.
-
-### Task 20: Final measurements, quality review, report → check-in 3, Nov 30, Dec 6
-Owners: all (Jett and Arek measure; Mikail and Po validate; all prepare slides). **Core.**
-- **Objective:** the study results.
-- **Guidance:** full Vista sweeps; plots from [BENCHMARKING.md](BENCHMARKING.md#planned-plots); two-person side-by-side review; reproducibility instructions; tagged release.
-- **Demo:** report figures + presentation.
-
-### Task 21: OptiX backend (go/no-go at check-in 3)
-Owners: Mikail, Arek pairing. **Stretch.**
-- **Objective:** the RT-core comparison.
-- **Guidance:** hardware triangles + built-in spheres; raygen reuses `shade()`; verify OptiX on WSL2 early, else build this backend natively on Windows. Details in [STRETCH.md](STRETCH.md#optix-backend).
-- **Demo:** 2×2 table {H100, 4070} × {CUDA mega, OptiX}.
-
-Go criteria at check-in 3: Tasks 1–14 done, OptiX verified working on the 4070, and at least 1.5 weeks left for Mikail and Arek.
+### C14: Final
+Owners: all (Jett and Arek measure; Mikail and Po validate; all write).
+- **Objective:** report and release.
+- **Guidance:** final sweeps; 2-reviewer side-by-side review; reproducibility instructions (exact commands, hashes, modules); `final` tag.
 
 ## Risks
 
 | Risk | Early signal | Response |
 |---|---|---|
-| Vista access or build blocks testing (proposal) | Test by Sept 29 | Lonestar6 A100; continue CPU work |
-| Prep, transfers, or GPU execution limit speedup (proposal) | October timings; component data by Nov 20 | Tune the largest cost; report achieved numbers honestly |
-| Rendering errors pass casual inspection (proposal) | Known-case tests + `rt_compare` from October | Fix or disable approximations; keep the verified mode |
-| Coursework, absences, queue waits (proposal) | Weekly review | Reduced scope by Nov 20; keep preliminary results |
-| SAH build doesn't scale | Jett's scaling curve flat past ~16 threads | Ship LBVH as the parallel builder; report SAH as quality reference |
-| OptiX doesn't run in WSL2 | `optixSphere` sample fails | Native Windows build for that backend only, or drop Stretch |
-| CUDA/GCC version mismatch on Vista | Task 1 build fails | Pick a matching `cuda` + `gcc` module pair; document in BUILD.md |
-| Po's breadth of tasks | Missed Oct 26 items | Move Embree to Jett; Jett and Arek help validate the reference |
-| Queue waits / node-hour overrun | Node-hour log > 50% before Nov | Develop on laptop; batch sweeps; fewer sweep points |
-| Contract churn after Sept 29 | Repeated `contract` PRs | Freeze; batch changes at check-ins |
+| Schedule: 5 weeks for the whole Core | G0 or G1 slips | Reduced scope at Nov 13; no extensions before G2 |
+| Vista GPU access or build fails | C1 by Oct 30 | Lonestar6 A100; laptop measurements continue |
+| CUDA/GCC pair unsupported | C1 build fails | Try module pairs; check NVIDIA's versioned install guide for that CUDA minor; record the working pair |
+| Shared bug makes CPU and GPU agree | Analytic or oracle test fails | Independent checks by a different author (see Ownership) |
+| LBVH doesn't scale (sort or refit bound) | Flat scaling past ~16 threads | Profile per stage (`bounds`, `build`, `layout`); report honestly; SAH not a rescue |
+| LBVH not correct by G2 | Validator or determinism failures on **Nov 10** | Jett switches to the task-parallel median builder (2-day job, same output as serial median). LBVH continues only if time remains after G2 |
+| Prep or transfers limit speedup | G2 timings | That's a study result: report it with breakdowns |
+| Po's breadth | C6–C8 slip | Arek takes the goldens/CI wiring; Jett takes the generator terrain |
+| Node-hour overrun | Log > 50% before Nov 13 | Develop on the laptop; fewer sweep points |
 
 ## Reduced-scope fallback
 
-Adopted by Nov 20 if needed (from proposal):
+From the proposal; adopted at Nov 13 if G2 fails:
 
-- One fixed scene of spheres + floor, one light, shadows, 640×480.
-- Keep: parallel CPU preparation, GPU rendering, quality checks, single- and multicore CPU comparisons.
-- Drop: camera controls, larger scenes, and all Extended and Stretch items.
+- One fixed scene of spheres + a two-triangle floor, one point light, shadows, 640×480.
+- Keep: parallel CPU preparation, GPU rendering, quality checks, single- and multicore comparisons, T_br and T_frame.
+- Parallel builder: LBVH if it already passes the validator and determinism tests; otherwise the **task-parallel median builder** (see below). Shrinking the scene doesn't help if LBVH itself is what blocks G2, so the fallback can't depend on it.
+- Drop: camera controls, large scenes, all extensions.
 - Report measured performance even if targets are missed.
 
-## Milestone status
+## Status
 
 Updated by Jett weekly.
 
-| Task | Status | Notes |
+| Item | Status (Oct 24) | Notes |
 |---|---|---|
-| 1 | Not started | |
-| 2 | Not started | |
+| Check-in 2 date | Postponed, TBD (~Oct 31–Nov 7) | Fill in when announced |
+| INTERFACES v0.3 | Proposed | Sign-off Oct 27 |
+| C1 | Not started | Vista GPU access not yet verified in repo |
+| C2–C14 | Not started | |
