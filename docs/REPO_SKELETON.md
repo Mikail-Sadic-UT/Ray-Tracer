@@ -14,11 +14,11 @@
 │   ├── workflows/ci.yml
 │   └── pull_request_template.md
 ├── src/
-│   ├── core/       (Arek)      hostdev.hpp  math.hpp  ray.hpp  aabb.hpp  color.hpp
+│   ├── core/       (Arek)      hostdev.hpp  math.hpp  ray.hpp  aabb.hpp  color.hpp  error.hpp
 │   ├── scene/      (Po)        scene.hpp (Scene view)  scene_host.hpp  scene_io.cpp  binary_format.hpp  hash.hpp
 │   │                           generator.cpp  pcg32.hpp      # generator.cpp + hash: -ffp-contract=off
-│   ├── camera/     (Jett)      camera.hpp  camera.cpp
-│   ├── bvh/        (Jett)      bvh.hpp  bounds.cpp  build_median.cpp  build_lbvh.cpp  layout.cpp  build_sah.cpp  validate.cpp
+│   ├── camera/     (Jett)      camera.hpp (inline camera_ray, device-usable)  camera.cpp (host only: parsing, overrides)
+│   ├── bvh/        (Jett)      bvh_types.hpp  bvh.hpp  bounds.cpp  build_median.cpp  build_lbvh.cpp  layout.cpp  build_sah.cpp  validate.cpp
 │   │                           morton.hpp  radix_sort.hpp
 │   ├── trace/      (Mikail)    intersect.hpp  traverse.hpp  brute.hpp
 │   ├── shade/      (Arek)      shade.hpp  lights.hpp  offset.hpp
@@ -30,7 +30,7 @@
 │   │   └── wavefront/          queues.hpp  trace_kernels.cu (Mikail)  shade_kernels.cu  accumulate.cu (Arek)
 │   ├── embree/     (Po)        embree_backend.hpp  embree_backend.cpp
 │   ├── optix/      (Mikail)    optix_backend.hpp  optix_backend.cpp  programs.cu
-│   ├── bench/      (Arek)      timer.hpp  gpu_timer.hpp  results.hpp  results.cpp  machine_info.cpp
+│   ├── bench/      (Arek)      timings.hpp  timer.hpp  gpu_timer.hpp  results.hpp  results.cpp  machine_info.cpp
 │   ├── image/      (Po)        image.hpp  write_png.cpp  write_pfm.cpp  read_pfm.cpp
 │   └── backend.hpp             # Backend interface
 ├── apps/
@@ -44,9 +44,11 @@
 │   └── oracle/                 # independent checks: double-precision intersection (Arek), shading expected values (Jett)
 ├── scenes/
 │   ├── known/                  # Small hand-written inline JSON scenes
-│   └── golden/                 # Small golden PNG/PFM images for regression tests
+│   ├── golden/                 # Small golden PFM + .u32img files, compared with normal tolerances
+│   └── manifest.json           # Benchmark scenes: rt_gen command, generator environment, hashes (files themselves not committed)
 ├── scripts/
-│   ├── ci/                     # golden_check.sh
+│   ├── ci/                     # golden_check.sh, regen_goldens.sh
+│   ├── fetch_scenes.sh         # download a scene set from the release archive and verify hashes
 │   ├── tacc/                   # modules.sh, sbatch templates, sweep generators
 │   ├── plot/                   # matplotlib scripts
 │   └── blender/                # export_scene.py
@@ -111,7 +113,7 @@ if(RT_BUILD_TESTS)
 endif()
 ```
 
-Suggested target structure: `rt_core` (INTERFACE, header-only core + trace + shade), `rt_scene`, `rt_bvh`, `rt_cpu`, `rt_gpu` (if CUDA), `rt_embree` / `rt_optix` (if enabled), `rt_bench`, `rt_image`. Apps link what they need. Each optional target defines `RT_HAS_CUDA` / `RT_HAS_EMBREE` / `RT_HAS_OPTIX` so `rt_render` can list available backends.
+Target names, sources, owners, and link dependencies are fixed in [INTERFACES §0 CMake targets](INTERFACES.md#cmake-targets). Each optional target defines `RT_HAS_CUDA` / `RT_HAS_EMBREE` / `RT_HAS_OPTIX` so `rt_render` can list available backends.
 
 ## .gitignore
 
@@ -124,7 +126,8 @@ compile_commands.json
 
 # Generated data
 *.bin
-scenes/generated/
+*.bin.gz
+scenes/generated/          # filled by scripts/fetch_scenes.sh from the release archive
 results/
 *.nsys-rep
 *.ncu-rep
@@ -168,30 +171,12 @@ The team can change the base style at the contract meeting. Pick once and don't 
 ## Summary
 <!-- What changed and why. Link the issue: Closes #N -->
 
-## Area
-- [ ] bvh  - [ ] gpu  - [ ] shading  - [ ] cpu  - [ ] scene  - [ ] infra  - [ ] bench  - [ ] docs
-
 ## Tests
 <!-- Tests added or updated -->
 
-## Checks
-- [ ] CPU CI green
-- [ ] Rendering code changed? GPU check per WORKFLOW.md:
-      Before the CUDA megakernel (C10) is on dev:
-      - [ ] CUDA build compiles (-DRT_ENABLE_CUDA=ON) on: ______
-      - [ ] hello_cuda / CUDA smoke tests pass
-      After C10 is on dev:
-      - [ ] rt_compare GPU vs CPU on known scenes (+ bench_100k if traversal/BVH/shading)
-            Machine(s):
-            Result (per-category counts, max errors):
-
-## Performance impact
-<!-- Before/after numbers, or "none expected" -->
-
-## Contract change?
-- [ ] No
-- [ ] Yes: edits docs/INTERFACES.md. Author signs off here: ______
-      Requires approving reviews from all three other members.
+- [ ] GPU checked (only if render code changed): CUDA build compiles; if a GPU path exists,
+      paste the rt_compare summary for a known scene: ______
+- [ ] Changes docs/INTERFACES.md: approved by each affected owner, version line bumped
 ```
 
 ## CI workflow outline
@@ -221,10 +206,8 @@ jobs:
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DRT_ENABLE_CUDA=OFF -DCMAKE_CXX_COMPILER=g++-13
       - name: Build
         run: cmake --build build -j
-      - name: Unit tests
+      - name: Tests (unit, golden, rt_compare corruption)
         run: ctest --test-dir build --output-on-failure
-      - name: Golden-image regression
-        run: ./scripts/ci/golden_check.sh build    # renders scenes/known/*, compares to scenes/golden/*
       - name: Format check
         env:
           BASE: ${{ github.base_ref || 'dev' }}
@@ -237,6 +220,7 @@ jobs:
           if [ -n "$files" ]; then
             printf '%s\n' "$files" | xargs clang-format --dry-run --Werror
           fi
+
 ```
 
 - On push events (no `base_ref`), the step diffs against `dev`. A push to `dev` itself then diffs against itself and checks nothing, which is fine because every change reached `dev` through a checked PR.
@@ -271,6 +255,12 @@ mkdir -p "$OUT"
 nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv > "$OUT/gpu.csv"
 lscpu > "$OUT/lscpu.txt"
 { gcc --version; nvcc --version; module list 2>&1; } > "$OUT/toolchain.txt"
+
+# Fail fast if the binary would load the wrong OpenMP runtime (see BUILD.md)
+ldd "$BIN" > "$OUT/ldd.txt"
+if ! grep -q 'libgomp' "$OUT/ldd.txt" || grep -Eqi 'libomp|nvomp|nvhpc' "$OUT/ldd.txt"; then
+  echo "Wrong OpenMP runtime; see $OUT/ldd.txt" >&2; exit 1
+fi
 
 COMMON="--scene $SCENE --bvh lbvh --width 1920 --height 1080 --runs 5"
 

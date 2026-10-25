@@ -1,17 +1,13 @@
 # Interfaces (shared contracts)
 
-**Status: v0.3, PROPOSED (Oct 24).** Sign-off target: **Oct 27**. v0.2 froze numeric rules (intervals, tie-breaks, NaN handling, shadow rays), defined owning vs view types, and specified how every builder reaches the shared node layout. v0.3 changes:
-- fixes the slab test's signed-zero case;
-- adds `RenderSettings`, device BVH ownership, `PixelResult`, AOV semantics, and the `.u32img` format;
-- switches the scene hash to a canonical encoding;
-- adds a task-parallel median contingency;
-- adds compile-time tracing queries (`BvhQuery`, `BruteQuery`, and later Embree/OptiX), so shading no longer hardwires BVH traversal;
-- adds fresh-page `system` and a separate `system-reuse` memory mode. After sign-off, changes follow the [contract-change process](#contract-change-process).
+**Status: v1.0, PROPOSED.** Sign-off at the team meeting (target **Oct 27**). After that, changes follow [Interface changes](#interface-changes).
 
+This file is the contract that lets each member (and each member's agent) build a part independently and have the parts fit together. If something here turns out wrong during implementation, fix it through a small interface PR. Don't work around it locally.
 Signatures are sketches. Field order, sizes, and the stated rules are what matter.
 
 | Contract | Owner | Consumers |
 |---|---|---|
+| [Code conventions](#0-code-conventions) | Mikail (build), all | All |
 | [Math library](#1-math-library) | Arek | All |
 | [Scene, image, and file formats](#2-scene-image-and-file-formats) | Po | All |
 | [BVH layout and build pipeline](#3-bvh-layout-and-build-pipeline) | Jett | Mikail, Po |
@@ -26,8 +22,91 @@ General rules:
 - C++17. Types used in device code are POD, header-only, and contain no `std::` containers, exceptions, or virtual calls.
 - Indices are `uint32_t`. On-disk data is little-endian.
 - `static_assert(sizeof(T) == N)` for every on-disk or on-device struct.
-- `float` only in shared render code, including the CPU reference. No `-ffast-math` / `--use_fast_math` anywhere (NaN comparisons below depend on IEEE semantics).
+- `float` for all scene data and ordinary arithmetic in shared render code, including the CPU reference. **One narrow exception:** the watertight triangle test's `double` fallback when an edge function is exactly zero (see [section 5](#frozen-rules)). It runs identically on CPU and GPU, and fires rarely (on exact edge and vertex hits). No other `double` in render code.
+- No `-ffast-math` / `--use_fast_math` anywhere (NaN comparisons below depend on IEEE semantics).
+- **Header-inline device code.** Every `RT_HOSTDEV` function lives inline in a header (`RT_INLINE`), so each `.cu` and `.cpp` translation unit compiles its own copy. No relocatable device code (`-rdc`) and no device linking. `.cpp` files hold host-only code (parsing, IO, builders).
 - FMA contraction differs between compilers, so CPU and GPU outputs differ slightly. Comparison rules are in [BENCHMARKING.md](BENCHMARKING.md#quality-protocol).
+
+## 0. Code conventions
+
+These are the mundane choices that four independently written modules must share to include, link, and merge cleanly.
+
+### Names and files
+
+| Item | Convention | Example |
+|---|---|---|
+| Namespace | Everything in `rt`. Nested namespaces only for internals (`rt::detail`). Kernels too. | `rt::build_bvh`, `rt::SceneHost` |
+| Macros | `RT_` prefix, upper case | `RT_HOSTDEV`, `RT_CUDA_CHECK` |
+| Constants | `constexpr`, `RT_` prefix when public | `RT_MAX_BVH_DEPTH` |
+| Types | `PascalCase`. Exceptions kept from the math library: `vec3`, `color` | `BvhNode`, `PixelResult` |
+| Functions, variables, members | `snake_case` | `traverse_closest`, `num_spheres` |
+| Enums | `enum class` by default. Flag sets that are stored in files or bit-ORed (`MaterialFlags`, `LightType`, `AovFlags`) stay plain `enum : uint32_t` | `BvhMethod::LBVH` |
+| Files | `snake_case`. `.hpp` headers, `.cpp` host sources, `.cu` CUDA sources (only in `src/gpu/`, `src/optix/`, `apps/hello_cuda/`) | `device_scene.cu` |
+| Header guard | `#pragma once` | |
+| Integers | `<cstdint>` fixed-width types in shared structs (`uint32_t`, `uint64_t`); `size_t` for host container sizes | |
+
+### Includes
+
+- The include root is `src/`. Always include project headers by their path from there, with quotes: `#include "core/math.hpp"`, `#include "bvh/bvh.hpp"`. Don't use relative `../` paths.
+- Third-party headers use angle brackets: `<nlohmann/json.hpp>`, `<CLI/CLI.hpp>`, `<gtest/gtest.h>`. `stb_image_write` is included only in `src/image/`.
+- Headers included by device code must not include `std::vector`, `<string>`, nlohmann, or other host-only headers. Keep device-safe and host-only declarations in separate headers when needed (e.g. `scene/scene.hpp` for the POD view and `scene/scene_host.hpp` for the owning type; `bvh/bvh_types.hpp` for `BvhNode`/`PrimRef`/`BvhView` and `bvh/bvh.hpp` for `Bvh` and `build_bvh`).
+
+### vec3 API
+
+Free functions and operators, all `RT_INLINE`, in `core/math.hpp`:
+
+```cpp
+// arithmetic
+vec3 operator+(vec3, vec3); vec3 operator-(vec3, vec3); vec3 operator-(vec3);
+vec3 operator*(vec3, vec3);            // componentwise
+vec3 operator*(vec3, float); vec3 operator*(float, vec3); vec3 operator/(vec3, float);
+vec3& operator+=(vec3&, vec3); vec3& operator*=(vec3&, float);
+float  operator[](int) const; float& operator[](int);       // members: 0 = x, 1 = y, 2 = z
+// geometry
+float dot(vec3, vec3); vec3 cross(vec3, vec3);
+float length(vec3); float length2(vec3); vec3 normalize(vec3);
+vec3 vmin(vec3, vec3); vec3 vmax(vec3, vec3);               // componentwise; named to avoid std::min/max clashes
+float max_component(vec3);
+```
+
+`AABB` members: `grow(vec3)`, `grow(const AABB&)`, `centroid()`, `surface_area()`, `extent()`, `is_empty()`.
+
+### CMake targets
+
+The include directory `src/` is exported by `rt_core`, and every target links `rt_core`.
+
+| Target | Kind | Sources | Owner | Links |
+|---|---|---|---|---|
+| `rt_core` | INTERFACE (header-only) | `core/`, `trace/`, `shade/`, `camera/camera.hpp`, `scene/scene.hpp`, `bvh/bvh_types.hpp` (device-safe); `bench/timings.hpp`, `backend.hpp` (host-only shared) | shared | (none) |
+| `rt_scene` | STATIC | `scene/*.cpp` | Po | `rt_core`, `nlohmann_json` |
+| `rt_camera` | STATIC | `camera/camera.cpp` | Jett | `rt_core`, `nlohmann_json` |
+| `rt_image` | STATIC | `image/*.cpp` | Po | `rt_core`, stb |
+| `rt_bvh` | STATIC | `bvh/*.cpp` | Jett | `rt_core`, `OpenMP::OpenMP_CXX` |
+| `rt_bench` | STATIC | `bench/*.cpp` | Arek | `rt_core`, `nlohmann_json` |
+| `rt_cpu` | STATIC | `cpu/*.cpp` | Po | `rt_core`, `OpenMP::OpenMP_CXX` |
+| `rt_gpu` | STATIC (if CUDA) | `gpu/*.cu` | Mikail | `rt_core`, `CUDA::cudart` |
+| `rt_embree`, `rt_optix` | STATIC (if enabled) | | Po, Mikail | `rt_core`, the library |
+| `rt_render` | executable | `apps/rt_render/` | Mikail | everything enabled |
+| `rt_gen`, `rt_compare`, `scene_dump` | executables | `apps/...` | Po | `rt_scene`, `rt_image`, (`rt_camera` for `rt_gen`) |
+| `test_<module>` | GoogleTest executable per module | `tests/test_<module>.cpp` | module owner | the module + `GTest::gtest_main` |
+
+Each module's `CMakeLists.txt` is owned by its module owner and only defines that module's target. The root `CMakeLists.txt` (Mikail) adds subdirectories and options.
+
+### Errors and logging
+
+- **Host code** reports errors by throwing `rt::Error` (derives from `std::runtime_error`, in `core/error.hpp`). The message names what failed, e.g. `"scene_io: triangles[42].material_id = 7 >= num_materials 3"`.
+- **CUDA calls** are wrapped in `RT_CUDA_CHECK(expr)`, which throws `rt::Error` with the file, line, and `cudaGetErrorString`.
+- **Device code** never throws or prints. Runtime problems (stack overflow) set a device flag that the backend checks after `render` and turns into `rt::Error`.
+- **Apps** catch `rt::Error` (and `std::exception`) in `main`, print `error: <message>` to stderr, and exit with code 1.
+- **Output streams:** human-readable progress and warnings go to stderr. Results go only to files (`--results`), so stdout stays clean.
+
+### Other shared rules
+
+- **Command-line parsing** happens only in `apps/`, with CLI11. Library code takes structs (`BvhParams`, `PrepareInput`, `RenderSettings`), never `argv`.
+- **Threads:** never call `omp_set_num_threads` or rely on `OMP_NUM_THREADS` inside library code. Every parallel region uses `num_threads(B)` or `num_threads(R)`, with the count passed in through the parameter structs.
+- **No global mutable state** in library code (no singletons, no static caches). Everything goes through the structs above, so repeated `prepare` calls and tests stay independent.
+- **Tests:** GoogleTest, one `tests/test_<module>.cpp` (or a folder) per module, data from `scenes/known/`. Tests must not need a GPU unless they're in a target that only builds with `RT_ENABLE_CUDA`.
+- **Formatting:** run `clang-format` with the repo's `.clang-format` before committing.
 
 ## 1. Math library
 
@@ -41,7 +120,7 @@ Owner: Arek.
 #endif
 #define RT_INLINE RT_HOSTDEV inline
 
-struct vec3 { float x, y, z; };          // 12 B; + - * / dot cross length normalize min max, operator[]
+struct vec3 { float x, y, z; };          // 12 B; operator API in §0 "vec3 API"
 using color = vec3;                       // linear RGB
 
 struct Ray {                              // 32 B
@@ -126,6 +205,28 @@ struct Light { uint32_t type; vec3 pos_or_dir; color intensity; float pad = 0.0f
 Every padding or reserved field is default-initialized to zero and written as zero in files. Hashes never read padding (see [Scene hash](#scene-hash)).
 
 Coordinates: right-handed, **Y-up**.
+
+### Valid input (checked at load)
+
+`scene_io` validates every scene after parsing, including generated ones, and rejects invalid input with a message naming the field and index. Render code may assume all of these hold.
+
+| Item | Requirement | Otherwise |
+|---|---|---|
+| All coordinates, radii, colors, intensities, `ambient`, `shininess` | Finite (no NaN/Inf) | Reject |
+| Sphere `radius` | `> 0` | Reject |
+| Triangle vertices | Finite. Degenerate (zero-area) triangles are allowed and never hit. | Allowed |
+| `material_id` | `< num_materials`. At least one material if any primitive exists. | Reject |
+| Colors, `ks`, intensities, `ambient` | `≥ 0` | Reject |
+| `shininess` | `≥ 1` | Reject |
+| Light type | Known `LightType` (`directional` only in builds with E2) | Reject |
+| Directional light direction | Non-zero length; normalized at load | Reject if zero |
+| Point light on a surface | Allowed; handled per [shadow-ray rule 2](#shadow-ray-construction-frozen) (no contribution) | Allowed |
+| Camera | `position ≠ look_at`. `up` not parallel to the view direction: `|cross(normalize(up), w)| ≥ 1e-6`. `0 < vfov_deg < 180`. | Reject |
+| Resolution | `1 ≤ width, height ≤ 16384` (after CLI overrides) | Reject |
+| Light count with `--aov lightmask` | `≤ 32` | Reject at startup |
+| Primitive count | `num_spheres + num_triangles < 2^31` (PrimRef index bits) | Reject |
+
+CLI camera overrides are validated by the same rules after they are applied.
 
 ### Owning storage vs views
 
@@ -241,8 +342,8 @@ Lossless, little-endian, one channel per file. Written and read by `src/image` (
   "materials": [ "..." ], "lights": [ "..." ],
   "geometry": { "binary": "bench_1m_s1.bin" },
   "generator": {
-    "command": "rt_gen --spheres 500000 --terrain-tris 500000 --seed 1 --out bench_1m_s1",
-    "seed": 1, "num_spheres": 500000, "num_triangles": 500000
+    "command": "rt_gen --layout uniform --primitives 1000000 --seed 1 --out bench_1m_s1",
+    "layout": "uniform", "seed": 1, "num_spheres": 500002, "num_triangles": 499998
   }
 }
 ```
@@ -277,11 +378,36 @@ Readers reject a wrong magic, an unknown version, truncated files, and a hash mi
 
 Computed after load and recorded in every results file. Two runs measure the same scene only when their scene hashes match; they used the same view only when their effective cameras also match.
 
-### Generator determinism
+### Generator determinism and scene distribution
 
-- Own PRNG (PCG32) and own `u32 → float` conversion. No `std::` distributions.
-- Generator code is compiled with `-ffp-contract=off` so x86 and ARM produce identical bytes.
-- Test: the same arguments produce the same `content_hash` on the laptop and on Vista.
+The scene families use `sin`, `cos`, `log`/`exp` (log-uniform radii), and Gaussian sampling. Their libm implementations can differ between x86 and ARM, and between glibc versions. `-ffp-contract=off` only controls expression contraction (FMA fusion), so it doesn't make cross-platform output identical. The guarantee is therefore:
+
+- **Generate once, distribute exact files.** Each benchmark scene is generated once, on one recorded generator environment: machine, OS, glibc, compiler and version, flags, commit. The resulting `.json` + `.bin` are published to the archive below, and every machine fetches those exact files from there. Every load verifies `content_hash`. Benchmarks never regenerate scenes locally.
+- **Manifest.** `scenes/manifest.json` (committed, small) lists, per scene: name, `rt_gen` command, generator environment, `content_hash`, scene hash, file sizes, SHA-256 of each file, and its **archive location**. A results file is valid only if its scene hash matches the manifest.
+- **Archive (durable home).** Hashes identify files but can't recover them, so every generated scene is archived:
+  - **Primary:** GitHub Release assets on this repo, under a tag per scene set (`scenes-v1`, `scenes-v2`, …). Each scene is uploaded as `<name>.json` + `<name>.bin.gz`. The whole Core set is about 100 MB uncompressed (three 1M scenes at ~30 MB each, plus the smaller sizes), well within GitHub's per-asset limit. A scene set is never edited after publishing; changes get a new tag.
+  - **Mirror:** a group-readable directory on Vista for fast access by jobs (path TBD in C12; **verify on Vista** which shared project storage the allocation provides). Never the only copy: `$SCRATCH` is purged.
+  - **Retrieval:** `scripts/fetch_scenes.sh <set>` runs `gh release download <set> -D scenes/generated`, decompresses, verifies each file's SHA-256 against the manifest, and runs `scene_dump --verify` for `content_hash`. It fails on any mismatch. Without `gh`, the manifest also stores each asset's direct download URL for `curl -L`.
+  - **Migration:** if the repo moves (for example to GitHub Classroom), re-upload the release assets and update the manifest URLs in the same PR.
+
+Example manifest entry:
+
+```json
+{ "set": "scenes-v1", "name": "bench_1m_s1",
+  "command": "rt_gen --layout uniform --primitives 1000000 --seed 1 --out bench_1m_s1",
+  "generator_env": { "host": "...", "os": "Ubuntu 24.04", "glibc": "2.39", "compiler": "g++ 13.3.0",
+                     "flags": "-O2 -ffp-contract=off", "commit": "abc1234" },
+  "content_hash": "0x...", "scene_hash": "0x...",
+  "files": [ { "path": "bench_1m_s1.json",   "bytes": 0, "sha256": "..." },
+             { "path": "bench_1m_s1.bin.gz", "bytes": 0, "sha256": "...", "uncompressed_sha256": "..." } ],
+  "archive": { "release": "scenes-v1",
+               "urls": [ "https://github.com/<org>/<repo>/releases/download/scenes-v1/bench_1m_s1.bin.gz" ],
+               "mirror": "<vista-shared-path>/scenes-v1/" } }
+```
+- **Repeatability (required, blocks G1):** the same `rt_gen` binary with the same arguments, on the same generator environment, produces byte-identical files.
+- **Cross-platform generation (informational, never blocks a gate):** generating on the other machine is a useful check, and its `content_hash` match or mismatch is reported. A mismatch is expected to come from libm differences, not bugs.
+- Still required: own PRNG (PCG32), own `u32 → float` conversion, own Gaussian (Box–Muller from PCG32 outputs), and no `std::` distributions. These remove the avoidable sources of variation. `-ffp-contract=off` stays on generator sources for the same reason.
+- Hand-written `known_*` scenes are plain JSON in git and need none of this.
 
 ## 3. BVH layout and build pipeline
 
@@ -336,8 +462,8 @@ bool validate_bvh(const Bvh&, const Scene&, std::string* err);
 
 | Method | Tier | Rules |
 |---|---|---|
-| **Median** | Core, correctness baseline (serial). Task-parallel variant = contingency parallel builder | Split axis = largest centroid extent (ties x < y < z). Object median: `nth_element` at `count/2` with comparator `(centroid[axis], PrimRef)`. Halves the count at every level, so depth ≤ ceil(log2(N)). **Contingency:** with `build_threads > 1`, subtrees below the top levels are built as OpenMP tasks, with node slots assigned from subtree sizes. A median subtree's node count depends only on its primitive count, `f(n) = 1` if `n ≤ max_leaf_size`, else `1 + f(⌊n/2⌋) + f(n − ⌊n/2⌋)`, so every slot is known before recursion and doesn't depend on scheduling. The comparator is a strict total order, so the output is byte-identical to the serial build. Top-level partitions stay serial, which limits scaling (Amdahl). That's acceptable for a fallback, and reported as such. |
-| **LBVH** (parallel) | **Core, required parallel builder** | 30-bit Morton codes (10 bits/axis). Quantize per axis: `q = min(floor((c - lo) / extent * 1024), 1023)`; `extent == 0` → `q = 0`. Stable LSD radix sort on `(morton)` over canonical order. Karras 2012 hierarchy with ties broken by sorted index. Bottom-up refit with atomic visit counters. |
+| **Median** | Core, correctness baseline (serial). The task-parallel variant is an **accepted** implementation of the required parallel builder if LBVH isn't ready by the Nov 10 decision | Split axis = largest centroid extent (ties x < y < z). Object median: `nth_element` at `count/2` with comparator `(centroid[axis], PrimRef)`. Halves the count at every level, so depth ≤ ceil(log2(N)). **Contingency:** with `build_threads > 1`, subtrees below the top levels are built as OpenMP tasks, with node slots assigned from subtree sizes. A median subtree's node count depends only on its primitive count, `f(n) = 1` if `n ≤ max_leaf_size`, else `1 + f(⌊n/2⌋) + f(n − ⌊n/2⌋)`, so every slot is known before recursion and doesn't depend on scheduling. The comparator is a strict total order, so the output is byte-identical to the serial build. Top-level partitions stay serial, which limits scaling (Amdahl). That's acceptable for a fallback, and reported as such. |
+| **LBVH** (parallel) | **Core: preferred implementation of the required parallel builder** | 30-bit Morton codes (10 bits/axis). Quantize per axis: `q = min(floor((c - lo) / extent * 1024), 1023)`; `extent == 0` → `q = 0`. Stable LSD radix sort on `(morton)` over canonical order. Karras 2012 hierarchy with ties broken by sorted index. Bottom-up refit with atomic visit counters. |
 | **Binned SAH** (parallel) | Extension | Bins 16–32. Ties: lowest cost, then axis x < y < z, then lowest bin. Stable partition. Degenerate centroid bounds → object median. Node allocation must not depend on thread scheduling (build subtrees into task-local arrays, then concatenate in DFS order). |
 
 ### LBVH layout conversion (part of `layout`)
@@ -357,6 +483,14 @@ Alternative considered: a layout with explicit left and right indices, which Kar
 - With 30-bit codes and index tie-breaks, LBVH depth is at most 30 + ceil(log2 N) + 1 (51 at 1M primitives). The validator still checks it.
 - **Recovery rule:** during finalize, any node at depth `RT_FALLBACK_DEPTH` (32) whose subtree is deeper than 32 has that subtree rebuilt with the median method. Median depth ≤ ceil(log2 count) ≤ 32, so the total stays ≤ 64. `stats.fallbacks` counts these rebuilds and is reported.
 - The 64-entry traversal stack is then always sufficient.
+
+### LBVH refit synchronization
+
+One thread per leaf walks upward. At each parent, an atomic visit counter decides who continues: the first child to arrive stops, and the second computes the parent's bounds from both children and moves up. The second thread must see the bounds the first thread wrote. Plain atomics on the counter alone don't guarantee that.
+
+- **CPU (C++17):** counters are `std::vector<std::atomic<uint32_t>>`, zeroed before the pass. Each thread writes its node's bounds (plain stores), then calls `counter[parent].fetch_add(1, std::memory_order_acq_rel)`. The release half publishes this thread's bounds; the acquire half, in the thread that gets `1`, makes the sibling's bounds visible before it reads them. Don't use `memory_order_relaxed`, and don't use `#pragma omp atomic` without an explicit `acq_rel` / `seq_cst` clause.
+- **GPU (Stretch, GPU LBVH):** write bounds, `__threadfence()`, then `atomicAdd` on the counter. The second arriver reads the sibling's bounds through `volatile` (or `ld.acquire`) loads after its own `__threadfence()`.
+- **Test:** repeated refits at B = 72 produce byte-identical bounds (min/max are order-independent, so any difference indicates a visibility bug; identical output doesn't prove its absence, which is why the ordering rule above is mandatory).
 
 ### Edge cases
 
@@ -379,8 +513,10 @@ Owner: Jett.
 
 ```cpp
 struct Camera { vec3 position, look_at, up; float vfov_deg; uint32_t width, height; };
-RT_HOSTDEV Ray camera_ray(const Camera&, uint32_t px, uint32_t py);
+RT_INLINE Ray camera_ray(const Camera&, uint32_t px, uint32_t py);   // defined inline in camera.hpp
 ```
+
+`camera_ray` is called from device code, so it lives inline in `src/camera/camera.hpp`. `camera.cpp` holds only host code: JSON parsing, CLI overrides, and validation.
 
 - Pixel `(px, py)`, with `py = 0` the top row, maps to a ray through the pixel center `(px + 0.5, py + 0.5)`.
 - `dir` is normalized, `tmin = 0`, `tmax = +inf`. Because `dir` is normalized, `t` is a distance.
@@ -411,10 +547,11 @@ RT_HOSTDEV bool brute_any    (const Ray&, const Scene&);
 | Node culling | Visit a node iff `intersect_aabb(..., ray.tmin, best_t_or_tmax, t_enter)` is true. The far bound is **inclusive**, so ties are never culled. |
 | Child order | Visit the child with the smaller `t_enter` first. Equal `t_enter` → left first. This affects only speed, not the result. |
 | Any-hit | Returns true iff any primitive has `tmin < t < tmax`. Order-independent. |
-| Triangle test | **Watertight** (Woop et al. 2013, PBRT v4 Sec. 6.5.3). Two-sided: no backface culling for primary or shadow rays. Edges and vertices inclusive. Shared edges may report both triangles at the same `t`; the tie-break picks one. |
+| Triangle test | **Watertight** (Woop et al. 2013, PBRT v4 Sec. 6.5.3), including PBRT's fallback: if any edge function `e0, e1, e2` evaluates to exactly `0.0f`, recompute all three in `double` from the same float inputs. This is the only `double` in render code; it is required for watertightness, so it's not optional. It runs on CPU and GPU alike (rare, so the 4070's slow FP64 doesn't matter). Two-sided: no backface culling for primary or shadow rays. Edges and vertices inclusive. Shared edges may report both triangles at the same `t`; the tie-break picks one. |
 | Degenerate triangle | Zero determinant → miss. |
 | Sphere test | Stable quadratic: `q = -0.5 (b + copysign(sqrt(disc), b))`, roots `q/a` and `c/q`. Take the smallest root in the interval. An origin inside the sphere returns the far root. |
-| Traversal stack | Fixed `RT_MAX_BVH_DEPTH` entries. No recursion. `num_nodes == 0` → miss. |
+| Traversal stack | Fixed `RT_MAX_BVH_DEPTH` (64) entries. No recursion. `num_nodes == 0` → miss. **Convention:** at an interior node with both children hit, descend into the nearer one and push the farther; with one child hit, descend without pushing. That pushes at most one entry per level, so occupancy ≤ tree depth ≤ 64. Other stack algorithms (for example, pushing both children) need their own capacity argument before use. |
+| Stack overflow | Checked in all builds before every push. CPU: `assert` in debug; in release, set an overflow flag and stop traversing that ray. GPU: set a device-global overflow flag (`atomicOr`) and stop. The backend checks the flag after `render` and fails the run with an error. A valid BVH never triggers it. |
 
 `brute_closest` / `brute_any` use the same acceptance rule, so BVH and brute-force results must be identical, not just close.
 
@@ -476,15 +613,32 @@ struct PixelResult {           // 20 B
   uint32_t light_mask;         // contributing lights (see AOV semantics); 0 on miss
 };
 
+// Shading policies, chosen at compile time like queries:
+struct LitShading {                     // Core: Lambert + shadows, frozen accumulation order
+  template <class Q> RT_INLINE PixelResult operator()(const Ray& r, const Hit& h,
+                                                      const Scene& s, const Q& q) const
+  { return shade_hit(r, h, s, q); }
+};
+struct NormalShading {                  // Debug / smoke: no lights, no shadow rays
+  template <class Q> RT_INLINE PixelResult operator()(const Ray& r, const Hit& h,
+                                                      const Scene& s, const Q&) const {
+    if (h.prim == 0xFFFFFFFFu) return { s.background, 0xFFFFFFFFu, 0u };
+    vec3 n = surface_at(r, h, s).ng;    // face-forwarded geometric normal
+    return { 0.5f * (n + vec3{1, 1, 1}), h.prim, 0u };   // light_mask always 0
+  }
+};
+
 // Shared per-pixel entry point for every backend:
-template <class Query>
+template <class Query, class Shading = LitShading>
 RT_INLINE PixelResult render_pixel(const Camera& cam, uint32_t px, uint32_t py,
-                                   const Scene& s, const Query& q) {
+                                   const Scene& s, const Query& q, Shading shade = {}) {
   Ray r = camera_ray(cam, px, py);
   Hit h = q.closest(r);
-  return shade_hit(r, h, s, q);         // handles the miss case; shadow rays use q.any
+  return shade(r, h, s, q);             // LitShading: shadow rays use q.any
 }
 ```
+
+Selection: `--shade lit|normal` (default `lit`), carried in `RenderSettings::shade`. The backend picks the `(Query, Shading)` instantiation once on the host, from `--bvh` and `--shade`. `normal` is for the first CPU image (C3), the GPU smoke test (C3G), and debugging. It's never used for timing or for golden comparisons of lit scenes. Results record `config.shade`.
 
 - CPU backend: `render_pixel<BvhQuery>` or `render_pixel<BruteQuery>`. Megakernel: `render_pixel<BvhQuery>`, with `BruteQuery` also instantiable for small-scene debugging. Embree: `render_pixel<EmbreeQuery>`. OptiX: raygen calls `render_pixel<OptixQuery>`.
 - Embree and OptiX map their IDs to `PrimRef` inside the query, so the AOVs stay comparable.
@@ -494,7 +648,7 @@ RT_INLINE PixelResult render_pixel(const Camera& cam, uint32_t px, uint32_t py,
 ### Shadow-ray construction (frozen)
 
 1. `p` = hit point, computed as `ray.origin + t * ray.dir`. For triangles, use the barycentric point instead (more accurate). `ng` is face-forwarded toward the viewer.
-2. Point light: `to_l = L.pos - p`, `d2 = dot(to_l, to_l)`, `l = to_l / sqrt(d2)`.
+2. Point light: `to_l = L.pos - p`, `d2 = dot(to_l, to_l)`. **If `d2 == 0` (the light coincides with the surface point) or `d2` is not normal, the light contributes nothing and casts no shadow ray; its mask bit stays clear.** Otherwise `l = to_l / sqrt(d2)`.
 3. If `dot(ng, l) <= 0`, the light is behind the surface: no contribution and no shadow ray. Return false.
 4. Origin `o = offset_ray_origin(p, ng)`, which offsets toward the light's side.
 5. Point light: `dir = normalize(L.pos - o)`, `tmin = 0`, `tmax = length(L.pos - o)`. Lights are not geometry, so the open interval is enough.
@@ -527,9 +681,12 @@ Owner: Mikail.
 ```cpp
 enum AovFlags : uint32_t { AOV_PRIM_ID = 1u << 0, AOV_LIGHT_MASK = 1u << 1 };
 
+enum class ShadeMode : uint32_t { Lit = 0, Normal = 1 };
+
 struct RenderSettings {        // effective values, after JSON + CLI overrides
   uint32_t width, height;      // fixed for the lifetime of one preparation
   uint32_t aovs;               // AovFlags
+  ShadeMode shade;             // --shade lit|normal; selects the Shading policy
 };
 
 struct PrepareInput {
@@ -590,7 +747,7 @@ Components are host wall-clock intervals (`steady_clock`) with `cudaDeviceSynchr
               "aovs": ["primid", "lightmask"],
               "camera": { "position": [0, 0, 0], "look_at": [0, 0, 0], "up": [0, 1, 0], "vfov_deg": 45,
                           "overridden": ["position"] },
-              "query": "bvh",
+              "query": "bvh", "shade": "lit", "counters": false,
               "mem": { "mode": "explicit", "advice": "none", "prefetch": false, "realloc_per_prepare": true,
                        "geometry_reused": false, "fresh_pages": null } },
   "app": { "total_ms": 0.0, "components": {}, "unattributed_ms": 0.0 },
@@ -607,9 +764,8 @@ Components are host wall-clock intervals (`steady_clock`) with `cudaDeviceSynchr
 - `spread = (max − min) / median`.
 - `median_run_index` identifies the run whose components explain the median total. Medians of individual components are not summed.
 
-## Contract-change process
+## Interface changes
 
-1. Open an issue labeled `contract` stating the change and who it affects.
-2. A single PR edits this file and the code together.
-3. The PR author signs off in the description. **All three other members must approve the review** (GitHub doesn't let authors approve their own PRs).
-4. Bump the JSON / `.bin` / results `version` field when a format changes.
+1. One PR changes this file and the affected code together.
+2. Every owner whose code is affected approves it (see the owner table at the top). Pure clarifications need only the normal single review.
+3. Bump the version line at the top (v1.0 → v1.1 …). Bump the JSON / `.bin` / results `version` field if a file format changes. Post a one-line summary in the team chat.

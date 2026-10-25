@@ -57,6 +57,16 @@ module list
 
 NVIDIA HPC SDK (`nvc`, `nvc++`) is Vista's default compiler suite. Always load `gcc` explicitly before CMake so CMake and nvcc use GCC.
 
+**Check which OpenMP runtime the binary actually loads.** Vista's default module environment is built around the NVIDIA HPC SDK, whose library paths can end up in `LD_LIBRARY_PATH`. A GCC-built program could then resolve its OpenMP runtime to the wrong library. GCC's `-fopenmp` expects `libgomp`. After every build, and in every batch job:
+
+```bash
+ldd build-vista/apps/rt_render/rt_render | grep -Ei 'gomp|omp|nvhpc'
+# expected: libgomp.so.1 => .../gcc/13.2.0/.../libgomp.so.1
+# wrong:    any libomp / libnvomp / path under an nvidia or nvhpc module
+```
+
+If it resolves wrongly, `module unload nvidia` (or `module reset` followed by loading only `gcc` and `cuda`), rebuild, and check again. **Verify on Vista** which module names are involved; TACC's user guide recommends `ldd` for checking library resolution.
+
 Record machine identity on the allocated node every time (the sbatch template does this automatically):
 
 ```bash
@@ -103,9 +113,17 @@ ctest --test-dir build --output-on-failure
 | `RT_ENABLE_EMBREE` | `OFF` | Builds the `embree` backend (Extension E4). Needs Embree 4 installed or fetched |
 | `RT_ENABLE_OPTIX` | `OFF` | Builds the `optix` backend (Stretch). Needs `OptiX_INSTALL_DIR` |
 | `RT_BUILD_TESTS` | `ON` | GoogleTest unit and regression tests |
+| *Deferred:* `RT_COUNTERS` | `OFF` | Counts BVH nodes visited per ray, for explaining traversal cost. Add only if needed; never used for timing |
 
 A CPU-only build must always work. CI uses it.
 
+### Golden images
+
+Goldens are compared with the normal `rt_compare` tolerances, not exact equality, so they work on any x86 machine with GCC 13. Regenerate them deliberately in a PR that says why, never to make a failing test pass.
+
+### Golden-image environment (deferred)
+
+Exact, bit-identical goldens would need a pinned CI container (image digest, exact `g++-13` package, `-O2 -march=x86-64 -ffp-contract=off`, 1 and 4 threads). That's deferred. Revisit only if tolerance-based goldens miss a real regression.
 ### Compiler flags
 
 | Flags | Where |
@@ -114,7 +132,7 @@ A CPU-only build must always work. CI uses it.
 | `-march=native` | x86 laptop |
 | `-mcpu=native` (or `-mcpu=neoverse-v2`) | Grace (**verify on Vista** which GCC 13.2 accepts) |
 | No `-ffast-math`, no `--use_fast_math` | Everywhere (the NaN-safe slab test depends on IEEE comparisons; see [INTERFACES.md](INTERFACES.md#ray-box-slab-test-frozen)) |
-| `-ffp-contract=off` | Generator and scene-hash sources only, so x86 and ARM produce identical bytes |
+| `-ffp-contract=off` | Generator and scene-hash sources only. Reduces variation, but doesn't make x86 and ARM bytes identical (libm differs), so benchmark scenes are generated once and distributed ([INTERFACES.md](INTERFACES.md#generator-determinism-and-scene-distribution)) |
 | `-Xcompiler -fopenmp`, `-lineinfo`, `-Xptxas -v` | nvcc (lineinfo for Nsight; `-v` reports registers and local memory) |
 
 Benchmark binaries on Vista must be built on Vista. Don't copy laptop binaries.

@@ -1,72 +1,111 @@
 # Po Han Ai (Member 4)
 
-## 1. Role
+## Start here
 
-- **Core:** `SceneHost`, `scene_io`, `.bin`, and scene hash; seeded generator sized in primitives; CPU backend on one core and many cores; `rt_compare` with AOV-based checks; golden images in CI; CPU render scaling; final reproducibility instructions.
-- **Extension:** E4 Embree baseline (Jett is backup).
+**You build:** the scene data layer (types, JSON and `.bin` IO, validation, hashing), the scene generator, image IO, the CPU renderer (1 to N threads, the reference everything is compared against), and `rt_compare`.
 
-## 2. Owns
+**Read first, in order:**
+1. [INTERFACES §2 Scene, image, and file formats](../INTERFACES.md#2-scene-image-and-file-formats) (your contract; everyone reads your types)
+2. [INTERFACES §6 tracing queries and pixel result](../INTERFACES.md#tracing-queries) (what your CPU loop calls)
+3. [INTERFACES §7 Backend interface](../INTERFACES.md#7-backend-interface) (the CPU backend implements it)
+4. [BENCHMARKING scene families](../BENCHMARKING.md#scene-families) (what `rt_gen` produces)
+5. [BENCHMARKING image comparison](../BENCHMARKING.md#2-image-comparison-rt_compare) (what `rt_compare` checks)
 
-`src/scene/`, `src/cpu/`, `src/image/`, `src/embree/`, `apps/rt_gen/`, `apps/rt_compare/`, `apps/scene_dump/`, `scenes/known/`, `scenes/golden/`, test layout (GoogleTest). CI wiring is Mikail's.
+**First three tasks:**
+1. `SceneHost` / `Scene` / `Image`, JSON reader/writer, scene hash, load validation, `scene_dump` (by Oct 30).
+2. A few hand-written `scenes/known/*.json` + PNG/PFM/`.u32img` writers + the brute-force CPU loop for the first image (by Oct 30).
+3. `rt_gen` uniform layout + `.bin`, then the CPU backend with OpenMP tiles (by Nov 6).
 
-## 3. Deliverables
+**You hand off:**
 
-| Gate | Deliverable | Size | Task |
+| What | To | When | Contract |
 |---|---|---|---|
-| G0 (Oct 30) | `SceneHost`, `Scene` view, `Image`; JSON v2 reader/writer; scene hash; `scene_dump` | M | C2 |
-| G0 (Oct 30) | Brute-force CPU render loop over `render_pixel`; PNG, PFM, and `.u32img` writers/readers; 3–4 known-case scenes | S | C3 |
-| G1 (Nov 6) | `rt_gen` (`--spheres`, `--terrain-tris`, `--seed`); PCG32; `.bin` with `content_hash`; `-ffp-contract=off` | M | C6 |
-| G1 (Nov 6) | CPU backend: 16×16 tiles, dynamic schedule, `num_threads(R)`, AOVs | S | C7 |
-| G1 (Nov 6) | `rt_compare`: nonfinite, primary-hit, shadow, shading, localization, sRGB summary; heatmap; CI goldens | M | C8 |
-| G3 (Nov 18) | CPU render scaling R = 1→72; optimization pass driven by profiles | M | C13 |
-| After G2 | E4 Embree (4-day timebox): triangles + native spheres, `PrimRef` mapping, shared shading | M | E4 |
-| Final | Quality review (2 reviewers); reproducibility instructions with exact commands, hashes, modules | M | C14 |
+| `SceneHost`, `Scene`, `Image`, JSON IO, validation | Everyone | Oct 30 | §2 |
+| Known-case scenes (`scenes/known/`) | Everyone's tests | Oct 30 | §2 |
+| CPU backend (reference renderer) | Everyone (ground truth) | Nov 6 | §7 |
+| `rt_gen` + `.bin` + published scene set | Everyone (benchmarks) | Nov 6 | §2, [scene families](../BENCHMARKING.md#scene-families) |
+| `rt_compare` core checks | Mikail (GPU validation), Arek (goldens) | Nov 6 | [image comparison](../BENCHMARKING.md#2-image-comparison-rt_compare) |
 
-## 4. Contracts
+**You depend on:**
 
-- **Owns:** [Scene, image, and file formats](../INTERFACES.md#2-scene-image-and-file-formats), the `rt_compare` rules in the [quality protocol](../BENCHMARKING.md#2-image-comparison-rt_compare).
-- **Consumes:** math (Arek), traversal (Mikail), BVH (Jett), shading (Arek), harness (Arek).
+| What | From | Until it lands, use |
+|---|---|---|
+| `vec3`, `AABB` | Arek (Oct 27) | Nothing to stub; it's small |
+| `brute_closest` / `BruteQuery` | Mikail (Oct 30) | A trivial sphere-only loop in your test |
+| `shade_hit` / `NormalShading` | Arek | Normal-as-color written inline, replaced when merged |
+| Terrain height field | Jett (Nov 6) | A flat two-triangle floor |
+| `Bvh` + `BvhQuery` | Jett, Mikail (Nov 6) | `BruteQuery` |
 
-## 5. Dependencies
+**Done means:**
+- JSON and `.bin` round trips are exact, and the readers reject bad files.
+- Load validation rejects each invalid case in the [valid input table](../INTERFACES.md#valid-input-checked-at-load).
+- The CPU backend at 1 vs N threads is bit-identical.
+- `rt_compare` passes identical images and rejects the four core corruption tests.
 
-- **Blocked by:** math library (C2); Mikail's intersection for the brute-force image (C3).
-- **Blocks:** everyone (scene types); benchmarks (generator); every GPU validation (`rt_compare`).
-- **Stubs:** inline JSON scenes; `brute_*` before the BVH exists.
+### Agent brief
 
-## 6. Tests
+Paste this into your coding agent along with `docs/INTERFACES.md`:
 
-- JSON and `.bin` round trips; readers reject bad magic, unknown version, truncation, and hash mismatch.
-- Same `rt_gen` arguments give the same `content_hash` on the laptop and on Vista.
-- PCG32 matches its published reference outputs.
-- CPU backend: 1 vs N threads bit-identical (PFM and AOVs).
-- `rt_compare` must fail on an injected NaN, a shifted object, a 10×10 wrong block, and a flipped shadow region, and must pass on identical images.
+```text
+You are implementing the scene layer, generator, image IO, CPU backend, and image comparison
+tool for a C++17/CUDA ray tracer. Repo layout: docs/REPO_SKELETON.md.
+Contract: docs/INTERFACES.md section 2, "Tracing queries", "Pixel result", and section 7.
+Generator spec: docs/BENCHMARKING.md "Scene families". Comparison spec: docs/BENCHMARKING.md
+"Image comparison (rt_compare)", core checks only. Follow them exactly.
 
-## 7. References
+Scope (only edit these): src/scene/, src/image/, src/cpu/, apps/rt_gen/, apps/rt_compare/,
+apps/scene_dump/, scenes/known/, scenes/golden/, scripts/fetch_scenes.sh, and tests for these.
+Build: CMake, GCC 13, OpenMP. Use nlohmann/json for JSON, stb_image_write for PNG.
 
-- PCG (pcg-random.org).
-- PBRT v4 (renderer structure).
-- PFM format notes; stb_image_write.
-- Embree 4 docs (E4).
+Rules:
+- Follow INTERFACES section 0 (code conventions): namespace rt, includes from src/ like
+  "core/math.hpp", host errors as rt::Error, CUDA calls in RT_CUDA_CHECK, one CMake target per module.
+- Types are POD; padding fields default to 0. Scene hash = FNV-1a over a canonical
+  field-by-field encoding (never raw struct bytes); the camera is excluded.
+- .bin layout and .u32img layout exactly as specified; little-endian.
+- Validate every loaded scene against "Valid input (checked at load)"; reject with field + index.
+- Generator: own PCG32, own u32->float, own Box-Muller; no std distributions; generator
+  sources compiled with -ffp-contract=off. Same binary + args -> identical bytes.
+- CPU backend: OpenMP over 16x16 tiles, schedule(dynamic), num_threads(R); calls
+  render_pixel<Query, Shading>; output must be bit-identical for any thread count.
+- rt_compare: linear floats before clamping; nonfinite, explained hit/shadow mismatch (3x3),
+  mismatch budget, shading tolerance; one pass/fail line per check; nonzero exit on failure.
+- If the interface looks wrong or incomplete, do not change it locally. Stop and write a short
+  note proposing the change.
 
-## 8. This week (Oct 24–30)
+Deliverables, in order:
+1. scene types, JSON IO, hash, validation, scene_dump + tests.
+2. PNG/PFM/.u32img IO; known-case scenes; brute-force CPU loop.
+3. rt_gen --layout uniform --primitives N --seed S (fitted camera, light per spec) + .bin IO.
+4. CPU backend (Backend interface) with AOVs.
+5. rt_compare core checks + the 4 core corruption tests.
+```
 
-- [ ] Review INTERFACES v0.3 section 2 (incl. canonical hash and `.u32img` AOV format); sign off by Oct 27.
-- [ ] `scene_host.hpp`, JSON v2 reader, hash, `scene_dump` (branch `po/scene-io`).
-- [ ] `scenes/known/two_spheres.json` plus 2–3 more known-case scenes.
-- [ ] Brute-force CPU loop and PNG/PFM output for G0.
-- [ ] GoogleTest wired in with Mikail.
-- [ ] WSL2 setup per [BUILD.md](../BUILD.md#laptop-wsl2-setup); confirm Vista login.
+## Deliverables
 
-## 9. Risks
+| When | Deliverable | Size |
+|---|---|---|
+| Oct 27 | Review INTERFACES §2 and sign off | S |
+| Oct 30 | Scene types, JSON IO, hash, validation, `scene_dump`; known scenes; image IO; brute-force CPU image | M |
+| Nov 6 | `rt_gen` uniform + `.bin` (terrain from Jett); CPU backend; `rt_compare` core + 4 corruption tests | M |
+| Nov 6 | Generate the benchmark set once, publish it as release `scenes-v1` with `scenes/manifest.json`, and add `scripts/fetch_scenes.sh` ([details](../INTERFACES.md#generator-determinism-and-scene-distribution)) | S |
+| Nov 18 | CPU render scaling R = 1→72; profile-driven CPU optimization | M |
+| Final | Reproducibility instructions (exact commands, hashes, modules) | M |
+| Later | E4 Embree (after G2); `clustered` layout and seed 2 (after G2, if time); [deferred `rt_compare` hardening](../BENCHMARKING.md#deferred-comparison-hardening) only if needed | |
+
+## Risks
 
 | Risk | Mitigation |
 |---|---|
-| Broadest workload (C2, C3, C6, C7, C8 by G1) | Arek takes CI golden wiring if needed; Jett takes terrain generation; Embree only after G2 |
-| Generator bytes differ across machines | Own PRNG and float conversion; `-ffp-contract=off`; hash compare on Vista |
-| `rt_compare` too lenient | Required failure cases above; tile localization check |
-| Embree ARM64 trouble on Vista | Check early; it's an Extension and can be dropped |
+| Broadest workload | Terrain → Jett, golden tests → Arek, already assigned. Next if needed: `scene_dump` and `.u32img` IO → Mikail. Embree only after G2 |
+| Generator bytes differ across machines | Expected (libm). Generate once, distribute the files, verify hashes |
+| `rt_compare` too lenient | Core checks require explained mismatches. Turn on the deferred hardening if a wrong image passes |
 
-## 10. Contribution log
+## References
+
+PCG (pcg-random.org); PBRT v4 (renderer structure); PFM format notes; stb_image_write; Embree 4 docs (E4).
+
+## Contribution log
 
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|

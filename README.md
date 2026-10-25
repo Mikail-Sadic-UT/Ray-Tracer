@@ -14,7 +14,7 @@ ECE 379K project. A ray tracer for spheres and triangles that splits work betwee
 ## Required deliverable
 
 1. Spheres + triangles, Lambert lighting with point lights, hard shadows.
-2. Serial median BVH (correctness baseline) and one scalable parallel builder (LBVH).
+2. Serial median BVH (correctness baseline) and one correct parallel builder. LBVH is preferred; a task-parallel median builder is the accepted alternative (decided Nov 10).
 3. CPU rendering on one core and on many cores.
 4. A CUDA megakernel that matches the CPU under the [quality protocol](docs/BENCHMARKING.md#quality-protocol).
 5. Validation: analytic tests, independent oracle, BVH vs brute force, image/AOV comparison.
@@ -50,11 +50,11 @@ Offline CLI renderer. No native Windows build.
 
 | Date | Gate / event | Exit criteria (summary) |
 |---|---|---|
-| Oct 27 | Contract sign-off | [INTERFACES.md](docs/INTERFACES.md) v0.3 accepted |
+| Oct 27 | Contract sign-off | [INTERFACES.md](docs/INTERFACES.md) v1.0 accepted |
 | Oct 30 | **G0** | Builds on WSL2 + Vista, CI green, brute-force CPU image |
 | ~Oct 31–Nov 7 | Check-in 2 (postponed, date TBD) | Latest passed gate (G0 or G1) plus the re-baselined plan; see [ROADMAP.md](docs/ROADMAP.md#gates-and-schedule) |
 | Nov 6 | **G1** | Correct CPU renderer, median BVH, multicore, generator, `rt_compare`, CPU timings, benchmark scenes fixed |
-| Nov 13 | **G2** | CUDA matches CPU; LBVH; first Vista timings. Reduced scope if missed |
+| Nov 13 | **G2** | CUDA matches CPU; correct parallel builder (LBVH or task-parallel median); first Vista timings. Reduced scope if missed |
 | Nov 16–20 | Check-in 3; **G3** Nov 18 | Scaling, breakdowns, profiling, preliminary ratios; extensions chosen |
 | Nov 30 | Ready | Final runs, review, slides |
 | Dec 1/3 | Presentation | |
@@ -63,6 +63,16 @@ Offline CLI renderer. No native Windows build.
 ## Quick start
 
 To be filled once task C1 (skeleton and build) lands. Planned setup: [BUILD.md](docs/BUILD.md).
+
+## How to use these docs
+
+Each member works on their own branch, often through a coding agent. The parts fit together because everyone codes against the same contract.
+
+1. **Start with your member file** ([members/](docs/members/)). Its "Start here" lists what you build, what to read, what you hand off to whom, and what to use until a dependency lands. Its **agent brief** can be pasted straight into your agent, together with `docs/INTERFACES.md`.
+2. **[INTERFACES.md](docs/INTERFACES.md) is the contract.** Types, signatures, and numeric rules there are what make the parts slot together. If one looks wrong during implementation, change it through a small interface PR approved by the affected owners. Don't work around it locally.
+3. **Everything else is reference.** Read the other docs when your task touches them. Items marked *deferred* were designed during review but aren't required; pick one up only if its trigger happens ([list](docs/ROADMAP.md#deferred-designed-not-required)).
+
+Expect to find gaps during implementation. Fix them where they show up, and keep INTERFACES.md current when they affect someone else.
 
 ## Documentation
 

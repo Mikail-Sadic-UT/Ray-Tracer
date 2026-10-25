@@ -1,77 +1,106 @@
 # Mikail Sadic (Member 2)
 
-## 1. Role
+## Start here
 
-- **Core:** skeleton, CMake, CI, Vista verification; intersection and traversal; backend interface; `DeviceScene` (explicit) and the CUDA megakernel; sweep scripts; GPU profiling; node-hour log.
-- **Extensions:** E1 `managed`/`system` memory modes on the GH node; E5 wavefront trace kernels.
-- **Stretch:** OptiX (with Arek).
+**You build:** the build system and CI, ray-primitive intersection and BVH traversal (GPU visibility), the backend interface, and the CUDA renderer (`DeviceScene` + megakernel). You also handle Vista: verification, batch scripts, and the node-hour log.
 
-## 2. Owns
+**Read first, in order:**
+1. [INTERFACES §5 Intersection and traversal](../INTERFACES.md#5-intersection-and-traversal) (your contract)
+2. [INTERFACES §7 Backend interface](../INTERFACES.md#7-backend-interface) and [owning storage vs views](../INTERFACES.md#owning-storage-vs-views) (`DeviceScene` is yours)
+3. [INTERFACES §6 tracing queries and pixel result](../INTERFACES.md#tracing-queries) (what your kernel calls)
+4. [INTERFACES §3 node layout](../INTERFACES.md#node-layout-frozen) (what you traverse)
+5. [BUILD.md](../BUILD.md) and [REPO_SKELETON.md](../REPO_SKELETON.md) (you create these files)
 
-`CMakeLists.txt`, `cmake/`, `.github/`, `src/trace/`, `src/backend.hpp`, `src/gpu/` (except wavefront shade, accumulate, and queues), `src/optix/`, `apps/rt_render/`, `apps/hello_cuda/`, `scripts/tacc/`.
+**First three tasks:**
+1. Repo skeleton files: root CMake with a CPU-only fallback, CI, PR template, `hello_cuda` running on the laptop and a Vista GH node. Record the working GCC + CUDA pair (by Oct 30).
+2. Intersection (watertight triangle, stable sphere) + `brute_closest` / `brute_any` (by Oct 30).
+3. GPU smoke image: `render_pixel<BruteQuery, NormalShading>` in a CUDA kernel (~Nov 3).
 
-## 3. Deliverables
+**You hand off:**
 
-| Gate | Deliverable | Size | Task |
+| What | To | When | Contract |
 |---|---|---|---|
-| G0 (Oct 30) | Repo, protection rules, PR template; CMake with CPU-only fallback; CI per the fixed outline | M | C1 |
-| G0 (Oct 30) | `hello_cuda` on a GH node; record the tested GCC + CUDA pair and the GPU name in BUILD.md | S | C1 |
-| G0 (Oct 30) | Intersection: watertight triangle, stable sphere quadratic, frozen interval and tie rules; `brute_*` | M | C3 |
-| G1 (Nov 6) | `traverse_closest` / `traverse_any` (inclusive culling, near-first, 64-entry stack, empty BVH) | M | C5 |
-| G2 (Nov 13) | Backend interface with `RenderSettings`; `DeviceScene` uploading scene + BVH; megakernel calling `render_pixel`; AOV download | M | C10 |
-| G2 (Nov 13) | Sweep sbatch scripts with identity recording; node-hour log | S | C12 |
-| G3 (Nov 18) | GPU profiling: `-Xptxas -v`, Nsight Compute (occupancy, local memory), Nsight Systems | M | C13 |
-| After G2 | E1 memory modes with advice, prefetch, and residency recording (4-day timebox) | M | E1 |
-| After G3 | E5 trace kernels with Arek | M | E5 |
+| Building repo + CI | Everyone | Oct 30 | [BUILD.md](../BUILD.md) |
+| `intersect_*`, `brute_*`, `Hit` | Po (first CPU image), Arek (shadow tests) | Oct 30 | §5 |
+| `traverse_closest` / `traverse_any`, `BvhQuery` | Po (CPU backend), Arek | Nov 6 | §5, §6 |
+| `Backend` interface, `rt_render` CLI | Everyone | Nov 6 | §7 |
+| CUDA megakernel backend | Everyone (GPU results) | Nov 13 | §7 |
+| sbatch sweep scripts | Everyone (measurements) | Nov 13 | [BENCHMARKING](../BENCHMARKING.md#sweeps) |
 
-## 4. Contracts
+**You depend on:**
 
-- **Owns:** [Intersection and traversal](../INTERFACES.md#5-intersection-and-traversal), [Backend interface](../INTERFACES.md#7-backend-interface), `DeviceScene`.
-- **Consumes:** math and slab test (Arek), `SceneHost` (Po), BVH layout (Jett), shading (Arek), timers (Arek).
+| What | From | Until it lands, use |
+|---|---|---|
+| `vec3`, `Ray`, `AABB`, slab test | Arek (Oct 27) | Nothing to stub; it's small, so pair with Arek if it's late |
+| `Scene` view | Po (Oct 30) | A hand-filled `Scene` struct in tests |
+| `Bvh` | Jett (Nov 6) | A hand-built 3-node BVH |
+| `shade_hit` | Arek (Nov 6) | `NormalShading` |
 
-## 5. Dependencies
+**Done means:** BVH traversal gives identical hits to brute force (same `prim`, bit-identical `t`) on random rays. GPU vs CPU passes `rt_compare` on the known scenes and `bench_100k`, on both machines. Repeated GPU runs are bit-identical.
 
-- **Blocked by:** math library (C2). Traversal also needs Jett's median builder, but a hand-built 3-node BVH suffices to start.
-- **Blocks:** everyone's builds (C1); the brute-force image (C3); the CPU BVH path (C5); G2.
-- **Stubs:** hand-built BVH; normal-as-color shading for the first kernel; inline JSON scenes.
+### Agent brief
 
-## 6. Tests
+Paste this into your coding agent along with `docs/INTERFACES.md`:
 
-- Intersection: hit, miss, grazing, inside sphere, behind origin, degenerate triangle, shared edge (exactly one winner by `PrimRef`), vertex hits.
-- Arek's double-precision oracle agrees on random rays away from edges.
-- BVH vs brute force: identical `prim` and bit-identical `t`.
-- Any-hit respects `tmax`. Empty scene returns a miss.
-- GPU vs CPU passes `rt_compare` on known scenes and `bench_100k`, on both machines. Repeated GPU runs are bit-identical.
-- E1: all modes pass `rt_compare`; unsupported modes fail cleanly on the laptop.
+```text
+You are implementing intersection, traversal, the backend interface, and the CUDA backend for a
+C++17/CUDA ray tracer. Repo layout: docs/REPO_SKELETON.md. Build details: docs/BUILD.md.
+Contract: docs/INTERFACES.md sections 5 and 7, plus "Owning storage vs views", "Tracing queries",
+and "Pixel result". Follow them exactly.
 
-## 7. References
+Scope (only edit these): CMakeLists.txt, cmake/, .github/, src/trace/, src/backend.hpp, src/gpu/
+(not wavefront/), apps/rt_render/, apps/hello_cuda/, scripts/tacc/, and tests for these.
+Toolchain: GCC 13 host compiler, CUDA 12.x, sm_89 (laptop) / sm_90 (Vista). A CPU-only build must always work.
 
-- PBRT v4 Ch. 6 (watertight triangle test, sphere quadratic, ray-box robustness).
-- Woop, Benthin, Wald 2013, "Watertight Ray/Triangle Intersection".
-- Aila & Laine 2009, "Understanding the Efficiency of Ray Traversal on GPUs".
-- CUDA Programming Guide: local memory, unified memory; NVIDIA CUDA installation guide (host compiler table for the exact CUDA version).
-- TACC Vista user guide.
+Rules:
+- Follow INTERFACES section 0 (code conventions): namespace rt, includes from src/ like
+  "core/math.hpp", host errors as rt::Error, CUDA calls in RT_CUDA_CHECK, one CMake target per module.
+- All RT_HOSTDEV code is inline in headers. No -rdc, no device linking.
+- Hit acceptance: open interval (tmin, tmax); equal t -> lowest PrimRef wins; box culling far bound inclusive.
+- Watertight triangle test (PBRT v4 6.5.3) including the double fallback when an edge function is exactly 0.
+- Traversal: descend into nearer child, push farther; 64-entry stack; set an overflow flag on overflow.
+- DeviceScene: one cudaMalloc + cudaMemcpy per array (scene arrays + BVH nodes + prim refs).
+- prepare() allocates all per-frame buffers; render() never allocates. A resolution change means prepare() again.
+- float only (except the watertight fallback); no -ffast-math / --use_fast_math.
+- If the interface looks wrong or incomplete, do not change it locally. Stop and write a short
+  note proposing the change.
 
-## 8. This week (Oct 24–30)
+Deliverables, in order:
+1. Root CMake (options in BUILD.md), CI workflow, hello_cuda.
+2. intersect_sphere, intersect_triangle, brute_closest, brute_any + tests (hit, miss, grazing,
+   inside sphere, degenerate triangle, shared edge tie, vertex hit).
+3. GPU smoke kernel: render_pixel<BruteQuery, NormalShading>; rt_render --backend cuda --bvh none --shade normal.
+4. traverse_closest / traverse_any + BVH-vs-brute-force tests.
+5. Backend interface, CPU/CUDA dispatch in rt_render, CUDA megakernel with render_pixel<BvhQuery>.
+```
 
-- [ ] Vista: `idev -p gh-dev -N 1 -n 1 -t 1:00:00`; run `nvidia-smi` identity query; build `hello_cuda` with `gcc/13.2.0` + `cuda`.
-- [ ] Check the CUDA install guide for the loaded version's supported GCC; fill the pinned-pairs table in [BUILD.md](../BUILD.md#pinned-toolchain-pairs).
-- [ ] Create the repo with `main` + `dev` protection and the PR template.
-- [ ] Root CMake; CI with the fixed format check.
-- [ ] Review INTERFACES v0.3 sections 5 and 7; sign off by Oct 27.
-- [ ] Start intersection with tests (branch `mikail/intersect`).
+## Deliverables
 
-## 9. Risks
+| When | Deliverable | Size |
+|---|---|---|
+| Oct 27 | Review INTERFACES §5, §7 and sign off | S |
+| Oct 30 | Repo skeleton files, CMake, CI, `hello_cuda` on laptop + GH node; toolchain pair recorded in BUILD.md | M |
+| Oct 30 | Intersection + brute force | M |
+| ~Nov 3 | GPU smoke image | S |
+| Nov 6 | Traversal (`BvhQuery`) | M |
+| Nov 13 | `DeviceScene` (explicit) + megakernel; sweep sbatch scripts; node-hour log | M |
+| Nov 18 | GPU profiling (`-Xptxas -v`, Nsight) | M |
+| Later | E1 memory modes (after G2); E5 trace kernels (after G3); OptiX (stretch) | |
+
+## Risks
 
 | Risk | Mitigation |
 |---|---|
-| Front-loaded: C1 and C3 in the same week | Keep C1 minimal; intersection is small and well-specified |
-| Traversal on the critical path | `brute_*` ships first with the same rules |
-| CUDA/GCC pair unsupported on Vista | Check the versioned compatibility table; try module pairs early |
-| Megakernel slower than expected | Profile local-memory stack traffic before redesigning |
-| `system` mode results drift between runs | Record per-frame times and residency settings (E1 protocol) |
+| Front-loaded first week | Keep the CMake minimal; intersection is small and fully specified |
+| Traversal is on the critical path | `brute_*` ships first with the same rules, so others aren't blocked |
+| CUDA/GCC pair unsupported on Vista | Check NVIDIA's host-compiler table for the exact CUDA version; try module pairs early |
+| Wrong OpenMP runtime on Vista | `ldd` check in [BUILD.md](../BUILD.md#vista-setup) |
 
-## 10. Contribution log
+## References
+
+PBRT v4 Ch. 6 (watertight test); Woop et al. 2013; Aila & Laine 2009 (GPU traversal); CUDA Programming Guide (local memory, unified memory); TACC Vista user guide.
+
+## Contribution log
 
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|

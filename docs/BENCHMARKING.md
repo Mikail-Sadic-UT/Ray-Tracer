@@ -18,11 +18,11 @@ Excluded from all three: image `write`, OS process launch, and dynamic loading b
 
 Rules:
 
-- Report median, min, max, and `spread = (max − min) / median` for every quantity. Spread > 10% → rerun and investigate. Don't just average it away.
-- The run whose total is the median supplies the component breakdown shown in plots (`median_run_index`). Never sum component medians.
-- `unattributed = total − Σ components` is reported. More than 5% of total means instrumentation is missing something; investigate it.
-- Stage-boundary `cudaDeviceSynchronize` calls are part of the instrumented run. Once per configuration, compare against an uninstrumented total (`--no-components`) to confirm the overhead is small.
-- File cache: we can't drop OS caches on Vista, so T_app is "cold process, warm file cache". The report states this.
+- Report median, min, max, and `spread = (max − min) / median`. If spread exceeds ~10%, rerun and look into it.
+- Plots show the components of the run whose total is the median (`median_run_index`). Don't add up component medians.
+- `unattributed = total − Σ components` is reported. If it's large, some stage isn't instrumented.
+- T_app on Vista is "cold process, warm file cache" (we can't drop OS caches); the report says so.
+- *Deferred:* an uninstrumented `--no-components` run to measure timer overhead. Add it if instrumentation overhead looks significant on small scenes.
 
 ## Threads
 
@@ -50,11 +50,7 @@ The proposal compares the GPU against the **fastest tested** multicore CPU, whic
 - **GPU\***: the GPU configuration with the lowest median of the quantity being reported among the tested build-thread counts B, with the same per-size, per-quantity selection.
 - Results record which configuration was selected for each quantity, and its spread.
 
-**Selection and reporting use different runs.** Picking the minimum of several noisy medians biases the picked value low (the winner's curse). Both CPU\* and GPU\* are now selected this way, so the bias doesn't consistently favor either side. To keep it out of the reported numbers:
-
-1. **Selection:** use the sweep data only to pick CPU\* and GPU\*.
-2. **Confirmation:** in a separate job on one node, rerun the 1-core baseline, CPU\*, GPU\*, and the fixed-72 configurations. Use 5 runs each, interleaved in round-robin order so drift affects all of them equally.
-3. **Report:** all headline and fixed-72 ratios come from the confirmation runs. The sweep numbers appear only in scaling plots.
+**For the final report only (C14):** pick CPU\* and GPU\* from the sweep, then rerun the 1-core baseline, CPU\*, GPU\*, and fixed-72 configurations in one job, interleaved, 5 runs each. Report the headline ratios from those reruns; picking the minimum of noisy medians biases the picked value low. Preliminary numbers at check-in 3 can come straight from the sweep.
 
 | Target | Headline ratio | Also reported |
 |---|---|---|
@@ -63,9 +59,7 @@ The proposal compares the GPU against the **fastest tested** multicore CPU, whic
 | ~20× overall | T_br(CPU, B=1, R=1) / T_br(GPU\*) | Fixed: T_br(CPU, 1, 1) / T_br(GPU, B=72) |
 
 - The fixed-72 rows are labeled as such and never stand in for the headline "fastest CPU" claim.
-- If confirmation reruns change which configuration is fastest, keep the selected one, report the discrepancy, and use the extra data to judge noise. Don't reselect from the confirmation data.
-- B ≠ R combinations may be tested as extra points. If one beats every B = R point, it becomes CPU\* and the report says so.
-- The same tables are reported for T_frame (render-focused) and T_app (end-to-end), labeled separately. These are hypotheses to evaluate, not predictions.
+- The same tables are reported for T_frame and T_app, labeled separately. These are hypotheses to evaluate, not predictions.
 
 ## Comparison tiers
 
@@ -87,11 +81,48 @@ Measured in **primitives**. Fixed at gate G1 (Nov 6), and presented at check-in 
 | Name | Spheres | Triangles | Primitives | Seed |
 |---|---|---|---|---|
 | `known_*` | 1–10 | 2–20 | ≤ 30 | n/a (hand-written) |
-| `bench_10k` | 5,000 | 5,000 (terrain + floor) | 10,000 | 1 |
-| `bench_100k` | 50,000 | 50,000 | 100,000 | 1 |
-| `bench_1m` | 500,000 | 500,000 | 1,000,000 | 1 |
+| `bench_10k` | 5,000 | ~5,000 (terrain, which is also the floor) | 10,000 | 1 |
+| `bench_100k` | 50,000 | ~50,000 | 100,000 | 1 |
+| `bench_1m` | 500,000 | ~500,000 | 1,000,000 | 1 |
+
+The terrain grid gives `2·g²` triangles, slightly below the target, so the generator tops it up with sphere count until the total is exactly N. Results record the actual counts.
 
 Every results file records the scene hash and the exact `rt_gen` command. Icospheres, if used, are counted by their triangles (20·4^k each).
+
+### Scene families
+
+Primitive count alone doesn't define the workload: most of a million primitives could be off screen, hidden, or trivially rejected. Each benchmark scene is therefore fully specified by a layout, a size, and a seed. `bench_*` above is shorthand for `field_uniform_*_s1`.
+
+Shared definition, for N total primitives (half spheres, half terrain triangles):
+
+| Element | Rule |
+|---|---|
+| Extent | Square ground of side `S = 400 · sqrt(N / 1,000,000)`, centered at the origin. Primitive density per unit area is the same at every size. |
+| Terrain | Height field on a `g × g` grid with `g = floor(sqrt(N_tri / 2))`, two triangles per cell, spanning the extent. Height `h(x,z) = 2·sin(2πx/40)·cos(2πz/40) + 0.5·sin(2πx/9 + 1)`: fixed, so terrain shape doesn't vary with seed. |
+| Sphere radius | Log-uniform in [0.1, 1.0]. The distribution is independent of N. |
+| Sphere height | Resting on the terrain: `y = h(x,z) + r + U[0, 1)` |
+| Materials | 8 fixed diffuse colors, assigned by index mod 8 |
+| Camera | **Fit to the scene bounds**, computed by `rt_gen` and written into the JSON. vfov 45°, 1920×1080, elevation 35° looking along −z, `look_at` = center of the scene AABB (terrain plus spheres, including sphere tops). Distance D is the smallest value at which all 8 AABB corners project inside 95% of the image half-width and half-height (bisection; deterministic). The whole field is in view at every size, with margin. |
+| Light | One point light at `(0.3·S, 0.8·S, 0.2·S)`, intensity `∝ S²` so irradiance at the field center is the same at every size |
+
+| Layout | Sphere placement | Purpose |
+|---|---|---|
+| **uniform** (principal) | `x, z` uniform over the extent | Main scaling family |
+| **clustered** (contrast) | 64 cluster centers uniform over the extent; each sphere is `center + N(0, S/40)` in `x, z`, clamped to the extent | Uneven density and heavy overlap, a harder BVH case |
+
+Benchmark matrix (kept small):
+
+| Scene | Sizes | Seed | Use | When |
+|---|---|---|---|---|
+| `field_uniform` | 10K, 100K, 1M | 1 | All Core sweeps | Core (G1) |
+| `field_clustered` | 100K, 1M | 1 | Contrast case: uneven density, harder BVH | After G2, if time |
+| `field_uniform` | 1M | 2 | Sensitivity to scene generation | After G2, if time |
+
+Camera fitting matters: a fixed camera position cropped the field in an earlier draft. With terrain heights in [−2.5, 2.5] and sphere tops ≤ 5.5, the fit gives about `D ≈ 1.29·S` at 10K and `1.15·S` at 1M. `rt_gen` tests that all 8 AABB corners land inside the 95% frame.
+
+Workload diagnostics, computed from the AOVs at no extra cost: **visible fraction** (distinct hit `prim_id` values ÷ N) and **hit fraction** (pixels with a hit ÷ all pixels). They show whether a size step actually added visible work. *Deferred:* BVH node-visit counts via an `RT_COUNTERS` build, if traversal cost needs explaining.
+
+If the seed-2 scene runs (after G2), its ratios are reported as "sensitivity to scene generation". They aren't expected to match seed 1 within spread, since the geometry differs.
 
 ## Sweeps
 
@@ -102,7 +133,8 @@ Core sweeps, varying one dimension at a time around a baseline. Baseline: `bench
 | B and R together | 1, 2, 4, 8, 16, 32, 64, 72 | Vista |
 | B and R together | 1, 2, 4, 8, 16, 24, 32 | Laptop (P/E-core caveat) |
 | B alone (GPU runs) | 1, 8, 72 | Vista |
-| Scene size | 10K, 100K, 1M | Both |
+| Scene size | 10K, 100K, 1M (`field_uniform`) | Both |
+| Layout / seed (after G2, if time) | `field_clustered` 100K and 1M; `field_uniform` 1M seed 2 | Vista |
 | BVH method | `median`, `lbvh` (+ `sah` if built) | Both |
 | Light count L | 1, 2, 4 | Both |
 | Resolution | 640×480, 1920×1080 | Both |
@@ -148,7 +180,7 @@ Unified memory placement depends on who first touched the pages, prefetches, adv
 | `realloc_per_prepare` | `true` for T_br in `explicit`, `managed`, `system`; `false` for T_frame (buffers from the last preparation are reused) |
 | `geometry_reused` | `false` for `explicit`, `managed`, `system`: every preparation allocates fresh memory and copies the scene and BVH into it. `true` for `system-reuse`: views into the persistent `SceneHost`/`Bvh` vectors, no copy. |
 | `fresh_pages` | `system` only: `mmap`/`munmap` per preparation, so the C library allocator can't hand back pages a previous run may have migrated to the GPU |
-| First touch | CPU, for all fresh modes: the copy into the new buffer is a CPU write. Under `system-reuse`, first touch happened once at load time, and later placement depends on migration. |
+| Placement / first touch | `explicit`: device memory from `cudaMalloc`, filled by a host-to-device `cudaMemcpy` (DMA). No CPU-touched pages involved. `managed`: fresh `cudaMallocManaged` buffer, filled by a CPU copy (CPU first touch), then an optional prefetch. `system`: fresh `mmap` pages filled by a CPU copy (CPU first touch). `system-reuse`: touched once at load time; later placement depends on migration. |
 | `prefetch` | `managed` only: `cudaMemPrefetchAsync` to the GPU, timed as `upload` |
 | `advice` | `none`, `preferred-gpu`, `read-mostly` (`cudaMemAdvise`) |
 | Residency note | Under `system` and `system-reuse`, pages may migrate to GPU memory over repeated accesses, depending on driver configuration. T_frame runs record frame-by-frame times to expose that drift. **Verify on Vista** how to query the migration settings. |
@@ -171,7 +203,7 @@ About 50 node-hours. Develop on `gh-dev`. Production sweeps on `gh`. Mikail keep
 
 Shared CPU/GPU code proves the backends are **consistent**, not that they're **correct**. A shared intersection or shading bug makes both backends agree perfectly. Correctness therefore comes from checks that don't reuse the code under test.
 
-### 1. Independent correctness checks (CI)
+### 1. Independent correctness checks (CI, as each feature lands)
 
 - **Analytic known cases**, with expected values computed by hand or in Python by someone other than the function's author:
   - visibility: expected `prim_id` at chosen pixels;
@@ -186,22 +218,41 @@ Shared CPU/GPU code proves the backends are **consistent**, not that they're **c
 
 ### 2. Image comparison (`rt_compare`)
 
-Inputs: linear PFM plus the `prim_id` and `light_mask` AOVs from both images. All checks run on **linear floats before clamping**.
+Inputs: linear PFM plus the `prim_id` and `light_mask` AOVs from both images. All checks run on **linear floats before clamping**. `rt_compare` prints a pass/fail line per check and exits non-zero if any check fails.
 
-| Check | Rule | Failure means |
+Float differences legitimately flip a few pixels along silhouettes and shadow boundaries, so those get a small, bounded allowance. The allowance requires the alternative to be locally plausible. "A neighbor is different" alone isn't enough, because on a dense mesh nearly every pixel has a different neighbor.
+
+| Check | Rule | Fails if |
 |---|---|---|
-| Nonfinite | Zero NaN/Inf pixels in either image | Hard fail |
-| Primary-hit agreement | Pixels with different `prim_id` must be reference **edge pixels** (a 4-neighbor has a different `prim_id`) | Non-edge mismatch → fail |
-| Shadow agreement | Pixels with same `prim_id` but different `light_mask` must be reference shadow-edge pixels (a 4-neighbor has a different mask) | Non-edge mismatch → fail |
-| Shading agreement | Pixels with same `prim_id` and `light_mask`: `|a − b| ≤ τ_abs + τ_rel·|ref|` per channel | Any failure → fail |
-| Localization (**provisional**) | Per 16×16 tile, count of edge mismatches; flag tiles above a limit (starting guess: 8) | **Warning only until calibrated** |
-| Broad summary | ≥ 99.9% of pixels within 2/255 in 8-bit sRGB | Reported; regression signal, not the main gate |
+| Nonfinite | No NaN/Inf in either image | Any |
+| Explained hit mismatch | A pixel with a different `prim_id` is explained only if the test ID appears among the reference IDs in its 3×3 neighborhood (background counts as an ID), and vice versa | Any unexplained mismatch |
+| Explained shadow mismatch | Same `prim_id`, different `light_mask`: the test mask must appear among the reference masks in the 3×3 neighborhood | Any unexplained mismatch |
+| Mismatch budget | Explained hit + shadow mismatches ≤ `B_px` of all pixels | Over budget |
+| Shading agreement | Same `prim_id` and `light_mask`: `|a − b| ≤ τ_abs + τ_rel·|ref|` per channel | Any pixel |
+| Broad summary | % of pixels within 2/255 in 8-bit sRGB | Reported only |
 
-- Start values: `τ_abs = 1e-5`, `τ_rel = 1e-4`. They get set at gate G2 from measured CPU-vs-GPU data, and the chosen values and evidence are documented.
-- **The localization rule is an unvalidated heuristic.** A legitimate thin boundary, such as a near-grazing silhouette or a long shadow edge crossing a tile, can exceed any fixed per-tile count. Until G2 it's reported as a warning, with the flagged tiles in the heatmap. At G2, look at the distribution of per-tile counts from real CPU/GPU pairs on known scenes and `bench_100k`. Then either set a limit above the observed legitimate maximum (and make it a failure), or keep it warning-only. Document the decision and its data. Every flagged tile is inspected by eye regardless.
-- **No per-feature loosening.** If highlights or any other feature exceed tolerance, find the cause (for example, an FMA contraction in a `pow` argument) before changing thresholds.
-- Output: counts per category, max errors, and a heatmap that marks each category.
+Starting values: `τ_abs = 1e-5`, `τ_rel = 1e-4`, `B_px = 0.05%` of pixels (~154 at 640×480, ~1,000 at 1080p). These are **guesses**. At G2, look at real CPU-vs-GPU pairs, set the final values, and note the data used in the PR. If something exceeds tolerance, find the cause (often FMA contraction) before loosening anything.
 
+**Core corruption tests** (`ctest`, with C8). Each corrupted copy of a reference image must fail, by the named check:
+
+| # | Scene (640×480) | Corruption | Rejected by |
+|---|---|---|---|
+| 1 | `known_two_spheres` | One pixel's RGB set to NaN | Nonfinite |
+| 2 | `known_two_spheres` | Sphere 0's pixels (RGB + AOVs) copied 3 px to the right | Explained hit |
+| 3 | `known_two_spheres` | 10×10 block inside sphere 0, ≥ 10 px from its edge: RGB += 0.1 | Shading agreement |
+| 4 | `known_two_spheres` | 20×20 block of lit floor, ≥ 10 px from shadow edges: light bit cleared, RGB set to ambient-only | Explained shadow |
+
+Fixtures check their own setup before corrupting (the sphere is ≥ 20 px in radius, blocks lie inside a single region). A fixture that can't satisfy its setup fails, rather than passing silently.
+
+### Deferred comparison hardening
+
+Designed during review and **not required now**. Add these if a visibly wrong image ever passes the checks above, or if time allows after G2.
+
+- **Explained color:** a mismatched pixel must also match the color of a neighbor that has its claimed ID (start tolerance `0.02 + 0.05·|c|`).
+- **All-pixel backstop:** caps on visibly different pixels (0.1%) and mean error (1e-3) over all pixels, mismatches included.
+- **Localization warning:** flags 16×16 tiles that contain clustered mismatches.
+- **`known_dense_mesh`:** a level-6 icosphere (81,920 triangles) plus a terrain patch, where most triangles cover 1–4 px. It stress-tests the edge allowance.
+- **Dense-mesh corruption tests:** non-adjacent ID swaps (must fail explained hit), 308 plausible swaps (must fail the budget), and swaps with wrong colors (must fail explained color). When building them, pick pixels that satisfy each test's assumptions: channel values ≥ 0.2 for color scaling, and an original ID still visible next to each swapped pixel. Also assert the intended corruption count.
 ### 3. Side-by-side review
 
 At least 2 reviewers, native resolution, same display, per the proposal. Focus on edges and shadow boundaries. Record who reviewed what.
@@ -226,7 +277,7 @@ Every plot caption states the quantity, scene hash, machine name, and thread cou
 
 ## Profiling
 
-Profiling is required at gate G3, not optional:
+At G3, enough to explain the results:
 
 - `-Xptxas -v` register and local-memory (spill and stack) usage for each kernel. The traversal stack is dynamically indexed, so expect it in local memory.
 - Nsight Compute: occupancy, local-memory traffic, achieved memory throughput for the megakernel.

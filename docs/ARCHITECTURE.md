@@ -155,7 +155,7 @@ rt_render --scene s.json --backend cpu|cuda|embree|optix --bvh none|median|lbvh|
           --pipeline mega|wavefront --mem explicit|managed|system|system-reuse \
           --mem-advice none|preferred-gpu|read-mostly --prefetch on|off \
           --mode app|prepared --runs 5 --width W --height H \
-          --aov primid,lightmask --out img.png --pfm img.pfm --results r.json
+          --shade lit|normal --aov primid,lightmask --out img.png --pfm img.pfm --results r.json
 ```
 
 `--bvh none` uses brute force (testing only). Camera overrides (Jett) are set in C3: `--cam-pos`, `--cam-look`, `--cam-vfov`.
