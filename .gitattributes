@@ -1,0 +1,11 @@
+# Store text files with LF in the repo and check them out with LF on every OS, so Windows and
+# WSL git agree and diffs never show line-ending-only changes.
+* text=auto eol=lf
+
+# Binary files: never convert.
+*.pdf binary
+*.png binary
+*.pfm binary
+*.bin binary
+*.gz binary
+*.u32img binary
