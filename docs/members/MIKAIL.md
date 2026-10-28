@@ -50,7 +50,7 @@ and "Pixel result". Follow them exactly.
 
 Scope (only edit these): CMakeLists.txt, cmake/, .github/, src/trace/, src/backend.hpp, src/gpu/
 (not wavefront/), apps/rt_render/, apps/hello_cuda/, scripts/tacc/, and tests for these.
-Toolchain: GCC 13 host compiler, CUDA 12.x, sm_89 (laptop) / sm_90 (Vista). A CPU-only build must always work.
+Toolchain: GCC 13 host compiler, CUDA 13.3 (Vista: module load cuda/13.3), sm_89 (laptop) / sm_90 (Vista). A CPU-only build must always work.
 
 Rules:
 - Follow INTERFACES section 0 (code conventions): namespace rt, includes from src/ like

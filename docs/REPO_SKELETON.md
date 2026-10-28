@@ -1,6 +1,6 @@
 # Recommended Repo Skeleton
 
-**Recommendation only. Nothing here exists yet.** Mikail creates the skeleton in task C1 ([ROADMAP.md](ROADMAP.md#c1-skeleton-build-ci-vista-verification)). File names below are suggestions; owners can adjust within their directories.
+**Partly built in task C1** ([ROADMAP.md](ROADMAP.md#c1-skeleton-build-ci-vista-verification)): the root and `cmake/` build files, `src/CMakeLists.txt` (`rt_core`), `tests/CMakeLists.txt`, `apps/hello_cuda/`, `.clang-format`, `.gitignore`, and `.github/`. The rest of the tree is a recommendation; file names are suggestions, and owners can adjust within their directories. Each module owner adds `src/<module>/CMakeLists.txt` defining only their target; `src/CMakeLists.txt` picks it up automatically.
 
 ## Directory tree
 
@@ -60,7 +60,7 @@
 ## Root CMakeLists outline
 
 ```cmake
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.28)
 project(HybridRayTracer LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -77,7 +77,7 @@ find_package(OpenMP REQUIRED)
 
 # CPU flags: no fast-math anywhere
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-  set(RT_CPU_FLAGS -O3 -mcpu=native)   # verify on Vista
+  set(RT_CPU_FLAGS -O3 -mcpu=native)   # GCC 13.2.0 on Vista accepts it
 else()
   set(RT_CPU_FLAGS -O3 -march=native)
 endif()
@@ -241,7 +241,7 @@ jobs:
 #SBATCH -A <allocation>
 
 module reset
-module load gcc/13.2.0 cuda
+module load gcc/13.2.0 cuda/13.3
 
 export OMP_PROC_BIND=close
 export OMP_PLACES=cores

@@ -61,7 +61,7 @@ The reference environments are the ones the toolchain is verified on (exact vers
 | | Reference |
 |---|---|
 | Laptop | WSL2, Ubuntu 24.04, `g++-13` (GCC 13.x), the CUDA toolkit from the BUILD.md pinned pair (`nvcc`), x86_64 |
-| Vista | GH node: aarch64, `module load gcc/13.2.0 cuda` |
+| Vista | GH node: Rocky Linux 9.7, aarch64, `module load gcc/13.2.0 cuda/13.3 cmake` |
 
 Other environments (native Windows, macOS, another Linux, a different GCC or CUDA version, no `nvcc`) can work, but results may differ. Float output depends on the compiler and on FMA contraction, and the device build may not be tested at all. So the rule is: **warn, don't block.**
 
@@ -70,7 +70,7 @@ Other environments (native Windows, macOS, another Linux, a different GCC or CUD
 ```bash
 grep -qi microsoft /proc/version && echo "WSL" || echo "not WSL"
 . /etc/os-release && echo "$PRETTY_NAME"
-hostname -f                                  # Vista: ends in .vista.tacc.utexas.edu (verify on Vista)
+hostname -f                                  # Vista: ends in .vista.tacc.utexas.edu
 uname -m                                     # x86_64 on the laptop, aarch64 on Vista
 g++-13 --version | head -1
 nvcc --version | tail -2                     # "command not found": no CUDA here, or /usr/local/cuda-*/bin is not on PATH
