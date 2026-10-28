@@ -1,28 +1,28 @@
 # Build
 
-Planned build setup. Commands become final when task C1 lands (see [ROADMAP.md](ROADMAP.md#c1-skeleton-build-ci-vista-verification)). Items marked **verify on Vista** must be confirmed in C1, by gate G0 (Oct 30).
+Build setup from task C1 (see [ROADMAP.md](ROADMAP.md#c1-skeleton-build-ci-vista-verification)). The laptop build is verified. The Vista details below come from a login node (Oct 28); the compute-node build and the driver version are still to confirm. Items marked **verify on Vista** must be confirmed in C1, by gate G0 (Oct 30).
 
 ## Toolchain targets
 
 | | Laptop (WSL2) | Vista GH200 |
 |---|---|---|
-| OS | Ubuntu 24.04 | Linux, aarch64 (**verify on Vista** distro) |
+| OS | Ubuntu 24.04 | Rocky Linux 9.7, aarch64 (Grace) |
 | Host compiler | GCC 13.3 (Ubuntu default) | `gcc/13.2.0` module |
-| CUDA | 13.3 (nvcc 13.3.73), WSL-Ubuntu toolkit | `cuda` module, exact version TBD in C1 (`module spider cuda`) |
+| CUDA | 13.3 (nvcc 13.3.73), WSL-Ubuntu toolkit | `cuda/13.3` module. **Load it by version**: plain `cuda` gives 12.5 |
 | GPU | RTX 4070 Laptop (Ada) | Hopper; record the exact name from `nvidia-smi` (docs list both H100 and H200) |
 | CUDA arch | `sm_89` (`RT_CUDA_ARCH=89`) | `sm_90` (`RT_CUDA_ARCH=90`) |
 | C++ standard | C++17 | C++17 |
-| CMake | ≥ 3.24 (suggested) | `cmake` module (**verify on Vista**) |
-| Generator | Ninja | Ninja or Make |
+| CMake | ≥ 3.28 (Ubuntu 24.04 apt ships 3.28) | `cmake` module: 3.29.5, 3.31.5, or 4.1.1 (default) |
+| Generator | Ninja | Unix Makefiles (no `ninja` module on Vista) |
 
 ### Pinned toolchain pairs
 
-Supported host compilers depend on the **CUDA minor release**, not just "12.x". For each machine, check the "Host Compiler Support Policy" table in the NVIDIA CUDA installation guide for that exact version, then pin a pair that actually builds and passes tests. GCC 13 is the target because Ubuntu 24.04 ships 13.3 and Vista has `gcc/13.2.0`. Vista's `gcc/15.1.0` is only usable if the loaded CUDA release lists it.
+Both machines use **CUDA 13.3**, so the laptop and Vista run the same nvcc minor release. The configure step prints a warning if it finds a different CUDA release (`RT_CUDA_PINNED`, default `13.3`). Supported host compilers depend on the CUDA minor release: CUDA 13.3 supports GCC 6 through 16, so GCC 13 is fine on both. GCC 13 is the target because Ubuntu 24.04 ships 13.3 and Vista has `gcc/13.2.0`.
 
 | Machine | GCC | CUDA | Driver | Tested on (date, commit) |
 |---|---|---|---|---|
-| Laptop (WSL2) | 13.3 | 13.3 (nvcc 13.3.73) | 610.62 | 2026-10-28, `207296c` (`core` headers and `tests/test_math.cpp` only; full CUDA build not run yet) |
-| Vista GH node | 13.2.0 | TBD | TBD | TBD |
+| Laptop (WSL2) | 13.3 | 13.3 (nvcc 13.3.73) | 610.62 | 2026-10-28, C1 skeleton: CMake 3.28 CPU-only and CUDA `sm_89` builds, `ctest` 4/4, `hello_cuda` on the RTX 4070 |
+| Vista GH node | 13.2.0 | 13.3 (`cuda/13.3` module) | TBD (check `nvidia-smi` on a GH node) | TBD |
 
 C1 fills this table. Changing a pair requires a PR that reruns the test suite on that machine.
 
@@ -55,13 +55,18 @@ Measure the PCIe link once and record it for [BENCHMARKING.md](BENCHMARKING.md):
 ## Vista setup
 
 ```bash
-# login node
+# login or compute node
 module reset
-module load gcc/13.2.0 cuda cmake     # verify on Vista: exact versions via `module spider`
-module list
+module load gcc/13.2.0 cuda/13.3 cmake
+module list                           # expect gcc/13.2.0, cuda/13.3, cmake/4.1.1
 ```
 
-NVIDIA HPC SDK (`nvc`, `nvc++`) is Vista's default compiler suite. Always load `gcc` explicitly before CMake so CMake and nvcc use GCC.
+- **`module reset` loads the NVIDIA HPC SDK (`nvidia/24.7`)** as the default compiler suite. Loading `gcc/13.2.0` replaces it (Lmod prints "replacing nvidia/24.7 with gcc/13.2.0"). Always load `gcc` explicitly before CMake so CMake and nvcc use GCC.
+- **Load CUDA by version.** Plain `module load cuda` gives `cuda/12.5`, which doesn't match the laptop. Available: 11.8, 12.4–12.9, 13.0, 13.1, 13.3.
+- **CMake** defaults to 4.1.1. `cmake/3.29.5` and `cmake/3.31.5` also work with the project's 3.28 minimum.
+- **No Ninja:** use the default Unix Makefiles generator, i.e. leave out `-G Ninja`.
+- **Storage:** clone and build in `$WORK` (1 TB quota). `$SCRATCH` is purged, and `$HOME` is small (23 GB).
+- **Hostnames** end in `.vista.tacc.utexas.edu` (for example `login1.vista.tacc.utexas.edu`).
 
 **Check which OpenMP runtime the binary actually loads.** Vista's default module environment is built around the NVIDIA HPC SDK, whose library paths can end up in `LD_LIBRARY_PATH`. A GCC-built program could then resolve its OpenMP runtime to the wrong library. GCC's `-fopenmp` expects `libgomp`. After every build, and in every batch job:
 
@@ -71,7 +76,7 @@ ldd build-vista/apps/rt_render/rt_render | grep -Ei 'gomp|omp|nvhpc'
 # wrong:    any libomp / libnvomp / path under an nvidia or nvhpc module
 ```
 
-If it resolves wrongly, `module unload nvidia` (or `module reset` followed by loading only `gcc` and `cuda`), rebuild, and check again. **Verify on Vista** which module names are involved; TACC's user guide recommends `ldd` for checking library resolution.
+If it resolves wrongly, `module unload nvidia` (or `module reset` followed by loading only `gcc` and `cuda/13.3`), rebuild, and check again. The NVIDIA module is `nvidia/<version>` (24.5 through 26.9 are installed). Even with `gcc/13.2.0` loaded, `LD_LIBRARY_PATH` still contains NVIDIA paths from `nvpl` (math libraries) and the CUDA module, so the `ldd` check matters. TACC's user guide recommends `ldd` for checking library resolution.
 
 Record machine identity on the allocated node every time (the sbatch template does this automatically):
 
@@ -87,7 +92,7 @@ Interactive GPU session for development:
 idev -p gh-dev -N 1 -n 1 -t 1:00:00
 ```
 
-Batch jobs use `sbatch` on `gh-dev` (testing) or `gh` (production). See the template in [REPO_SKELETON.md](REPO_SKELETON.md#sbatch-template). Build on a compute node, or on a login node if the login architecture matches (**verify on Vista**). Keep build trees and large scenes in `$WORK` or `$SCRATCH`, not `$HOME`.
+Batch jobs use `sbatch` on `gh-dev` (testing, 20 nodes) or `gh` (production, 576 nodes). See the template in [REPO_SKELETON.md](REPO_SKELETON.md#sbatch-template). Allocation: `TRA25006` (check the balance with `/usr/local/etc/taccinfo`). The login node is also aarch64 and accepts `-mcpu=native`, but build on a compute node: `-march`/`-mcpu=native` targets the CPU the build runs on, and only compute nodes have the GPU for `hello_cuda` and tests. Keep build trees and large scenes in `$WORK` or `$SCRATCH`, not `$HOME`.
 
 Fallback if Vista GPU access fails: Lonestar6 A100 nodes, `RT_CUDA_ARCH=80`, x86 host.
 
@@ -99,16 +104,22 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DRT_ENABLE_CUDA=ON -DRT_CUDA_ARCH=89
 cmake --build build -j
 
-# Vista
+# Vista (after `module load gcc/13.2.0 cuda/13.3 cmake`; Makefiles, since there's no ninja)
 cmake -S . -B build-vista -DCMAKE_BUILD_TYPE=Release \
-      -DRT_ENABLE_CUDA=ON -DRT_CUDA_ARCH=90
+      -DRT_ENABLE_CUDA=ON -DRT_CUDA_ARCH=90 -DCMAKE_CXX_COMPILER=g++
 cmake --build build-vista -j
 
 # CPU-only (CI, machines without NVIDIA GPU)
 cmake -S . -B build-cpu -G Ninja -DCMAKE_BUILD_TYPE=Release -DRT_ENABLE_CUDA=OFF
 
 ctest --test-dir build --output-on-failure
+./build/apps/hello_cuda/hello_cuda      # prints GPU name and SM count, runs one kernel (CUDA builds)
 ```
+
+- **nvcc must be findable.** If the configure step prints `No CUDA compiler found, building CPU-only`, put `/usr/local/cuda-13.3/bin` on `PATH`, or pass `-DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc`.
+- **Host compiler:** nvcc uses the same compiler as the C++ code (`CMAKE_CUDA_HOST_COMPILER` defaults to `CMAKE_CXX_COMPILER`), so pass `-DCMAKE_CXX_COMPILER=g++-13` when the default `g++` isn't GCC 13.
+- **No fast-math:** configure fails if `CMAKE_CXX_FLAGS` or `CMAKE_CUDA_FLAGS` contains fast-math or `-Ofast`.
+- **Flags:** every target that links `rt_core` gets `-Wall -Wextra -march=native` (`-mcpu=native` on aarch64) and, for CUDA, `-lineinfo`.
 
 ### CMake options
 
@@ -116,9 +127,10 @@ ctest --test-dir build --output-on-failure
 |---|---|---|
 | `RT_ENABLE_CUDA` | `ON` if a CUDA compiler is found | Builds `src/gpu`, the `cuda` backend |
 | `RT_CUDA_ARCH` | `89` | `89` laptop, `90` Vista Hopper, `80` A100 |
-| `RT_ENABLE_EMBREE` | `OFF` | Builds the `embree` backend (Extension E4). Needs Embree 4 installed or fetched |
-| `RT_ENABLE_OPTIX` | `OFF` | Builds the `optix` backend (Stretch). Needs `OptiX_INSTALL_DIR` |
+| `RT_ENABLE_EMBREE` | `OFF` | Builds the `embree` backend (Extension E4). Needs Embree 4 installed or fetched. Not implemented yet: `ON` stops the configure step |
+| `RT_ENABLE_OPTIX` | `OFF` | Builds the `optix` backend (Stretch). Needs `OptiX_INSTALL_DIR`. Not implemented yet: `ON` stops the configure step |
 | `RT_BUILD_TESTS` | `ON` | GoogleTest unit and regression tests |
+| `RT_PTXAS_VERBOSE` | `OFF` | Adds `-Xptxas -v` to nvcc: per-kernel register and local-memory report (G3 profiling) |
 | *Deferred:* `RT_COUNTERS` | `OFF` | Counts BVH nodes visited per ray, for explaining traversal cost. Add only if needed; never used for timing |
 
 A CPU-only build must always work. CI uses it.
@@ -136,7 +148,7 @@ Exact, bit-identical goldens would need a pinned CI container (image digest, exa
 |---|---|
 | `-O3 -fopenmp` | All Release builds |
 | `-march=native` | x86 laptop |
-| `-mcpu=native` (or `-mcpu=neoverse-v2`) | Grace (**verify on Vista** which GCC 13.2 accepts) |
+| `-mcpu=native` (or `-mcpu=neoverse-v2`) | Grace. GCC 13.2.0 accepts both; CMake uses `-mcpu=native` on aarch64 |
 | No `-ffast-math`, no `--use_fast_math` | Everywhere (the NaN-safe slab test depends on IEEE comparisons; see [INTERFACES.md](INTERFACES.md#ray-box-slab-test-frozen)) |
 | `-ffp-contract=off` | Generator and scene-hash sources only. Reduces variation, but doesn't make x86 and ARM bytes identical (libm differs), so benchmark scenes are generated once and distributed ([INTERFACES.md](INTERFACES.md#generator-determinism-and-scene-distribution)) |
 | `-Xcompiler -fopenmp`, `-lineinfo`, `-Xptxas -v` | nvcc (lineinfo for Nsight; `-v` reports registers and local memory) |
@@ -145,15 +157,15 @@ Benchmark binaries on Vista must be built on Vista. Don't copy laptop binaries.
 
 ## Dependencies
 
-Fetched with CMake `FetchContent`, pinned to **exact tags** (filled in during C1):
+Fetched with CMake `FetchContent` as release archives, pinned by version and SHA-256 in [`cmake/RtDependencies.cmake`](../cmake/RtDependencies.cmake). Changing a pin means updating both the URL and the hash:
 
 | Library | Use | Pin |
 |---|---|---|
-| nlohmann/json | JSON scenes and results | `vX.Y.Z` |
-| stb (stb_image_write) | PNG output | commit hash |
-| CLI11 | Command line | `vX.Y.Z` |
-| GoogleTest | Tests | `vX.Y.Z` |
-| tinyobjloader | `obj2bin` (Extension E6) | `vX.Y.Z` |
+| nlohmann/json | JSON scenes and results | `v3.12.0` (target `nlohmann_json::nlohmann_json`) |
+| stb (stb_image_write) | PNG output | commit `003501f6` (target `stb`, headers only) |
+| CLI11 | Command line | `v2.7.2` (target `CLI11::CLI11`) |
+| GoogleTest | Tests | `v1.18.0` (target `GTest::gtest_main`; only with `RT_BUILD_TESTS`) |
+| tinyobjloader | `obj2bin` (Extension E6) | Not added yet; pinned when E6 starts |
 | Embree 4 | Embree backend (Extension E4) | `v4.x` (**verify on Vista** ARM64 build or module) |
 | OptiX SDK | OptiX backend (Stretch) | `8.x` or newer, manual download |
 

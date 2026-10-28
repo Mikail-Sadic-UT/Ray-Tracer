@@ -62,7 +62,14 @@ Offline CLI renderer. No native Windows build.
 
 ## Quick start
 
-To be filled once task C1 (skeleton and build) lands. Planned setup: [BUILD.md](docs/BUILD.md).
+WSL2 Ubuntu 24.04 with `g++-13`, `cmake`, `ninja-build`, and (optionally) the CUDA toolkit. Full setup, including Vista: [BUILD.md](docs/BUILD.md).
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DRT_CUDA_ARCH=89   # CPU-only if nvcc isn't found
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+./build/apps/hello_cuda/hello_cuda                                          # CUDA builds only
+```
 
 ## How to use these docs
 
