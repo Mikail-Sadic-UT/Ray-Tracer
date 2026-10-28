@@ -6,10 +6,10 @@ Kept deliberately light. The goal is that four people (and their agents) can wor
 
 ```mermaid
 flowchart RL
-  J["jett/lbvh"] -->|PR + 1 review + CI| D[dev]
-  M["mikail/megakernel"] -->|PR + 1 review + CI| D
-  A["arek/shading"] -->|PR + 1 review + CI| D
-  P["po/generator"] -->|PR + 1 review + CI| D
+  J["jett/lbvh"] -->|PR + review| D[dev]
+  M["mikail/megakernel"] -->|PR + review| D
+  A["arek/shading"] -->|PR + review| D
+  P["po/generator"] -->|PR + review| D
   D -->|PR at check-ins, tagged| MAIN[main]
 ```
 
@@ -21,16 +21,38 @@ flowchart RL
 
 GitHub enforces the `main` and `dev` rules for everyone except the repo admin (Mikail), who can push or merge directly. Teammates have write access, so they can't push to `main`. The `cpu` CI job is not a required check yet (see [Deferred](#deferred-process)).
 
+### Working on a branch
+
+One routine for everyone, so nobody has to choose between merge and rebase. **Merge `dev` into your branch. Never rebase or force-push a branch you've pushed.**
+
 ```bash
-git switch dev && git pull
-git switch -c jett/lbvh
-# ... work, commit ...
-git fetch origin && git rebase origin/dev     # or: git merge origin/dev
-git push -u origin jett/lbvh                  # then open a PR into dev
+# one-time, per clone
+git config pull.ff only                      # a plain `git pull` stops instead of making a surprise merge
+
+# start a piece of work: always from the current dev, never from an old feature branch
+git fetch origin
+git switch -c jett/lbvh origin/dev
+
+# ... edit, build, test, then commit (see Commit messages below) ...
+git commit -s
+
+# every few days, and before opening a PR: bring in dev
+git fetch origin && git merge origin/dev     # then rebuild and run ctest before you push
+
+# publish, then open a PR into dev
+git push -u origin jett/lbvh
+
+# after the PR is merged: clean up
+git switch dev && git pull --ff-only && git branch -d jett/lbvh
 ```
 
-- Sync with `dev` every few days. Small PRs (< ~400 lines) review faster.
-- Don't force-push `dev` or `main`.
+- **One branch per piece of work**, named `<member>/<topic>` and short-lived. Small PRs (under about 400 lines) review faster.
+- **PRs** target `dev`. Put `Closes #N` in the description so merging closes the issue, and check the CI result first (it is informational for now). Merge with a **merge commit**, not squash or rebase, so every signed-off commit is kept.
+- **Never** force-push, rebase a pushed branch, or use `git reset --hard` to fix a problem. You can rebase commits you haven't pushed yet. GitHub rejects force-pushes to `dev` and `main`.
+- **One writer per branch.** If two people must share one, run `git pull --ff-only` before every push.
+- **Conflicts:** merge, fix the files, rebuild, test, then commit the merge. Ask the file's owner before resolving a conflict in their code, and always before touching INTERFACES.md.
+- **If something looks wrong, stop and ask.** `git reflog` keeps your earlier commits, so nothing is lost.
+- **Setup:** keep the clone inside the WSL filesystem ([BUILD.md](BUILD.md)), and leave `core.autocrlf` alone; `.gitattributes` handles line endings.
 - Never commit generated `.bin` scenes, build directories, or large images.
 
 ## Commit messages
