@@ -145,7 +145,7 @@ Extensions add their own dimensions: memory modes, pipeline, Embree.
 
 Record from the allocated node, not from documentation:
 
-- GPU: `nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv`, plus `cudaGetDeviceProperties` name and SM count. Vista's GH nodes are documented as both H100 and H200 in different places; the docs say "Hopper (sm_90)", and the report uses the recorded name.
+- GPU: `nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv`, plus `cudaGetDeviceProperties` name and SM count. Vista's GH nodes are documented as both H100 and H200; `nvidia-smi` on node `c642-061` (Oct 28) reports "NVIDIA GH200 120GB", 132 SMs, driver 590.48.01 in different places; the docs say "Hopper (sm_90)", and the report uses the recorded name.
 - CPU: `lscpu` model and core count.
 - Toolchain: `gcc --version`, `nvcc --version`, loaded modules (`module list`).
 

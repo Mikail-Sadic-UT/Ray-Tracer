@@ -1,6 +1,6 @@
 # Build
 
-Build setup from task C1 (see [ROADMAP.md](ROADMAP.md#c1-skeleton-build-ci-vista-verification)). The laptop build is verified. The Vista details below come from a login node (Oct 28); the compute-node build and the driver version are still to confirm. Items marked **verify on Vista** must be confirmed in C1, by gate G0 (Oct 30).
+Build setup from task C1 (see [ROADMAP.md](ROADMAP.md#c1-skeleton-build-ci-vista-verification)). Both the laptop and a Vista GH200 node were built and tested on Oct 28 (see the pinned pairs below). Items marked **verify on Vista** are still open.
 
 ## Toolchain targets
 
@@ -9,7 +9,8 @@ Build setup from task C1 (see [ROADMAP.md](ROADMAP.md#c1-skeleton-build-ci-vista
 | OS | Ubuntu 24.04 | Rocky Linux 9.7, aarch64 (Grace) |
 | Host compiler | GCC 13.3 (Ubuntu default) | `gcc/13.2.0` module |
 | CUDA | 13.3 (nvcc 13.3.73), WSL-Ubuntu toolkit | `cuda/13.3` module. **Load it by version**: plain `cuda` gives 12.5 |
-| GPU | RTX 4070 Laptop (Ada) | Hopper; record the exact name from `nvidia-smi` (docs list both H100 and H200) |
+| GPU | RTX 4070 Laptop (Ada), 36 SMs | NVIDIA GH200 120GB (Hopper, 132 SMs, compute capability 9.0), driver 590.48.01 |
+| CPU | i9-13980HX (8 P + 16 E cores) | 72 Neoverse-V2 (Grace) cores |
 | CUDA arch | `sm_89` (`RT_CUDA_ARCH=89`) | `sm_90` (`RT_CUDA_ARCH=90`) |
 | C++ standard | C++17 | C++17 |
 | CMake | ≥ 3.28 (Ubuntu 24.04 apt ships 3.28) | `cmake` module: 3.29.5, 3.31.5, or 4.1.1 (default) |
@@ -22,7 +23,9 @@ Both machines use **CUDA 13.3**, so the laptop and Vista run the same nvcc minor
 | Machine | GCC | CUDA | Driver | Tested on (date, commit) |
 |---|---|---|---|---|
 | Laptop (WSL2) | 13.3 | 13.3 (nvcc 13.3.73) | 610.62 | 2026-10-28, C1 skeleton: CMake 3.28 CPU-only and CUDA `sm_89` builds, `ctest` 4/4, `hello_cuda` on the RTX 4070 |
-| Vista GH node | 13.2.0 | 13.3 (`cuda/13.3` module) | TBD (check `nvidia-smi` on a GH node) | TBD |
+| Vista GH node | 13.2.0 | 13.3 (`cuda/13.3` module, nvcc 13.3.73) | 590.48.01 (reports CUDA 13.1) | 2026-10-28, `f04486c`, node `c642-061`: CMake 4.1.1 Makefiles build (`sm_90`), `ctest` 4/4, `hello_cuda` on the GH200 |
+
+The Vista driver reports CUDA 13.1, older than the 13.3 toolkit. Binaries built with the 13.3 toolkit still run, because all CUDA 13.x releases are minor-version compatible and we compile native `sm_90` code. If a newer feature ever needs a newer driver, `hello_cuda` fails with a driver-version error; the fallback is a lower `cuda/` module (13.0 or 13.1).
 
 C1 fills this table. Changing a pair requires a PR that reruns the test suite on that machine.
 
@@ -66,7 +69,10 @@ module list                           # expect gcc/13.2.0, cuda/13.3, cmake/4.1.
 - **CMake** defaults to 4.1.1. `cmake/3.29.5` and `cmake/3.31.5` also work with the project's 3.28 minimum.
 - **No Ninja:** use the default Unix Makefiles generator, i.e. leave out `-G Ninja`.
 - **Storage:** clone and build in `$WORK` (1 TB quota). `$SCRATCH` is purged, and `$HOME` is small (23 GB).
-- **Hostnames** end in `.vista.tacc.utexas.edu` (for example `login1.vista.tacc.utexas.edu`).
+- **Hostnames** end in `.vista.tacc.utexas.edu`: `login1.vista...` on login nodes, `c642-061.vista...` on `gh-dev` compute nodes.
+- **Compute nodes have outbound internet** (HTTPS to github.com works), so CMake can fetch dependencies on a GH node. Configure and build on a compute node via `idev`, not on a login node.
+- **`OMP_NUM_THREADS=1` is set by default** in TACC shells, so `omp_get_max_threads()` and `nproc` report 1 even though all 72 cores are available (`taskset -cp $$` shows `0-71`). The project is not affected: every parallel region passes an explicit `num_threads(B)` or `num_threads(R)` (INTERFACES §0). Don't read `OMP_NUM_THREADS` or call `omp_get_max_threads()` in library code or scripts, and export `OMP_PROC_BIND=close OMP_PLACES=cores` in every job.
+- **OpenMP runtime** was checked with a `-fopenmp` test program under `gcc/13.2.0`: `libgomp.so.1` resolves to `/opt/apps/gcc/13.2.0/lib64/`, not an NVIDIA runtime. Repeat the `ldd` check below on `rt_render` once it exists, since nothing in the repo links OpenMP yet.
 
 **Check which OpenMP runtime the binary actually loads.** Vista's default module environment is built around the NVIDIA HPC SDK, whose library paths can end up in `LD_LIBRARY_PATH`. A GCC-built program could then resolve its OpenMP runtime to the wrong library. GCC's `-fopenmp` expects `libgomp`. After every build, and in every batch job:
 

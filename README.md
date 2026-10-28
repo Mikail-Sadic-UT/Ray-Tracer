@@ -40,7 +40,7 @@ Output 1920×1080. Median of 5 runs, with spread reported. Quality: no visible d
 
 | Machine | CPU | GPU | Notes |
 |---|---|---|---|
-| TACC Vista GH node (primary) | Grace, aarch64 (record core count via `lscpu`) | Hopper, sm_90, no RT cores (record exact name via `nvidia-smi`) | NVLink-C2C |
+| TACC Vista GH node (primary) | Grace, aarch64, 72 Neoverse-V2 cores | NVIDIA GH200 120GB (Hopper, sm_90, 132 SMs), no RT cores | NVLink-C2C |
 | Laptop, WSL2 Ubuntu 24.04 | i9-13980HX, 8P + 16E | RTX 4070 Laptop, sm_89 | PCIe |
 | Fallback: Lonestar6 | AMD EPYC | A100, sm_80 | Only if Vista fails |
 

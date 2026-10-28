@@ -228,7 +228,7 @@ jobs:
 
 ## sbatch template
 
-`scripts/tacc/run_gh.sbatch` (queue names, limits, and module versions: **verify on Vista**):
+`scripts/tacc/run_gh.sbatch` (queue names `gh-dev` and `gh` and the module versions were checked on Oct 28; **verify on Vista** the time limits and the allocation name):
 
 ```bash
 #!/bin/bash

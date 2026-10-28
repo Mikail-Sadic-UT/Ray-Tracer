@@ -308,7 +308,7 @@ Updated by Jett weekly.
 |---|---|---|
 | Check-in 2 date | Postponed, TBD (~Oct 31–Nov 7) | Fill in when announced |
 | INTERFACES v1.0 | Proposed | Sign-off Oct 27 |
-| C1 | In progress (Oct 28) | CMake, CI, `.clang-format`, PR template, `hello_cuda` done and verified on the laptop (WSL2, GCC 13.3, CUDA 13.3). Remaining: Vista build and `hello_cuda` on a GH node, branch protection |
+| C1 | Done except branch protection (Oct 28) | CMake, CI (first GitHub run green), `.clang-format`, PR template, `hello_cuda`. Verified on the laptop (WSL2, GCC 13.3, CUDA 13.3) and on a Vista GH200 node (GCC 13.2, CUDA 13.3, `ctest` 4/4, `hello_cuda`). Branch protection on `main` and `dev` is deferred |
 | C3G (GPU smoke) | Not started | Target ~Nov 3 |
 | C11 builder decision | Pending | Nov 10: LBVH or task-parallel median |
 | C2–C14 | Not started | |
