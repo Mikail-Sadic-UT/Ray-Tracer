@@ -134,6 +134,16 @@ flowchart TD
 | `NormalShading` policy (`--shade normal`) | Real shading | First CPU and GPU images |
 | Synthetic AABB/centroid arrays | Scene + generator | Jett |
 
+### Stub register
+
+The table above lists the stand-ins the plan expects. This register lists the ones **actually in the code**, so none gets forgotten. It covers stubs (a stand-in for a dependency that hasn't landed) and local workarounds (a local fix for a gap or bug in someone else's code). The rules, the code marker format, and the CI check are in [WORKFLOW.md](WORKFLOW.md#stubs-and-local-workarounds).
+
+| ID | Used by | Where | Stands in for | Remove when | Status |
+|---|---|---|---|---|---|
+| none yet | | | | | |
+
+`Status` is `open` while the real thing hasn't landed, and `ready to remove` once it has but the stub is still in the code. Add a row in the PR that adds the stub (next free ID, `S1`, `S2`, ...), and delete the row in the PR that removes it. The weekly meeting reads this table.
+
 ### Start-now check and cross-owner blockers (Oct 28)
 
 **Can everyone start their first task today?** Yes. `core` (Arek) and the CMake skeleton (Mikail) are on `dev`, and every first task is either independent or has a stub above. What remains is a handful of small shared headers that two owners would otherwise define separately, and some symbols nobody's deliverable list covers. Both are cheap to fix now and expensive to find at G0 (Oct 30).

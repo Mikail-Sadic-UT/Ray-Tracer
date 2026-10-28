@@ -61,6 +61,9 @@ Rules:
 - At the start of a session, run the environment check in WORKFLOW.md "Development environment".
   If it is not WSL Ubuntu 24.04 or Vista with the BUILD.md toolchain, warn the user once (never
   block), and add the `Developed-on:` / `Needs-check:` trailers to your commits.
+- Stubs and local workarounds: mark each with `// STUB(S<n>, <owner>): remove when <x> lands (#<issue>)`
+  and add a row to the ROADMAP.md stub register in the same PR. Delete both when the real code lands
+  (WORKFLOW.md "Stubs and local workarounds").
 - If the interface looks wrong or incomplete, do not change it locally. Stop and write a short
   note proposing the change.
 

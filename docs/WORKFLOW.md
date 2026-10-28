@@ -55,6 +55,22 @@ git switch dev && git pull --ff-only && git branch -d jett/lbvh
 - **Setup:** keep the clone inside the WSL filesystem ([BUILD.md](BUILD.md)), and leave `core.autocrlf` alone; `.gitattributes` handles line endings.
 - Never commit generated `.bin` scenes, build directories, or large images.
 
+## Stubs and local workarounds
+
+You'll often need a stand-in because another owner's piece hasn't landed (the member files list what to use), or a local fix for a gap in someone else's code. That's fine, as long as it's tracked and short-lived. Otherwise stubs outlive their reason, or two definitions of the same type collide at merge.
+
+1. **Put it somewhere obvious.** In a test file or a clearly named `*_stub.hpp`, and never under the real contract name. Don't edit the other owner's file to patch it locally; make the workaround in your own module.
+2. **Mark it in the code**, once, at the definition:
+   ```cpp
+   // STUB(S3, jett): remove when AABB::empty() lands (#4)
+   ```
+   The format is `STUB(<ID>, <your name>): remove when <condition> lands (<issue>)`. The ID comes from the register.
+3. **Add a row to the [Stub register](ROADMAP.md#stub-register)** in the same PR: ID, who uses it, where, what it stands in for, when to remove it. Use the next free ID. If the stub waits on a bug or gap in someone else's code, open (or comment on) an issue for the owner and link it.
+4. **Remove it when the real thing lands.** The PR that adopts the real code deletes the stub, its marker, and its register row. If you land something others have stubbed, say so in your PR description and tell them; `git grep "STUB("` lists every user.
+5. **CI checks the bookkeeping.** `scripts/ci/check_stubs.sh` runs on every PR. It lists the markers and fails when a marker has no ID or its ID has no register row. It only notes a register row with no marker, since a stub can live in a CMake file.
+
+The weekly meeting reads the register (see [Routines](#routines)). At G1 and G2 it should hold no stub for a contract type (`Scene`, `Hit`, `Camera`, and so on) unless the row says why.
+
 ## Commit messages
 
 Linux-kernel style, so `git log --oneline` reads like a changelog and each commit explains itself.
@@ -118,10 +134,12 @@ Needs-check: device build and FMA-sensitive tests on WSL or Vista
 
 ## Pull requests
 
-PR description (template in [REPO_SKELETON.md](REPO_SKELETON.md#pr-template)): what and why, tests added, and two checkboxes:
+PR description (template in [`.github/pull_request_template.md`](../.github/pull_request_template.md)): what and why, tests added, and these checkboxes:
 
 - **GPU checked?** If you changed render code (`core`, `trace`, `shade`, `bvh`, `camera`, `gpu`) **and** a GPU path exists on `dev`, build with CUDA and run the GPU vs CPU comparison on a known scene. Paste the `rt_compare` summary. Before any GPU path exists, a CUDA build that compiles is enough.
 - **Interface change?** If the PR edits [INTERFACES.md](INTERFACES.md), see [Interface changes](#interface-changes).
+- **Stubs?** If the PR adds, changes, or removes a stub or workaround, the [register](ROADMAP.md#stub-register) is updated in the same PR (see [Stubs and local workarounds](#stubs-and-local-workarounds)).
+- **Development environment?** If it wasn't a reference environment, the commits carry the `Developed-on:` / `Needs-check:` trailers.
 
 Review: one approval from someone other than the author, ideally the owner of the code you're calling. Reviewers check correctness, tests, and that the interfaces are respected. Formatting is automatic (`.clang-format`). Try to review within a day.
 
@@ -147,7 +165,7 @@ Golden-image tests are ordinary `ctest` cases: render a known scene, then `rt_co
 
 ## Checkpoints and check-ins
 
-Gates G0–G3 in [ROADMAP.md](ROADMAP.md#gates-and-schedule) are team checkpoints, discussed at the weekly meeting, not formal freezes. Only the instructor check-ins go to `main`:
+Gates G0–G3 in [ROADMAP.md](ROADMAP.md#gates-and-schedule) are team checkpoints, discussed at the weekly meeting, not formal freezes. Before G1 and G2, check that the [stub register](ROADMAP.md#stub-register) holds no stub for a contract type unless its row explains why. Only the instructor check-ins go to `main`:
 
 1. Agree on a `dev` commit that builds and passes tests on the laptop and Vista.
 2. PR `dev` → `main`, quick whole-team look.
@@ -159,7 +177,7 @@ One GitHub issue per task in [ROADMAP.md](ROADMAP.md), assigned to its owner. La
 
 ## Routines
 
-- **Weekly meeting** (~30 min): done / next / blocked, plus any interface questions. Jett updates the [status table](ROADMAP.md#status).
+- **Weekly meeting** (~30 min): done / next / blocked, plus any interface questions. Jett updates the [status table](ROADMAP.md#status). Read the [stub register](ROADMAP.md#stub-register): every open row needs an owner and a removal condition, and rows marked `ready to remove` get removed that week.
 - **Contribution log**: one row per week at the bottom of your [member file](members/). It feeds the report, as the proposal requires.
 - **Blocked more than a day?** Use the stub listed in your member file, label the issue `blocked`, and say so in chat.
 
