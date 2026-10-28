@@ -65,6 +65,11 @@ Rules:
 - shade_hit is templated on the query type (q.any for shadow rays). Provide LitShading and NormalShading.
 - Timers: steady_clock for components and totals; measure totals directly, report unattributed time.
 - float only; no -ffast-math.
+- Comments are C++ Doxygen (`///`, `///<`, `//`), per INTERFACES section 0. Commit messages are
+  kernel style, signed off with `git commit -s`, per WORKFLOW.md "Commit messages".
+- At the start of a session, run the environment check in WORKFLOW.md "Development environment".
+  If it is not WSL Ubuntu 24.04 or Vista with the BUILD.md toolchain, warn the user once (never
+  block), and add the `Developed-on:` / `Needs-check:` trailers to your commits.
 - If the interface looks wrong or incomplete, do not change it locally. Stop and write a short
   note proposing the change.
 

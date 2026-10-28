@@ -51,6 +51,36 @@ These are the mundane choices that four independently written modules must share
 - Third-party headers use angle brackets: `<nlohmann/json.hpp>`, `<CLI/CLI.hpp>`, `<gtest/gtest.h>`. `stb_image_write` is included only in `src/image/`.
 - Headers included by device code must not include `std::vector`, `<string>`, nlohmann, or other host-only headers. Keep device-safe and host-only declarations in separate headers when needed (e.g. `scene/scene.hpp` for the POD view and `scene/scene_host.hpp` for the owning type; `bvh/bvh_types.hpp` for `BvhNode`/`PrimRef`/`BvhView` and `bvh/bvh.hpp` for `Bvh` and `build_bvh`).
 
+### Comments (Doxygen)
+
+All code comments use [Doxygen](https://www.doxygen.nl/manual/docblocks.html) in the C++ style. Write what the code does and what callers can rely on. Don't write review notes, history, or reasons for past changes. Keep comments short: if the code is obvious, a one-line summary is enough.
+
+| Use | For |
+|---|---|
+| `///` | Doc comment above a file, type, function, macro, or constant |
+| `///<` | Trailing doc comment on a member or enumerator, on the same line |
+| `//` | Ordinary note inside a function body or between statements |
+
+Don't use `/** ... */` or `/* ... */`.
+
+- **Every header** starts with `/// @file name.hpp` and `/// @brief ...`.
+- **Every public type, function, macro, and constant** has a `///` comment. The first sentence is the summary, so a one-line doc needs no `@brief`.
+- Add `@param`, `@return`, and `@pre` only where they say something the name and type don't (units, valid ranges, what a failure value means). Use `@note` for numeric limits, and `@name` with `@{` / `@}` to group related overloads.
+- Document preconditions that aren't checked (for example `@pre length(a) > 0`), and say what happens when they are broken if it matters.
+- Test functions get a `///` line saying what they check.
+- Keep lines within the 100-column limit; `clang-format` enforces it, including for comments.
+
+```cpp
+/// Closed axis-aligned box `[lo, hi]` (24 bytes, POD).
+struct AABB {
+    vec3 lo;  ///< Minimum corner.
+    vec3 hi;  ///< Maximum corner.
+
+    /// Expands the box to contain point @p p.
+    RT_INLINE void grow(vec3 p);
+};
+```
+
 ### vec3 API
 
 Free functions and operators, all `RT_INLINE`, in `core/math.hpp`:

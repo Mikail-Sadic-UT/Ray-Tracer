@@ -82,7 +82,7 @@ Expect to find gaps during implementation. Fix them where they show up, and keep
 | [INTERFACES.md](docs/INTERFACES.md) | Types, frozen numeric rules, BVH pipeline, file formats, results schema |
 | [BUILD.md](docs/BUILD.md) | WSL2 and Vista setup, pinned toolchains, CMake options, flags |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Timing quantities, threads, targets, sweeps, memory-mode protocol, quality protocol |
-| [WORKFLOW.md](docs/WORKFLOW.md) | Branching, PRs, CI, issues, gates |
+| [WORKFLOW.md](docs/WORKFLOW.md) | Branching, commit messages, development environment check, PRs, CI, issues, gates |
 | [ROADMAP.md](docs/ROADMAP.md) | Scope, gates, owners, tasks, risks, status |
 | [STRETCH.md](docs/STRETCH.md) | OptiX, SIMD, reflections, GPU BVH build |
 | [REPO_SKELETON.md](docs/REPO_SKELETON.md) | Recommended layout and config file contents |

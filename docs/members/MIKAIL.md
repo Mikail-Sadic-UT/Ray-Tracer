@@ -62,6 +62,11 @@ Rules:
 - DeviceScene: one cudaMalloc + cudaMemcpy per array (scene arrays + BVH nodes + prim refs).
 - prepare() allocates all per-frame buffers; render() never allocates. A resolution change means prepare() again.
 - float only (except the watertight fallback); no -ffast-math / --use_fast_math.
+- Comments are C++ Doxygen (`///`, `///<`, `//`), per INTERFACES section 0. Commit messages are
+  kernel style, signed off with `git commit -s`, per WORKFLOW.md "Commit messages".
+- At the start of a session, run the environment check in WORKFLOW.md "Development environment".
+  If it is not WSL Ubuntu 24.04 or Vista with the BUILD.md toolchain, warn the user once (never
+  block), and add the `Developed-on:` / `Needs-check:` trailers to your commits.
 - If the interface looks wrong or incomplete, do not change it locally. Stop and write a short
   note proposing the change.
 

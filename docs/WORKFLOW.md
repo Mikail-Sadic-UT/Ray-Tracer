@@ -31,6 +31,67 @@ git push -u origin jett/lbvh                  # then open a PR into dev
 - Don't force-push `dev` or `main`.
 - Never commit generated `.bin` scenes, build directories, or large images.
 
+## Commit messages
+
+Linux-kernel style, so `git log --oneline` reads like a changelog and each commit explains itself.
+
+- **Subject:** `subsystem: imperative summary`. Keep it under about 72 characters, lowercase after the prefix, with no trailing period. The prefix names what the commit touches: a module (`core`, `scene`, `camera`, `bvh`, `trace`, `shade`, `cpu`, `gpu`, `bench`, `image`, `embree`, `optix`), `apps`, `tests`, `docs`, `scripts`, `ci`, or `repo` for root files (`.gitattributes`, `.clang-format`, CMake).
+- **Body:** after a blank line, one or two short paragraphs wrapped at 72 columns. Say what changed and why, not a line-by-line list of the diff. Call out behavior or numeric changes and anything a reviewer should look at closely. A trivial change needs no body.
+- **Sign-off:** every commit ends with `Signed-off-by: Name <email>`. Use `git commit -s`, which fills it in from `user.name` and `user.email`.
+- **One logical change per commit.** Keep formatting and comment-only changes apart from logic changes so reviewers can skim them. Each commit should build and pass the tests on its own.
+- **Not in commits:** deferred work and open questions belong in issues.
+- **Optional trailers:** `Developed-on:` and `Needs-check:`, described in [Development environment](#development-environment).
+
+```
+core: add rt::Error and strengthen math tests
+
+Add core/error.hpp with rt::Error, a std::runtime_error subclass for
+host-side failures, as required by INTERFACES section 0.
+
+Check every component of every vec3 operator in test_math.cpp, so a
+swapped or mis-signed component is caught.
+
+Signed-off-by: Jane Doe <jane@example.com>
+```
+
+## Development environment
+
+The reference environments are the ones the toolchain is verified on (exact versions in [BUILD.md](BUILD.md#pinned-toolchain-pairs)):
+
+| | Reference |
+|---|---|
+| Laptop | WSL2, Ubuntu 24.04, `g++-13` (GCC 13.x), the CUDA toolkit from the BUILD.md pinned pair (`nvcc`), x86_64 |
+| Vista | GH node: aarch64, `module load gcc/13.2.0 cuda` |
+
+Other environments (native Windows, macOS, another Linux, a different GCC or CUDA version, no `nvcc`) can work, but results may differ. Float output depends on the compiler and on FMA contraction, and the device build may not be tested at all. So the rule is: **warn, don't block.**
+
+**Check at the start of a session** (humans and agents), and again if the machine or toolchain changes:
+
+```bash
+grep -qi microsoft /proc/version && echo "WSL" || echo "not WSL"
+. /etc/os-release && echo "$PRETTY_NAME"
+hostname -f                                  # Vista: ends in .vista.tacc.utexas.edu (verify on Vista)
+uname -m                                     # x86_64 on the laptop, aarch64 on Vista
+g++-13 --version | head -1
+nvcc --version | tail -2                     # "command not found": no CUDA here, or /usr/local/cuda-*/bin is not on PATH
+```
+
+The environment matches if it is WSL on Ubuntu 24.04 with `g++-13` and an `nvcc` release that matches BUILD.md, or a Vista GH node with the BUILD.md modules.
+
+**If it doesn't match:**
+
+1. Warn the user once, up front. Say what differs and what it could affect, for example "no `nvcc`: device code is not compiled here", "GCC 14: warnings and FMA contraction can differ", or "native Windows: not a supported build".
+2. Keep going. Don't refuse to work, and don't install or change toolchains without asking.
+3. Encourage the user to do final verification on WSL Ubuntu 24.04 or Vista.
+4. Add trailers to each commit made there:
+
+```
+Developed-on: macOS 15 (arm64), Apple clang 16, no CUDA
+Needs-check: device build and FMA-sensitive tests on WSL or Vista
+```
+
+`Developed-on:` names the OS, compiler, and CUDA version (or "no CUDA"). `Needs-check:` lists what should be re-verified on a reference environment. Leave both out on a reference environment. A reviewer who sees them runs those checks on a reference environment before approving, which also covers the GPU checkbox in [Pull requests](#pull-requests).
+
 ## Pull requests
 
 PR description (template in [REPO_SKELETON.md](REPO_SKELETON.md#pr-template)): what and why, tests added, and two checkboxes:

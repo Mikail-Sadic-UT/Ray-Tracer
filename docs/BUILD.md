@@ -8,7 +8,7 @@ Planned build setup. Commands become final when task C1 lands (see [ROADMAP.md](
 |---|---|---|
 | OS | Ubuntu 24.04 | Linux, aarch64 (**verify on Vista** distro) |
 | Host compiler | GCC 13.3 (Ubuntu default) | `gcc/13.2.0` module |
-| CUDA | WSL-Ubuntu toolkit, exact version TBD in C1 | `cuda` module, exact version TBD in C1 (`module spider cuda`) |
+| CUDA | 13.3 (nvcc 13.3.73), WSL-Ubuntu toolkit | `cuda` module, exact version TBD in C1 (`module spider cuda`) |
 | GPU | RTX 4070 Laptop (Ada) | Hopper; record the exact name from `nvidia-smi` (docs list both H100 and H200) |
 | CUDA arch | `sm_89` (`RT_CUDA_ARCH=89`) | `sm_90` (`RT_CUDA_ARCH=90`) |
 | C++ standard | C++17 | C++17 |
@@ -21,7 +21,7 @@ Supported host compilers depend on the **CUDA minor release**, not just "12.x". 
 
 | Machine | GCC | CUDA | Driver | Tested on (date, commit) |
 |---|---|---|---|---|
-| Laptop (WSL2) | 13.3 | TBD | TBD | TBD |
+| Laptop (WSL2) | 13.3 | 13.3 (nvcc 13.3.73) | 610.62 | 2026-10-28, `207296c` (`core` headers and `tests/test_math.cpp` only; full CUDA build not run yet) |
 | Vista GH node | 13.2.0 | TBD | TBD | TBD |
 
 C1 fills this table. Changing a pair requires a PR that reruns the test suite on that machine.
@@ -34,7 +34,13 @@ C1 fills this table. Changing a pair requires a PR that reruns the test suite on
    sudo apt update
    sudo apt install build-essential g++-13 cmake ninja-build git python3-venv
    ```
-3. Install the **WSL-Ubuntu** CUDA toolkit from NVIDIA's CUDA downloads page (choose "Linux → x86_64 → WSL-Ubuntu"). Do **not** install a Linux NVIDIA driver inside WSL; it breaks the Windows-provided one.
+3. Install the **WSL-Ubuntu** CUDA toolkit from NVIDIA's CUDA downloads page (choose "Linux → x86_64 → WSL-Ubuntu"). Do **not** install a Linux NVIDIA driver inside WSL; it breaks the Windows-provided one. With NVIDIA's apt repo:
+   ```bash
+   wget https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/cuda-keyring_1.1-1_all.deb
+   sudo dpkg -i cuda-keyring_1.1-1_all.deb && sudo apt-get update
+   sudo apt-get install -y cuda-toolkit-13-3     # never `cuda` or `cuda-drivers`: they pull in a Linux driver
+   echo 'export PATH=/usr/local/cuda-13.3/bin:$PATH' >> ~/.bashrc
+   ```
 4. Check:
    ```bash
    nvidia-smi
