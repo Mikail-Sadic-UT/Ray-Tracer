@@ -1,0 +1,30 @@
+# Build
+build*/
+out/
+.cache/
+compile_commands.json
+
+# Generated data
+*.bin
+*.bin.gz
+scenes/generated/
+results/
+*.nsys-rep
+*.ncu-rep
+
+# Images (except small goldens)
+*.png
+*.pfm
+!scenes/golden/*.png
+!scenes/golden/*.pfm
+!docs/**/*.png
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Python
+__pycache__/
+.venv/
