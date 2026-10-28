@@ -37,6 +37,9 @@ jobs:
       - name: Tests
         run: ctest --test-dir build --output-on-failure
 
+      - name: Stub register
+        run: bash scripts/ci/check_stubs.sh
+
       - name: Format check
         env:
           BASE: ${{ github.base_ref || 'dev' }}
