@@ -15,9 +15,11 @@ flowchart RL
 
 | Branch | Protected | Receives | Rules |
 |---|---|---|---|
-| `main` | Yes | PRs from `dev` at check-ins | Tagged `checkin-2`, `checkin-3`, `final` |
-| `dev` | Yes | PRs from feature branches | 1 approving review, CI green |
+| `main` | Yes | PRs from `dev` at check-ins | PR required with 1 approving review. No force-push, no deletion. Tagged `checkin-2`, `checkin-3`, `final` |
+| `dev` | Partly | PRs or pushes from feature branches | No force-push, no deletion. A PR and review are expected, but not enforced yet |
 | `<member>/<topic>` | No | Your commits | Branch from `dev`, keep short-lived |
+
+GitHub enforces the `main` and `dev` rules for everyone except the repo admin (Mikail), who can push or merge directly. Teammates have write access, so they can't push to `main`. The `cpu` CI job is not a required check yet (see [Deferred](#deferred-process)).
 
 ```bash
 git switch dev && git pull
@@ -113,7 +115,7 @@ Small clarifications that don't change any type, signature, or numeric rule only
 
 ## CI
 
-GitHub Actions, CPU only (no GPU runners). Owner: Mikail. On every PR to `dev`:
+GitHub Actions, CPU only (no GPU runners). Owner: Mikail. The workflow has one job, `cpu`, which runs on every PR and push to `dev` and `main`. It is informational for now: merging doesn't wait for it, so check the result before you merge. Steps:
 
 1. Build with `-DRT_ENABLE_CUDA=OFF` (GCC 13).
 2. Run all `ctest` tests that exist. Tests get added as features land; nothing is required before it exists.
@@ -145,6 +147,7 @@ These were considered and deliberately **not** adopted now. Turn one on only if 
 
 | Deferred | Turn on if |
 |---|---|
+| Required `cpu` CI check on `main` (and on `dev`), and required PR plus review on `dev` | A broken or badly formatted change reaches `dev` or `main`, or the team grows past one regular reviewer. Set it in the repo's branch protection settings; the status check name is the job name `cpu` in `.github/workflows/ci.yml` |
 | Exact (bit-identical) goldens in a pinned CI container ([BUILD.md](BUILD.md#golden-image-environment-deferred)) | Tolerance-based goldens miss a real regression |
 | CI phases, golden registry, and a "ratchet" rule for removing tests | Tests get disabled to make PRs pass |
 | All-four approval for every interface edit | Interface changes start breaking people's code |
