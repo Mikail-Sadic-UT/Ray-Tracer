@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+jobs:
+  cpu:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0  # full history so the base branch can be diffed
+
+      - name: Install
+        run: sudo apt-get update && sudo apt-get install -y g++-13 cmake ninja-build clang-format-18
+
+      - name: Toolchain versions
+        run: |
+          g++-13 --version | head -1
+          cmake --version | head -1
+          clang-format-18 --version
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DRT_ENABLE_CUDA=OFF -DCMAKE_CXX_COMPILER=g++-13
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Format check
+        env:
+          BASE: ${{ github.base_ref || 'dev' }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE"
+          # Capture the list first so a failing git diff fails the step instead of
+          # silently producing an empty list for xargs.
+          files="$(git diff --name-only --diff-filter=ACMR "origin/$BASE...HEAD" -- \
+            '*.cpp' '*.hpp' '*.cu' '*.cuh')"
+          if [ -n "$files" ]; then
+            printf '%s\n' "$files" | xargs clang-format-18 --dry-run --Werror
+          fi
