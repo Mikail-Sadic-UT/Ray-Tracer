@@ -141,6 +141,17 @@ ctest --test-dir build --output-on-failure
 
 A CPU-only build must always work. CI uses it.
 
+### Adding tests
+
+Keep your test targets in your own `tests/<module>.cmake` and don't edit `tests/CMakeLists.txt`. It includes every `*.cmake` file in `tests/` automatically, so two people adding tests never conflict there.
+
+```cmake
+# tests/scene.cmake
+rt_add_gtest(test_scene SOURCES test_scene.cpp LIBS rt_scene)   # LIBS: your module's library, if any
+```
+
+`rt_add_gtest` links `rt_core` and `GTest::gtest_main` and registers the cases with `ctest`. Wrap CUDA-only tests in `if(RT_ENABLE_CUDA)`. After adding a new `.cmake` file, rebuild or re-run `cmake` and it is picked up.
+
 ### Golden images
 
 Goldens are compared with the normal `rt_compare` tolerances, not exact equality, so they work on any x86 machine with GCC 13. Regenerate them deliberately in a PR that says why, never to make a failing test pass.
