@@ -134,6 +134,36 @@ flowchart TD
 | `NormalShading` policy (`--shade normal`) | Real shading | First CPU and GPU images |
 | Synthetic AABB/centroid arrays | Scene + generator | Jett |
 
+### Start-now check and cross-owner blockers (Oct 28)
+
+**Can everyone start their first task today?** Yes. `core` (Arek) and the CMake skeleton (Mikail) are on `dev`, and every first task is either independent or has a stub above. What remains is a handful of small shared headers that two owners would otherwise define separately, and some symbols nobody's deliverable list covers. Both are cheap to fix now and expensive to find at G0 (Oct 30).
+
+| Owner | First task | Start today? | Use until the dependency lands |
+|---|---|---|---|
+| Po | `Scene` types, JSON IO, hash, validation, `scene_dump` | Yes. Needs only `vec3` (merged) | A local `Camera` matching INTERFACES §4 exactly. `SceneHost` holds a `Camera`, but Po's member file doesn't list it as a dependency |
+| Jett | `camera_ray` and tests | Yes. Needs only `Ray` and `vec3` (merged) | Nothing. For the bounds stage and median builder, use synthetic AABB and centroid arrays |
+| Mikail | `intersect_sphere`/`intersect_triangle`, `brute_*`, `Hit` | Yes. The signatures take only `Sphere`, `Triangle`, `Ray` | `Sphere`, `Triangle` and `PrimRef` as written in INTERFACES §2–§3. Don't redefine them in a second place (see fix 1) |
+| Arek | `NormalShading`, then `shade_hit` | Partly. `Hit`, `Scene` and `PixelResult` don't exist yet | Hand-made `Hit` and `Scene` in tests. Unblocked work: `Timings` and timers, `offset_ray_origin`, the double-precision oracle (it needs only the frozen signatures), issues #2–#5 |
+
+Once someone's header lands on `dev`, the others delete their stand-ins. A stand-in lives in a test file or a clearly named `*_stub.hpp`, never under a contract type's real name, so two definitions can't collide at merge.
+
+**Cross-owner blockers and proposed fixes.** These are proposals. The ones that assign ownership need each affected owner's agreement; none changes a type or signature in INTERFACES.md.
+
+| # | Blocker | Who waits on whom | Proposed fix |
+|---|---|---|---|
+| 1 | The scene types are the hub. `Sphere`, `Triangle`, `Material`, `Light` and the `Scene` view all come from `scene/scene.hpp`, which Mikail, Arek, Jett and Po's own backend all include | Everyone waits on Po | Po commits `scene/scene.hpp` first, as plain structs copied from INTERFACES §2 with the `static_assert`s. No logic, about an hour. Do it on Oct 28–29 |
+| 2 | Contract types that live in different owners' headers: `Camera` (Jett, §4), `PrimRef` and `BvhView` (Jett, §3), `Hit` (Mikail, §5), `PixelResult` (Arek, §6), `Backend`, `PrepareInput`, `RenderSettings` (Mikail, §7) | Arek needs `Hit`, Mikail needs `PixelResult`, Po needs `Camera` and `Backend` | Each owner lands a **declarations-only** header for their types by Oct 29, ahead of any logic: `camera/camera.hpp` (the struct), `bvh/bvh_types.hpp`, `trace/hit.hpp`, `shade/pixel_result.hpp`, `backend.hpp`. These are copied from INTERFACES, so there's nothing to design |
+| 3 | `render_pixel` is called by Po's CPU loop and Mikail's GPU kernel (§6), but no deliverable list includes it | Po and Mikail wait on a function nobody owns | Assign it to Arek, in `shade/`, since it composes a query with a shading policy. Add it to AREK.md |
+| 4 | `BruteQuery` is defined in §6, but only `BvhQuery` is on Mikail's hand-off list. Both wrap Mikail's `brute_*` and `traverse_*` | Po and Mikail's GPU smoke image (~Nov 3) | Assign both to Mikail. Add `BruteQuery` to MIKAIL.md |
+| 5 | Camera JSON parsing is split between `camera.cpp` (Jett: parsing, overrides, validation) and `scene_io` (Po: reads the rest of the scene JSON), and no function name or header is specified | Po and Jett wait on each other for the same function | Agree on `Camera parse_camera(const nlohmann::json&)` and `void validate_camera(const Camera&)` in a host-only `camera/camera_io.hpp` (Jett writes, Po's `scene_io` calls). Add to INTERFACES §4 as a clarification |
+| 6 | `Timings` is Arek's (Nov 6), but `build_bvh` (Jett, §3), `DeviceScene::upload` and `Backend::prepare` (Mikail, §7) already take it by reference | Jett and Mikail wait for Nov 6 | Arek lands `bench/timings.hpp` (the struct and component names only) early, by Oct 30. The timers and results writer can follow |
+| 7 | `backend.hpp` (Mikail) and the CPU backend (Po) are both due Nov 6, and Po implements the interface | Po waits on a header Mikail hasn't scheduled | Covered by fix 2: Mikail lands `backend.hpp` (declarations only) by Oct 29 |
+| 8 | Four owners' Oct 30 deliverables meet in one test: the brute-force image of `known_two_spheres` (Po's scene, Jett's camera, Mikail's intersection, Arek's `NormalShading`) | If any one slips, G0 slips | Po integrates last. Agree on an order of landing (fixes 1, 2, 6), then each owner merges into `dev` as soon as their piece builds, so the image appears incrementally rather than at the deadline |
+
+**Not a block:** the independent-check ring (Arek checks intersection, Jett checks shading values, Mikail and Po check builders). It only looks circular. All the signatures are frozen, so each check can be written against the contract before the code it checks exists.
+
+**Also confirm:** INTERFACES v1.0 is still marked "Proposed" in [Status](#status), and the sign-off was due Oct 27. Fixes 3–5 are best settled in that sign-off.
+
 ## Core tasks
 
 | # | Task | Owner(s) | Gate |
