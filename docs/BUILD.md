@@ -31,6 +31,8 @@ C1 fills this table. Changing a pair requires a PR that reruns the test suite on
 
 ## Laptop: WSL2 setup
 
+"The laptop" is Mikail's machine. Use the same steps on any Windows machine; with a different NVIDIA GPU, set `RT_CUDA_ARCH` to its compute capability. See [WORKFLOW.md](WORKFLOW.md#development-environment) for how closely your setup should match.
+
 1. Install the latest NVIDIA Windows driver. It provides the GPU driver inside WSL2.
 2. In WSL2 Ubuntu 24.04:
    ```bash
@@ -124,7 +126,8 @@ ctest --test-dir build-mac --output-on-failure
 
 The first configure downloads the pinned dependencies, so it needs network access.
 Commits made here carry the development-environment trailers from
-[WORKFLOW.md](WORKFLOW.md#development-environment).
+[WORKFLOW.md](WORKFLOW.md#development-environment). Before opening a PR from a Mac,
+[verify the branch on Vista](WORKFLOW.md#verifying-on-vista) if you can.
 
 ## Configure and build
 
@@ -144,6 +147,7 @@ cmake -S . -B build-cpu -G Ninja -DCMAKE_BUILD_TYPE=Release -DRT_ENABLE_CUDA=OFF
 cmake --build build-cpu -j
 ctest --test-dir build-cpu --output-on-failure
 
+# laptop CUDA build: tests and GPU check
 ctest --test-dir build --output-on-failure
 ./build/apps/hello_cuda/hello_cuda      # prints GPU name and SM count, runs one kernel (CUDA builds)
 ```

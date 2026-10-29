@@ -41,7 +41,7 @@ Output 1920×1080. Median of 5 runs, with spread reported. Quality: no visible d
 | Machine | CPU | GPU | Notes |
 |---|---|---|---|
 | TACC Vista GH node (primary) | Grace, aarch64, 72 Neoverse-V2 cores | NVIDIA GH200 120GB (Hopper, sm_90, 132 SMs), no RT cores | NVLink-C2C |
-| Laptop, WSL2 Ubuntu 24.04 | i9-13980HX, 8P + 16E | RTX 4070 Laptop, sm_89 | PCIe |
+| Laptop (Mikail's), WSL2 Ubuntu 24.04 | i9-13980HX, 8P + 16E | RTX 4070 Laptop, sm_89 | PCIe |
 | Fallback: Lonestar6 | AMD EPYC | A100, sm_80 | Only if Vista fails |
 
 Offline CLI renderer. No native Windows build.
@@ -87,6 +87,7 @@ Expect to find gaps during implementation. Fix them where they show up, and keep
 |---|---|
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, ownership vs views, backend lifecycle, GPU pipelines, memory modes, CLI |
 | [INTERFACES.md](docs/INTERFACES.md) | Types, frozen numeric rules, BVH pipeline, file formats, results schema |
+| [CONTRACT_NOTES.md](docs/CONTRACT_NOTES.md) | Known gaps in INTERFACES that don't need a change yet, with triggers and owners |
 | [BUILD.md](docs/BUILD.md) | WSL2 and Vista setup, pinned toolchains, CMake options, flags |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Timing quantities, threads, targets, sweeps, memory-mode protocol, quality protocol |
 | [WORKFLOW.md](docs/WORKFLOW.md) | Branching, commit messages, development environment check, PRs, CI, issues, gates |

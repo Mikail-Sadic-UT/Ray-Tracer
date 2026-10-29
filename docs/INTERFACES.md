@@ -2,7 +2,7 @@
 
 **Status: v1.0, PROPOSED.** Sign-off at the team meeting (target **Oct 27**). After that, changes follow [Interface changes](#interface-changes).
 
-This file is the contract that lets each member (and each member's agent) build a part independently and have the parts fit together. If something here turns out wrong during implementation, fix it through a small interface PR. Don't work around it locally.
+This file is the contract that lets each member (and each member's agent) build a part independently and have the parts fit together. If something here turns out wrong during implementation, fix it through a small interface PR. Don't work around it locally. Known gaps that don't need a change yet are tracked in [CONTRACT_NOTES.md](CONTRACT_NOTES.md).
 Signatures are sketches. Field order, sizes, and the stated rules are what matter.
 
 | Contract | Owner | Consumers |
@@ -127,7 +127,7 @@ Each module's `CMakeLists.txt` is owned by its module owner and only defines tha
 - **Host code** reports errors by throwing `rt::Error` (derives from `std::runtime_error`, in `core/error.hpp`). The message names what failed, e.g. `"scene_io: triangles[42].material_id = 7 >= num_materials 3"`.
 - **CUDA calls** are wrapped in `RT_CUDA_CHECK(expr)`, which throws `rt::Error` with the file, line, and `cudaGetErrorString`.
 - **Device code** never throws or prints. Runtime problems (stack overflow) set a device flag that the backend checks after `render` and turns into `rt::Error`.
-- **Apps** catch `rt::Error` (and `std::exception`) in `main`, print `error: <message>` to stderr, and exit with code 1.
+- **Apps** catch `rt::Error` (and `std::exception`) in `main`, print `error: <message>` to stderr, and exit with code 1. Command-line usage errors are reported by CLI11 (`CLI11_PARSE`) with its own message and non-zero exit code, and `--help` exits 0. Scripts check for a non-zero exit, never for exactly 1.
 - **Output streams:** human-readable progress and warnings go to stderr. Results go only to files (`--results`), so stdout stays clean.
 
 ### Other shared rules
@@ -311,7 +311,7 @@ struct Image {                          // host, owned by the caller
 };
 ```
 
-`render()` resizes the `Image` to the prepared resolution. PNG output clamps to [0,1] and sRGB-encodes. PFM output stores the linear unclamped values.
+`render()` resizes the `Image` to the prepared resolution. PNG output clamps to [0,1] and sRGB-encodes, and rejects non-finite samples with `rt::Error`. PFM output stores the linear unclamped values, including NaN and Inf, so `rt_compare` can report them. `rt_render` writes the PFM and AOV files before the PNG, so an image with non-finite pixels still leaves the files needed to diagnose it.
 
 ### AOV semantics
 
@@ -401,7 +401,7 @@ Readers reject a wrong magic, an unknown version, truncated files, and a hash mi
 
 64-bit FNV-1a over a **canonical field-by-field encoding**, never raw struct bytes:
 
-- Each `uint32_t` is fed as 4 little-endian bytes. Each `float` is fed as the 4 little-endian bytes of its IEEE bit pattern. Padding and reserved fields are skipped.
+- Each `uint32_t` is fed as 4 little-endian bytes, and each `uint64_t` (the `content_hash` that starts the scene hash) as 8 little-endian bytes. Each `float` is fed as the 4 little-endian bytes of its IEEE bit pattern. Padding and reserved fields are skipped.
 - `content_hash` (in `.bin`): `num_spheres`, `num_triangles`, then every sphere `(center.xyz, radius, material_id)`, then every triangle `(v0.xyz, v1.xyz, v2.xyz, material_id)`.
 - `SceneHost::hash` (scene hash): `content_hash`, then counts and fields of materials `(albedo.rgb, ks.rgb, shininess, flags)`, lights `(type, pos_or_dir.xyz, intensity.rgb)`, `background.rgb`, `ambient`.
 - The **camera is excluded** from the scene hash. CLI overrides change only the camera, so the scene hash stays the same. Results record the **effective camera** (after overrides) in full under `config.camera`, along with the effective resolution.
