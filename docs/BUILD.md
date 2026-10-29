@@ -102,6 +102,30 @@ Batch jobs use `sbatch` on `gh-dev` (testing, 20 nodes) or `gh` (production, 576
 
 Fallback if Vista GPU access fails: Lonestar6 A100 nodes, `RT_CUDA_ARCH=80`, x86 host.
 
+## macOS: CPU development
+
+The scene and image tools build on Apple Silicon with Apple Clang and Homebrew OpenMP.
+This is a development environment; WSL2 and Vista remain the reference environments for
+final verification and benchmarks. CUDA is disabled on the Mac.
+
+```bash
+brew install cmake ninja libomp
+RT_OMP_PREFIX="$(brew --prefix libomp)"
+
+cmake -S . -B build-mac -G Ninja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_CXX_COMPILER=/usr/bin/clang++ -DRT_ENABLE_CUDA=OFF \
+      -DOpenMP_CXX_FLAGS="-Xpreprocessor -fopenmp" \
+      -DOpenMP_CXX_INCLUDE_DIR="$RT_OMP_PREFIX/include" \
+      -DOpenMP_CXX_LIB_NAMES=omp \
+      -DOpenMP_omp_LIBRARY="$RT_OMP_PREFIX/lib/libomp.dylib"
+cmake --build build-mac --parallel
+ctest --test-dir build-mac --output-on-failure
+```
+
+The first configure downloads the pinned dependencies, so it needs network access.
+Commits made here carry the development-environment trailers from
+[WORKFLOW.md](WORKFLOW.md#development-environment).
+
 ## Configure and build
 
 ```bash
@@ -117,6 +141,8 @@ cmake --build build-vista -j
 
 # CPU-only (CI, machines without NVIDIA GPU)
 cmake -S . -B build-cpu -G Ninja -DCMAKE_BUILD_TYPE=Release -DRT_ENABLE_CUDA=OFF
+cmake --build build-cpu -j
+ctest --test-dir build-cpu --output-on-failure
 
 ctest --test-dir build --output-on-failure
 ./build/apps/hello_cuda/hello_cuda      # prints GPU name and SM count, runs one kernel (CUDA builds)
@@ -126,6 +152,26 @@ ctest --test-dir build --output-on-failure
 - **Host compiler:** nvcc uses the same compiler as the C++ code (`CMAKE_CUDA_HOST_COMPILER` defaults to `CMAKE_CXX_COMPILER`), so pass `-DCMAKE_CXX_COMPILER=g++-13` when the default `g++` isn't GCC 13.
 - **No fast-math:** configure fails if `CMAKE_CXX_FLAGS` or `CMAKE_CUDA_FLAGS` contains fast-math or `-Ofast`.
 - **Flags:** every target that links `rt_core` gets `-Wall -Wextra -march=native` (`-mcpu=native` on aarch64) and, for CUDA, `-lineinfo`.
+
+### Inspecting a known scene
+
+After a CPU-only build, the scene tool is available without a renderer or GPU:
+
+```bash
+./build-cpu/apps/scene_dump/scene_dump --verify scenes/known/known_two_spheres.json
+./build-cpu/apps/scene_dump/scene_dump --json scenes/known/known_two_spheres.json
+```
+
+Use `build-mac` instead of `build-cpu` for the macOS commands above. The default output
+includes primitive, material, and light counts, camera settings, and both canonical hashes.
+`--json` prints normalized inline JSON. `SceneHost` stores scene values, so normalized JSON
+omits material names and generator metadata that are not stored there.
+
+Current scene IO supports version 2 inline JSON; binary geometry references fail explicitly
+until the `.bin` reader lands. `--verify` checks parsing and load validation for inline scenes;
+it does not yet verify a generated archive. Camera storage and IO temporarily use the
+[registered stubs](ROADMAP.md#stub-register). A successful scene inspection does not establish
+G0: the brute-force CPU image and reference-platform checks are still required.
 
 ### CMake options
 

@@ -140,7 +140,8 @@ The table above lists the stand-ins the plan expects. This register lists the on
 
 | ID | Used by | Where | Stands in for | Remove when | Status |
 |---|---|---|---|---|---|
-| none yet | | | | | |
+| S1 | Po (`SceneHost`) | `src/scene/camera_stub.hpp` | Jett's `Camera` storage (INTERFACES §4; C3) | `camera/camera.hpp` lands; use `Camera` in `scene_host.hpp`, then delete the stub and this row | open |
+| S2 | Po (`scene_io`) | `src/scene/camera_io_stub.hpp` | Jett's camera JSON parsing and validation (C3; cross-owner blocker 5) | Jett's camera IO lands; call it from `scene_io.cpp`, then delete the stub and this row | open |
 
 `Status` is `open` while the real thing hasn't landed, and `ready to remove` once it has but the stub is still in the code. Add a row in the PR that adds the stub (next free ID, `S1`, `S2`, ...), and delete the row in the PR that removes it. The weekly meeting reads this table.
 
@@ -211,7 +212,7 @@ Owners: Arek (math), Po (scene). All four sign off by Oct 27.
 - **Objective:** INTERFACES v1.0 accepted; shared headers merged.
 - **Guidance:** `vec3`, `Ray`, `AABB`, `intersect_aabb`; `SceneHost`, `Scene`, `Image`; JSON v2 read/write; scene hash.
 - **Tests:** slab-test cases listed in INTERFACES; JSON round trip; hash stable across runs.
-- **Demo:** `scene_dump scenes/known/two_spheres.json` prints the scene and its hash.
+- **Demo:** `scene_dump scenes/known/known_two_spheres.json` prints the scene and its hash.
 
 ### C3: Intersection, camera, brute-force CPU image
 Owners: Mikail (intersection), Jett (camera), Po (renderer loop, PNG/PFM).

@@ -31,10 +31,16 @@
 | What | From | Until it lands, use |
 |---|---|---|
 | `vec3`, `AABB` | Arek (Oct 27) | Nothing to stub; it's small |
+| `Camera`, `camera_ray`, camera JSON parsing and validation | Jett (Oct 30; declarations requested early in ROADMAP) | `scene/camera_stub.hpp` (S1) and `scene/camera_io_stub.hpp` (S2) cover storage and IO only; rendering still needs `camera_ray` |
 | `brute_closest` / `BruteQuery` | Mikail (Oct 30) | A trivial sphere-only loop in your test |
 | `shade_hit` / `NormalShading` | Arek | Normal-as-color written inline, replaced when merged |
 | Terrain height field | Jett (Nov 6) | A flat two-triangle floor |
 | `Bvh` + `BvhQuery` | Jett, Mikail (Nov 6) | `BruteQuery` |
+| `Backend`, `PrepareInput`, `RenderSettings` | Mikail (Nov 6; declarations requested early in ROADMAP) | Keep scene and image IO independent until the backend header lands |
+
+The shared `render_pixel` entry point is also needed for the CPU loop. Its assignment to Arek
+is still a proposal in [ROADMAP cross-owner blocker 3](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28);
+confirm that hand-off before integrating the renderer.
 
 **Done means:**
 - JSON and `.bin` round trips are exact, and the readers reject bad files.
@@ -117,5 +123,5 @@ PCG (pcg-random.org); PBRT v4 (renderer structure); PFM format notes; stb_image_
 
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|
-| Oct 24–30 | | | |
+| Oct 24–30 | Implemented shared scene types and layout checks; `SceneHost::view()`; inline JSON reader/writer, load validation, and canonical FNV-1a hashing; `scene_dump`; a known two-sphere scene; and PNG/PFM/`.u32img` image IO. Registered camera storage/IO stubs S1/S2. Verified the macOS CPU build and all 30 tests. Reviewed all 12 Markdown files under `docs/` and corrected hash compiler flags, CLI error handling, layout checks, build instructions, and dependency documentation. Vista GCC/CUDA verification and CPU-renderer integration remain pending teammate hand-offs. | Branch `po/scene`: `28c5a35`, `a2614b8`, `d66318e`, `b13ab20`, `74e3c62`; documentation-review code fixes: `e8e9737`. Build instructions, dependency notes, and this contribution log accompany the documentation update. | |
 | | | | |
