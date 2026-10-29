@@ -102,13 +102,16 @@ TEST(Math, Vec3) {
     const rt::vec3 c = rt::cross(a, b);
     EXPECT_TRUE(equal(c, 29.0f, 5.0f, -13.0f)) << "cross product";
     EXPECT_TRUE(rt::dot(c, a) == 0.0f && rt::dot(c, b) == 0.0f) << "cross product is perpendicular";
-    EXPECT_TRUE(equal(rt::cross({1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}), 0.0f, 0.0f, 1.0f)) << "cross product is right-handed (x cross y = z)";
+    EXPECT_TRUE(equal(rt::cross({1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}), 0.0f, 0.0f, 1.0f))
+        << "cross product is right-handed (x cross y = z)";
 
     // Length and normalization. normalize keeps the direction and gives unit length.
     EXPECT_TRUE(rt::length2(a) == 14.0f) << "squared length";
     EXPECT_TRUE(near(rt::length(a), std::sqrt(14.0f))) << "length";
-    EXPECT_TRUE(near3(rt::normalize({3.0f, 0.0f, -4.0f}), 0.6f, 0.0f, -0.8f)) << "normalize direction";
-    EXPECT_TRUE(equal(rt::normalize({0.0f, -2.0f, 0.0f}), 0.0f, -1.0f, 0.0f)) << "normalize axis vector";
+    EXPECT_TRUE(near3(rt::normalize({3.0f, 0.0f, -4.0f}), 0.6f, 0.0f, -0.8f))
+        << "normalize direction";
+    EXPECT_TRUE(equal(rt::normalize({0.0f, -2.0f, 0.0f}), 0.0f, -1.0f, 0.0f))
+        << "normalize axis vector";
     EXPECT_TRUE(near(rt::length(rt::normalize(a)), 1.0f)) << "normalize gives unit length";
 
     // Componentwise min/max and the largest component in each position.
@@ -168,7 +171,8 @@ TEST(Math, ZeroDirectionCases) {
                 rt::vec3 direction{1.0f, 0.25f, 0.5f};
                 direction[axis] = zero;
                 float enter = -1.0f;
-                EXPECT_TRUE(intersect(box, {origin, 0.0f, direction, 10.0f}, enter)) << "signed-zero ray on either slab face hits";
+                EXPECT_TRUE(intersect(box, {origin, 0.0f, direction, 10.0f}, enter))
+                    << "signed-zero ray on either slab face hits";
                 // The origin is inside the other two slabs, so entry is t_lo, not NaN.
                 EXPECT_TRUE(enter == 0.0f) << "signed-zero face ray enters at t_lo, never NaN";
 
@@ -177,7 +181,8 @@ TEST(Math, ZeroDirectionCases) {
                         ? std::nextafter(box.lo[axis], -std::numeric_limits<float>::infinity())
                         : std::nextafter(box.hi[axis], std::numeric_limits<float>::infinity());
                 enter = -1.0f;
-                EXPECT_TRUE(!intersect(box, {origin, 0.0f, direction, 10.0f}, enter)) << "signed-zero ray just outside either face misses";
+                EXPECT_TRUE(!intersect(box, {origin, 0.0f, direction, 10.0f}, enter))
+                    << "signed-zero ray just outside either face misses";
             }
         }
     }
@@ -188,32 +193,45 @@ TEST(Math, ZeroDirectionCases) {
 TEST(Math, RegressionAndIntervals) {
     // Origin on the x = 0 face with a -0 x direction: hits.
     float enter = -1.0f;
-    EXPECT_TRUE(intersect(unit_box(), {{0.0f, 0.5f, 0.5f}, 0.0f, {-0.0f, 1.0f, 0.0f}, 10.0f}, enter)) << "documented negative-zero regression hits";
+    EXPECT_TRUE(
+        intersect(unit_box(), {{0.0f, 0.5f, 0.5f}, 0.0f, {-0.0f, 1.0f, 0.0f}, 10.0f}, enter))
+        << "documented negative-zero regression hits";
 
     // Zero y direction with the origin on a y face makes that axis NaN (tn for y = 0, tf for
     // y = 1). The x and z intervals do not overlap (x entered at t = 5, z exited at t = 4/3;
     // the second ray mirrors this), so both rays miss.
     enter = -1.0f;
-    EXPECT_TRUE(!intersect(unit_box(), {{-5.0f, 0.0f, -1.0f}, 0.0f, {1.0f, 0.0f, 1.5f}, 100.0f}, enter)) << "zero-y NaN does not overwrite t0 (miss)";
+    EXPECT_TRUE(
+        !intersect(unit_box(), {{-5.0f, 0.0f, -1.0f}, 0.0f, {1.0f, 0.0f, 1.5f}, 100.0f}, enter))
+        << "zero-y NaN does not overwrite t0 (miss)";
     enter = -1.0f;
-    EXPECT_TRUE(!intersect(unit_box(), {{-1.0f, 1.0f, -5.0f}, 0.0f, {1.5f, 0.0f, 1.0f}, 100.0f}, enter)) << "zero-y NaN does not overwrite t1 (miss)";
+    EXPECT_TRUE(
+        !intersect(unit_box(), {{-1.0f, 1.0f, -5.0f}, 0.0f, {1.5f, 0.0f, 1.0f}, 100.0f}, enter))
+        << "zero-y NaN does not overwrite t1 (miss)";
 
     // Ray starting inside the box enters at t_lo.
     enter = -1.0f;
-    EXPECT_TRUE(intersect(unit_box(), {{0.5f, 0.5f, 0.5f}, 0.25f, {1.0f, 0.0f, 0.0f}, 10.0f}, enter) &&
-              enter == 0.25f) << "inside ray enters at t_lo";
+    EXPECT_TRUE(
+        intersect(unit_box(), {{0.5f, 0.5f, 0.5f}, 0.25f, {1.0f, 0.0f, 0.0f}, 10.0f}, enter) &&
+        enter == 0.25f)
+        << "inside ray enters at t_lo";
 
     // Origin on the exit face moving outward: entry and exit are both t = 0, which is a hit.
     enter = -1.0f;
-    EXPECT_TRUE(intersect(unit_box(), {{1.0f, 0.5f, 0.5f}, 0.0f, {1.0f, 0.0f, 0.0f}, 10.0f}, enter) &&
-              enter == 0.0f) << "origin on exit face moving outward hits at t_lo";
+    EXPECT_TRUE(
+        intersect(unit_box(), {{1.0f, 0.5f, 0.5f}, 0.0f, {1.0f, 0.0f, 0.0f}, 10.0f}, enter) &&
+        enter == 0.0f)
+        << "origin on exit face moving outward hits at t_lo";
 
     // Box behind the origin, and box beyond tmax: both miss.
     const rt::AABB behind{{1.0f, -1.0f, -1.0f}, {2.0f, 1.0f, 1.0f}};
     enter = -1.0f;
-    EXPECT_TRUE(!intersect(behind, {{3.0f, 0.0f, 0.0f}, 0.0f, {1.0f, 0.0f, 0.0f}, 10.0f}, enter)) << "box behind forward ray misses";
+    EXPECT_TRUE(!intersect(behind, {{3.0f, 0.0f, 0.0f}, 0.0f, {1.0f, 0.0f, 0.0f}, 10.0f}, enter))
+        << "box behind forward ray misses";
     enter = -1.0f;
-    EXPECT_TRUE(!intersect(unit_box(), {{-2.0f, 0.5f, 0.5f}, 0.0f, {1.0f, 0.0f, 0.0f}, 1.0f}, enter)) << "box outside ray t interval misses";
+    EXPECT_TRUE(
+        !intersect(unit_box(), {{-2.0f, 0.5f, 0.5f}, 0.0f, {1.0f, 0.0f, 0.0f}, 1.0f}, enter))
+        << "box outside ray t interval misses";
 }
 
 /// Boundary cases with exactly representable inputs, so the expected t values are exact.
@@ -223,27 +241,34 @@ TEST(Math, DeterministicSlabBoundaries) {
 
     // Ray grazing the edge at (0, 1, 0.5): leaves the y slab as it enters the x slab, at t = 1.
     EXPECT_TRUE(intersect(box, {{-1.0f, 0.0f, 0.5f}, 0.0f, {1.0f, 1.0f, 0.0f}, 10.0f}, enter) &&
-              enter == 1.0f) << "edge tangent is included";
+                enter == 1.0f)
+        << "edge tangent is included";
 
     // Very small direction components: reaches the box at t = 1e8.
     enter = -1.0f;
-    EXPECT_TRUE(intersect(box, {{-1.0f, -1.0f, 0.5f}, 0.0f, {1.0e-8f, 1.0e-8f, 0.0f}, 1.0e8f}, enter) &&
-              enter == 1.0e8f) << "near-parallel ray intersects at a large parameter";
+    EXPECT_TRUE(
+        intersect(box, {{-1.0f, -1.0f, 0.5f}, 0.0f, {1.0e-8f, 1.0e-8f, 0.0f}, 1.0e8f}, enter) &&
+        enter == 1.0e8f)
+        << "near-parallel ray intersects at a large parameter";
 
     // t_lo equal to the box entry distance is inclusive, so this hits at t = 1.
     enter = -1.0f;
     EXPECT_TRUE(intersect(box, {{-1.0f, 0.5f, 0.5f}, 1.0f, {1.0f, 0.0f, 0.0f}, 2.0f}, enter) &&
-              enter == 1.0f) << "ray interval lower endpoint includes box entry";
+                enter == 1.0f)
+        << "ray interval lower endpoint includes box entry";
 
     // The exact exit is t = 2. With t_lo one float above it, the ray still hits because the far
     // bound is widened by (1 + 2 * RT_GAMMA3).
     const float geometric_exit = 2.0f;
     const float expanded_exit = geometric_exit * (1.0f + 2.0f * rt::RT_GAMMA3);
     const float after_exit = std::nextafter(geometric_exit, std::numeric_limits<float>::infinity());
-    EXPECT_TRUE(after_exit > geometric_exit && after_exit <= expanded_exit) << "test interval lies between geometric and conservative far bounds";
+    EXPECT_TRUE(after_exit > geometric_exit && after_exit <= expanded_exit)
+        << "test interval lies between geometric and conservative far bounds";
     enter = -1.0f;
-    EXPECT_TRUE(intersect(box, {{-1.0f, 0.5f, 0.5f}, after_exit, {1.0f, 0.0f, 0.0f}, 3.0f}, enter) &&
-              enter == after_exit) << "conservative far expansion overlaps interval just beyond geometric exit";
+    EXPECT_TRUE(
+        intersect(box, {{-1.0f, 0.5f, 0.5f}, after_exit, {1.0f, 0.0f, 0.0f}, 3.0f}, enter) &&
+        enter == after_exit)
+        << "conservative far expansion overlaps interval just beyond geometric exit";
 }
 
 /// Random boxes and rays, compared against intersect_double().
@@ -269,7 +294,8 @@ TEST(Math, RandomAgainstDouble) {
         const bool double_hit = intersect_double(box, ray, double_enter);
         EXPECT_TRUE(float_hit == double_hit) << "random slab hit agrees with double reference";
         if (float_hit && double_hit) {
-            EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter), 2.0e-5f)) << "random slab entry agrees with double reference";
+            EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter), 2.0e-5f))
+                << "random slab entry agrees with double reference";
         }
     }
 }
@@ -305,7 +331,8 @@ TEST(Math, AimedAgainstDouble) {
         EXPECT_TRUE(float_hit == double_hit) << "aimed slab hit agrees with double reference";
         if (float_hit && double_hit) {
             ++hits;
-            EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter), 2.0e-5f)) << "aimed slab entry agrees with double reference";
+            EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter), 2.0e-5f))
+                << "aimed slab entry agrees with double reference";
         }
     }
     EXPECT_TRUE(hits > count / 2) << "aimed rays mostly hit, so the entry comparison is exercised";
