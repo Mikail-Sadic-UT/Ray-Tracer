@@ -25,7 +25,7 @@ GitHub enforces the `main` and `dev` rules for everyone except the repo admin (M
 
 ### Working on a branch
 
-One routine for everyone, so nobody has to choose between merge and rebase. **Merge `dev` into your branch. Never rebase or force-push a branch you've pushed.**
+One routine for everyone, so nobody has to choose between merge and rebase. **Merge `dev` into your branch. Rebase and force-push only to clean up your own branch, and only with `--force-with-lease` (see the cleanup rule below).**
 
 ```bash
 # one-time, per clone
@@ -50,7 +50,8 @@ git switch dev && git pull --ff-only && git branch -d jett/lbvh
 
 - **One branch per piece of work**, named `<member>/<topic>` and short-lived. Small PRs (under about 400 lines) review faster.
 - **PRs** target `dev`. Put `Closes #N` in the description so merging closes the issue, and check the CI result first (it is informational for now). Merge with a **merge commit**, not squash or rebase, so every signed-off commit is kept.
-- **Never** force-push, rebase a pushed branch, or use `git reset --hard` to fix a problem. You can rebase commits you haven't pushed yet. GitHub rejects force-pushes to `dev` and `main`.
+- **Cleaning up your own branch:** you may rebase it and force-push, for example to squash fixups or fix a commit message. Use `git push --force-with-lease`, never plain `--force`, so the push fails if someone else has pushed to the branch. Do it only on a `<member>/<topic>` branch that nobody else has based work on. Once a review has started, say so in a PR comment before you force-push, because reviewers lose their place in the diff.
+- **Never** force-push `dev` or `main` (GitHub rejects it), and don't use `git reset --hard` to fix a problem. `git reflog` keeps your earlier commits.
 - **One writer per branch.** If two people must share one, run `git pull --ff-only` before every push.
 - **Conflicts:** merge, fix the files, rebuild, test, then commit the merge. Ask the file's owner before resolving a conflict in their code, and always before touching INTERFACES.md.
 - **If something looks wrong, stop and ask.** `git reflog` keeps your earlier commits, so nothing is lost.
