@@ -71,6 +71,7 @@ static_assert(sizeof(Sphere) == 20, "Sphere must be 20 bytes");
 static_assert(sizeof(Triangle) == 40, "Triangle must be 40 bytes");
 static_assert(sizeof(Material) == 32, "Material must be 32 bytes");
 static_assert(sizeof(Light) == 32, "Light must be 32 bytes");
+static_assert(sizeof(Scene) == 80, "Scene must be 80 bytes on the supported 64-bit platforms");
 
 static_assert(std::is_standard_layout<Sphere>::value && std::is_trivially_copyable<Sphere>::value,
               "Sphere must have a standard layout and be trivially copyable");

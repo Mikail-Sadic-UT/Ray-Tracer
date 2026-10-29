@@ -19,4 +19,6 @@ struct CameraStub {
     uint32_t height;  ///< Image height in pixels.
 };
 
+static_assert(sizeof(CameraStub) == 48, "Camera storage must be 48 bytes");
+
 }  // namespace rt
