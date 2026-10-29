@@ -1,8 +1,8 @@
 /// @file test_camera.cpp
 /// @brief Tests for perspective camera ray generation.
-#include <cmath>
-
 #include <gtest/gtest.h>
+
+#include <cmath>
 
 #include "camera/camera.hpp"
 
@@ -49,8 +49,8 @@ TEST(CameraRayTest, CornerDirectionsMatchFovAndAspect) {
     rt::Camera camera = make_camera(100, 50);
 
     const float tan_v = tanf(camera.vfov_deg * 3.14159265358979323846f / 360.0f);
-    const float tan_h = (static_cast<float>(camera.width) /
-                         static_cast<float>(camera.height)) * tan_v;
+    const float tan_h =
+        (static_cast<float>(camera.width) / static_cast<float>(camera.height)) * tan_v;
     const rt::vec3 w = rt::normalize(camera.position - camera.look_at);
     const rt::vec3 u = rt::normalize(rt::cross(camera.up, w));
     const rt::vec3 v = rt::cross(w, u);
@@ -58,11 +58,11 @@ TEST(CameraRayTest, CornerDirectionsMatchFovAndAspect) {
     const uint32_t xs[] = {0, camera.width - 1};
     const uint32_t ys[] = {0, camera.height - 1};
     for (uint32_t py : ys) {
-        const float sy = 1.0f - 2.0f * (static_cast<float>(py) + 0.5f) /
-                                    static_cast<float>(camera.height);
+        const float sy =
+            1.0f - 2.0f * (static_cast<float>(py) + 0.5f) / static_cast<float>(camera.height);
         for (uint32_t px : xs) {
-            const float sx = 2.0f * (static_cast<float>(px) + 0.5f) /
-                             static_cast<float>(camera.width) - 1.0f;
+            const float sx =
+                2.0f * (static_cast<float>(px) + 0.5f) / static_cast<float>(camera.width) - 1.0f;
             const rt::vec3 expected = rt::normalize(-w + sx * tan_h * u + sy * tan_v * v);
             rt::Ray ray = rt::camera_ray(camera, px, py);
             expect_direction(ray.dir, expected);

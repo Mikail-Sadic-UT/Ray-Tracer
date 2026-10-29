@@ -12,12 +12,12 @@ namespace rt {
 
 /// Perspective camera parameters shared by host and device code.
 struct Camera {
-    vec3 position;   ///< Camera position.
-    vec3 look_at;    ///< Point the camera looks toward.
-    vec3 up;         ///< Camera's approximate up direction.
-    float vfov_deg;  ///< Vertical field of view in degrees.
-    uint32_t width;  ///< Image width in pixels.
-    uint32_t height; ///< Image height in pixels.
+    vec3 position;    ///< Camera position.
+    vec3 look_at;     ///< Point the camera looks toward.
+    vec3 up;          ///< Camera's approximate up direction.
+    float vfov_deg;   ///< Vertical field of view in degrees.
+    uint32_t width;   ///< Image width in pixels.
+    uint32_t height;  ///< Image height in pixels.
 };
 
 static_assert(sizeof(Camera) == 48, "Camera must be 48 bytes");
@@ -38,15 +38,12 @@ RT_INLINE Ray camera_ray(const Camera& cam, uint32_t px, uint32_t py) {
     const vec3 u = normalize(cross(cam.up, w));
     const vec3 v = cross(w, u);
 
-    const float sx = 2.0f * (static_cast<float>(px) + 0.5f) /
-                         static_cast<float>(cam.width) - 1.0f;
-    const float sy = 1.0f - 2.0f * (static_cast<float>(py) + 0.5f) /
-                            static_cast<float>(cam.height);
+    const float sx = 2.0f * (static_cast<float>(px) + 0.5f) / static_cast<float>(cam.width) - 1.0f;
+    const float sy = 1.0f - 2.0f * (static_cast<float>(py) + 0.5f) / static_cast<float>(cam.height);
 
     Ray ray;
     ray.origin = cam.position;
-    ray.dir = normalize((-w) + sx * viewport_half_width * u +
-                        sy * viewport_half_height * v);
+    ray.dir = normalize((-w) + sx * viewport_half_width * u + sy * viewport_half_height * v);
     ray.tmin = 0.0f;
     ray.tmax = INFINITY;
     return ray;

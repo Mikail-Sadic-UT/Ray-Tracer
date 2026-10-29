@@ -2,6 +2,4 @@
 /// @brief Host-only camera support.
 #include "camera/camera.hpp"
 
-namespace rt {
-
-}  // namespace rt
+namespace rt {}  // namespace rt
