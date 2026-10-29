@@ -103,6 +103,14 @@ The reference environments are the ones the toolchain is verified on (exact vers
 | Laptop | WSL2, Ubuntu 24.04, `g++-13` (GCC 13.x), the CUDA toolkit from the BUILD.md pinned pair (`nvcc`), x86_64 |
 | Vista | GH node: Rocky Linux 9.7, aarch64, `module load gcc/13.2.0 cuda/13.3 cmake` |
 
+"The laptop" in these docs is Mikail's machine (hardware in [BUILD.md](BUILD.md#toolchain-targets)). Nobody else is expected to have it. Set up your own machine to match its software as closely as you can:
+
+- **Windows:** use WSL2 with Ubuntu 24.04 and the same tools (`g++-13`, `cmake`, `ninja-build`), following [BUILD.md](BUILD.md#laptop-wsl2-setup). Never build natively on Windows.
+- **NVIDIA GPU:** install the same CUDA toolkit (the BUILD.md pinned pair) and set `RT_CUDA_ARCH` to your GPU's compute capability.
+- **No NVIDIA GPU:** install the CUDA toolkit anyway if you can. `nvcc` compiles device code without a GPU, so you can still check that the CUDA build compiles; you just can't run kernels.
+
+A machine set up this way counts as matching for builds and tests. Benchmark numbers come only from Mikail's laptop and Vista.
+
 Other environments (native Windows, macOS, another Linux, a different GCC or CUDA version, no `nvcc`) can work, but results may differ. Float output depends on the compiler and on FMA contraction, and the device build may not be tested at all. So the rule is: **warn, don't block.**
 
 **Check at the start of a session** (humans and agents), and again if the machine or toolchain changes:
@@ -122,7 +130,7 @@ The environment matches if it is WSL on Ubuntu 24.04 with `g++-13` and an `nvcc`
 
 1. Warn the user once, up front. Say what differs and what it could affect, for example "no `nvcc`: device code is not compiled here", "GCC 14: warnings and FMA contraction can differ", or "native Windows: not a supported build".
 2. Keep going. Don't refuse to work, and don't install or change toolchains without asking.
-3. Encourage the user to do final verification on WSL Ubuntu 24.04 or Vista.
+3. Before opening a PR, verify the branch on Vista ([below](#verifying-on-vista)). This is recommended, not required. It matters most on macOS, where Apple Clang doesn't report some GCC 13 warnings and there is no CUDA, so neither the reference compiler nor the device build has run.
 4. Add trailers to each commit made there:
 
 ```
@@ -132,6 +140,23 @@ Needs-check: device build and FMA-sensitive tests on WSL or Vista
 
 `Developed-on:` names the OS, compiler, and CUDA version (or "no CUDA"). `Needs-check:` lists what should be re-verified on a reference environment. Leave both out on a reference environment. A reviewer who sees them runs those checks on a reference environment before approving, which also covers the GPU checkbox in [Pull requests](#pull-requests).
 
+### Verifying on Vista
+
+From a `gh-dev` node (`idev -p gh-dev -N 1 -n 1 -t 1:00:00`, setup in [BUILD.md](BUILD.md#vista-setup)), in your clone under `$WORK`:
+
+```bash
+module reset && module load gcc/13.2.0 cuda/13.3 cmake
+git fetch origin && git switch <member>/<topic> && git pull --ff-only
+cmake -S . -B build-vista -DCMAKE_BUILD_TYPE=Release -DRT_ENABLE_CUDA=ON -DRT_CUDA_ARCH=90 -DCMAKE_CXX_COMPILER=g++
+cmake --build build-vista -j 2>&1 | grep -E 'warning|error'    # expect no output
+ctest --test-dir build-vista --output-on-failure
+```
+
+Record the result where the reviewer will see it:
+
+- **Verified:** add a line to the PR description, for example `Verified on Vista: c642-061, commit abc1234, CUDA build, no warnings, ctest 30/30`. The reviewer can then skip the `Needs-check:` items it covers.
+- **Not verified:** the trailers stay as they are. The `Needs-check:` on the branch's last commit must list everything still unchecked, so the reviewer knows what to run.
+
 ## Pull requests
 
 PR description (template in [`.github/pull_request_template.md`](../.github/pull_request_template.md)): what and why, tests added, and these checkboxes:
@@ -139,7 +164,7 @@ PR description (template in [`.github/pull_request_template.md`](../.github/pull
 - **GPU checked?** If you changed render code (`core`, `trace`, `shade`, `bvh`, `camera`, `gpu`) **and** a GPU path exists on `dev`, build with CUDA and run the GPU vs CPU comparison on a known scene. Paste the `rt_compare` summary. Before any GPU path exists, a CUDA build that compiles is enough.
 - **Interface change?** If the PR edits [INTERFACES.md](INTERFACES.md), see [Interface changes](#interface-changes).
 - **Stubs?** If the PR adds, changes, or removes a stub or workaround, the [register](ROADMAP.md#stub-register) is updated in the same PR (see [Stubs and local workarounds](#stubs-and-local-workarounds)).
-- **Development environment?** If it wasn't a reference environment, the commits carry the `Developed-on:` / `Needs-check:` trailers.
+- **Development environment?** If it wasn't a reference environment, the commits carry the `Developed-on:` / `Needs-check:` trailers. If you then [verified on Vista](#verifying-on-vista), say so in the description.
 
 Review: one approval from someone other than the author, ideally the owner of the code you're calling. Reviewers check correctness, tests, and that the interfaces are respected. Formatting is automatic (`.clang-format`). Try to review within a day.
 

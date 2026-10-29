@@ -11,3 +11,4 @@
       (WORKFLOW.md "Stubs and local workarounds")
 - [ ] Developed on a reference environment (WSL Ubuntu 24.04 or Vista); if not, commits carry
       `Developed-on:` / `Needs-check:` trailers (WORKFLOW.md "Development environment")
+- [ ] Not a reference environment, but verified on Vista (recommended): node, commit, ctest result: ______
