@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "camera": {
+    "position": [0, 1, 5],
+    "look_at": [0, 0.5, 0],
+    "up": [0, 1, 0],
+    "vfov_deg": 45,
+    "width": 640,
+    "height": 480
+  },
+  "background": [0.1, 0.1, 0.15],
+  "ambient": 0.05,
+  "materials": [
+    {"name": "red", "albedo": [0.8, 0.1, 0.1], "ks": [0, 0, 0], "shininess": 1, "specular": false},
+    {"name": "blue", "albedo": [0.1, 0.1, 0.8], "ks": [0, 0, 0], "shininess": 1, "specular": false},
+    {"name": "floor", "albedo": [0.7, 0.7, 0.7], "ks": [0, 0, 0], "shininess": 1, "specular": false}
+  ],
+  "lights": [
+    {"type": "point", "position": [2, 4, 2], "intensity": [20, 20, 20]}
+  ],
+  "geometry": {
+    "spheres": [
+      {"center": [-0.75, 0.5, 0], "radius": 0.5, "material": 0},
+      {"center": [0.75, 0.5, 0], "radius": 0.5, "material": 1}
+    ],
+    "triangles": [
+      {"v": [[-5, 0, -5], [-5, 0, 5], [5, 0, 5]], "material": 2},
+      {"v": [[-5, 0, -5], [5, 0, 5], [5, 0, -5]], "material": 2}
+    ]
+  }
+}
