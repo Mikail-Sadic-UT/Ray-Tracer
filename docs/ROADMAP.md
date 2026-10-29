@@ -140,7 +140,7 @@ The table above lists the stand-ins the plan expects. This register lists the on
 
 | ID | Used by | Where | Stands in for | Remove when | Status |
 |---|---|---|---|---|---|
-| none yet | | | | | |
+| S1 | Po (`SceneHost`) | `src/scene/camera_stub.hpp` | Jett's `Camera` storage (INTERFACES §4; C3) | `camera/camera.hpp` lands; use `Camera` in `scene_host.hpp`, then delete the stub and this row | open |
 
 `Status` is `open` while the real thing hasn't landed, and `ready to remove` once it has but the stub is still in the code. Add a row in the PR that adds the stub (next free ID, `S1`, `S2`, ...), and delete the row in the PR that removes it. The weekly meeting reads this table.
 
