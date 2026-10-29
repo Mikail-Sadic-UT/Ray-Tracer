@@ -2,7 +2,11 @@
      `<member>/<topic>`, and commits read `subsystem: summary` with `git commit -s`.
      See docs/WORKFLOW.md "Branches" and "Commit messages". -->
 ## Summary
-<!-- What changed and why. Link the issue: Closes #N (or "Part of #N" if the issue needs more PRs) -->
+<!-- What changed and why. -->
+Closes #
+<!-- Replace with the issue number this PR finishes, e.g. "Closes #5". Merging then closes the issue
+     automatically. Use one "Closes #N" per issue. If the issue needs more PRs, write "Part of #N"
+     instead and delete the line above. -->
 
 ## Tests
 <!-- Tests added or updated -->
