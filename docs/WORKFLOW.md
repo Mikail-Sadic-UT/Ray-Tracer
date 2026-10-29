@@ -21,6 +21,8 @@ flowchart RL
 
 GitHub enforces the `main` and `dev` rules for everyone except the repo admin (Mikail), who can push or merge directly. Teammates have write access, so they can't push to `main`. The `cpu` CI job is not a required check yet (see [Deferred](#deferred-process)).
 
+`dev` is the repository's default branch. New PRs target it without changing the base, a fresh clone starts on it, and `Closes #N` closes issues when a PR merges, because GitHub only does that for the default branch. `main` stays the check-in branch.
+
 ### Working on a branch
 
 One routine for everyone, so nobody has to choose between merge and rebase. **Merge `dev` into your branch. Never rebase or force-push a branch you've pushed.**
