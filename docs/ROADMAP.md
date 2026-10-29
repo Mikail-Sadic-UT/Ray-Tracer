@@ -212,7 +212,7 @@ Owners: Arek (math), Po (scene). All four sign off by Oct 27.
 - **Objective:** INTERFACES v1.0 accepted; shared headers merged.
 - **Guidance:** `vec3`, `Ray`, `AABB`, `intersect_aabb`; `SceneHost`, `Scene`, `Image`; JSON v2 read/write; scene hash.
 - **Tests:** slab-test cases listed in INTERFACES; JSON round trip; hash stable across runs.
-- **Demo:** `scene_dump scenes/known/two_spheres.json` prints the scene and its hash.
+- **Demo:** `scene_dump scenes/known/known_two_spheres.json` prints the scene and its hash.
 
 ### C3: Intersection, camera, brute-force CPU image
 Owners: Mikail (intersection), Jett (camera), Po (renderer loop, PNG/PFM).
