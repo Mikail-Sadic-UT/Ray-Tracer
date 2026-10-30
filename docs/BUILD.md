@@ -173,8 +173,7 @@ omits material names and generator metadata that are not stored there.
 
 Current scene IO supports version 2 inline JSON; binary geometry references fail explicitly
 until the `.bin` reader lands. `--verify` checks parsing and load validation for inline scenes;
-it does not yet verify a generated archive. Camera storage and IO temporarily use the
-[registered stubs](ROADMAP.md#stub-register). A successful scene inspection does not establish
+it does not yet verify a generated archive. A successful scene inspection does not establish
 G0: the brute-force CPU image and reference-platform checks are still required.
 
 ### CMake options
