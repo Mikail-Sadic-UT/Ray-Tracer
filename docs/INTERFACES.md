@@ -548,6 +548,14 @@ RT_INLINE Ray camera_ray(const Camera&, uint32_t px, uint32_t py);   // defined 
 
 `camera_ray` is called from device code, so it lives inline in `src/camera/camera.hpp`. `camera.cpp` holds only host code: JSON parsing, CLI overrides, and validation.
 
+Host-only camera IO is declared in `src/camera/camera_io.hpp`. `scene_io` calls it, and apps call `validate_camera` again after applying CLI overrides:
+
+```cpp
+Camera         parse_camera(const nlohmann::json&);   // all fields required, no defaults, no validation
+nlohmann::json camera_to_json(const Camera&);         // inverse of parse_camera
+void           validate_camera(const Camera&);        // §2 camera + resolution rules; up-parallel check in double
+```
+
 - Pixel `(px, py)`, with `py = 0` the top row, maps to a ray through the pixel center `(px + 0.5, py + 0.5)`.
 - `dir` is normalized, `tmin = 0`, `tmax = +inf`. Because `dir` is normalized, `t` is a distance.
 - `aspect = width / height`. Basis: `w = normalize(position - look_at)`, `u = normalize(cross(up, w))`, `v = cross(w, u)`.

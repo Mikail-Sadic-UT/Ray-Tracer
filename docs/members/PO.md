@@ -31,7 +31,7 @@
 | What | From | Until it lands, use |
 |---|---|---|
 | `vec3`, `AABB` | Arek (Oct 27) | Nothing to stub; it's small |
-| Camera JSON parsing and validation | Jett (Oct 30) | `scene/camera_io_stub.hpp` (S2) covers IO only; `camera/camera.hpp` now provides the real `Camera` and `camera_ray` |
+| Camera JSON parsing and validation | Jett (Oct 30) | Nothing. Landed: `camera/camera.hpp` (`Camera`, `camera_ray`) and `camera/camera_io.hpp` (`parse_camera`, `camera_to_json`, `validate_camera`, #17) |
 | `brute_closest` / `BruteQuery` | Mikail (Oct 30) | A trivial sphere-only loop in your test |
 | `shade_hit` / `NormalShading` | Arek | Normal-as-color written inline, replaced when merged |
 | Terrain height field | Jett (Nov 6) | A flat two-triangle floor |
