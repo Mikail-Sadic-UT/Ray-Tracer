@@ -11,7 +11,7 @@ namespace rt {
 /// Reads the `camera` object of a scene file. Every field is required; no defaults are supplied.
 /// Does not validate the values; call validate_camera() after any overrides are applied.
 /// @param value The JSON value of the scene's `camera` member.
-/// @throws Error naming the field (e.g. `camera.width`) if a field is missing or has the wrong type.
+/// @throws Error naming the field (e.g. `camera.width`) if it is missing or has the wrong type.
 Camera parse_camera(const nlohmann::json& value);
 
 /// Encodes a camera as the JSON object parse_camera() reads, preserving every float value.

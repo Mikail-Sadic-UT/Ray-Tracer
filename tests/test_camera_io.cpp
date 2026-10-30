@@ -20,7 +20,9 @@ json valid_json() {
             {"vfov_deg", 45},        {"width", 640},           {"height", 480}};
 }
 
-rt::Camera valid_camera() { return rt::parse_camera(valid_json()); }
+rt::Camera valid_camera() {
+    return rt::parse_camera(valid_json());
+}
 
 /// Requires rt::Error with a message naming the offending field.
 void expect_error(const std::function<void()>& action, const std::string& field) {
