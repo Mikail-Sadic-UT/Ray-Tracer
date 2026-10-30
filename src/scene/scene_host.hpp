@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "scene/camera_stub.hpp"
+#include "camera/camera.hpp"
 #include "scene/scene.hpp"
 
 namespace rt {
@@ -16,10 +16,10 @@ struct SceneHost {
     std::vector<Triangle> triangles;  ///< Owned triangles.
     std::vector<Material> materials;  ///< Owned materials.
     std::vector<Light> lights;        ///< Owned lights.
-    CameraStub camera{};              ///< Temporary camera storage; see camera_stub.hpp.
-    color background{};               ///< Linear RGB background.
-    float ambient = 0.0f;             ///< Ambient illumination.
-    uint64_t hash = 0;                ///< Canonical scene hash, computed after validation.
+    Camera camera{};       ///< Perspective camera shared by scene storage and ray generation.
+    color background{};    ///< Linear RGB background.
+    float ambient = 0.0f;  ///< Ambient illumination.
+    uint64_t hash = 0;     ///< Canonical scene hash, computed after validation.
 
     /// Returns a host-pointer view without copying the arrays.
     /// @pre Scene counts and fields have been validated against INTERFACES section 2.

@@ -4,14 +4,14 @@
 
 #include <cmath>
 
-#include "scene/camera_stub.hpp"
+#include "camera/camera.hpp"
 #include "scene/json_helpers.hpp"
 
 namespace rt::detail {
 
 // STUB(S2, po): remove when Jett's camera parsing and validation land (C3, docs/ROADMAP.md).
 /// Reads the camera fields from INTERFACES section 4 without inventing defaults.
-inline CameraStub parse_camera_stub(const nlohmann::json& value) {
+inline Camera parse_camera_stub(const nlohmann::json& value) {
     return {read_vec3(member(value, "position", "camera"), "camera.position"),
             read_vec3(member(value, "look_at", "camera"), "camera.look_at"),
             read_vec3(member(value, "up", "camera"), "camera.up"),
@@ -21,7 +21,7 @@ inline CameraStub parse_camera_stub(const nlohmann::json& value) {
 }
 
 /// Encodes the temporary camera storage without changing float values.
-inline nlohmann::json camera_to_json_stub(const CameraStub& camera) {
+inline nlohmann::json camera_to_json_stub(const Camera& camera) {
     return {{"position", {camera.position.x, camera.position.y, camera.position.z}},
             {"look_at", {camera.look_at.x, camera.look_at.y, camera.look_at.z}},
             {"up", {camera.up.x, camera.up.y, camera.up.z}},
@@ -31,7 +31,7 @@ inline nlohmann::json camera_to_json_stub(const CameraStub& camera) {
 }
 
 /// Checks the contract's camera and resolution rules, also after caller-side overrides.
-inline void validate_camera_stub(const CameraStub& camera) {
+inline void validate_camera_stub(const Camera& camera) {
     finite_vec3(camera.position, "camera.position");
     finite_vec3(camera.look_at, "camera.look_at");
     finite_vec3(camera.up, "camera.up");
