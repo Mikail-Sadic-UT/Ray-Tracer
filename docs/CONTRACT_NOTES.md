@@ -15,7 +15,6 @@ These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 | ID | Contract | Gap | Trigger | Owners |
 |---|---|---|---|---|
 | W1 | §2 `Light` | `pad = 0.0f` makes `Light` non-trivial | A kernel stages lights in shared memory | Po, Mikail |
-| W2 | §2 Valid input (camera) | Precision of the `up`-parallel check is unspecified | Jett's camera validation lands ([#10](https://github.com/Mikail-Sadic-UT/Ray-Tracer/issues/10)) | Jett, Po |
 | W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | E2 (Blinn-Phong) starts | Po, Arek |
 
 ### W1: `Light::pad` default initializer
@@ -25,12 +24,6 @@ The default member initializer makes `Light` not trivially default-constructible
 No current impact. The megakernel reads lights from global memory, uploads copy the host bytes (where `pad` is zero), and `pad` is never hashed.
 
 **If triggered:** drop `= 0.0f`, add `static_assert(std::is_trivial<Light>::value)`, and construct lights with `Light{}` or explicit braces. `scene_io` already rejects a non-zero `pad`, so an uninitialized one fails loudly at load. This is a type change: interface PR, Po and Mikail approve.
-
-### W2: camera `up`-parallel check precision
-
-The rule is `|cross(normalize(up), w)| ≥ 1e-6`. The camera IO stub (`src/scene/camera_io_stub.hpp`, S2) computes it in `double`. If Jett's `validate_camera` uses `float`, the two can disagree for cameras near the threshold, so a scene accepted today could be rejected after S2 is removed, or the reverse. Fitted `rt_gen` cameras and the known scenes are far from the threshold.
-
-**If triggered:** match the stub, or state the precision in §2. `SceneIo.ChecksNearParallelCameraUp` covers both sides of the threshold.
 
 ### W3: specular materials in Core builds
 

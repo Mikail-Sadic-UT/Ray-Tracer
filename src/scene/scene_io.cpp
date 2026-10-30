@@ -6,7 +6,7 @@
 #include <limits>
 #include <nlohmann/json.hpp>
 
-#include "scene/camera_io_stub.hpp"
+#include "camera/camera_io.hpp"
 #include "scene/hash.hpp"
 #include "scene/json_helpers.hpp"
 
@@ -38,7 +38,7 @@ std::string indexed(const char* array, size_t index) {
 void validate_scene(const SceneHost& scene, bool require_light_mask) {
     validate_counts(scene.spheres.size(), scene.triangles.size(), scene.materials.size(),
                     scene.lights.size());
-    validate_camera_stub(scene.camera);
+    validate_camera(scene.camera);
     nonnegative_vec3(scene.background, "background");
     finite_float(scene.ambient, "ambient");
     if (scene.ambient < 0.0f) scene_error("ambient", "must be nonnegative");
@@ -102,7 +102,7 @@ SceneHost parse_scene(const json& document) {
     validate_counts(spheres.size(), triangles.size(), materials.size(), lights.size());
 
     SceneHost scene;
-    scene.camera = parse_camera_stub(member(document, "camera", ""));
+    scene.camera = parse_camera(member(document, "camera", ""));
     scene.background = read_vec3(member(document, "background", ""), "background");
     scene.ambient = read_float(member(document, "ambient", ""), "ambient");
     scene.materials.reserve(materials.size());
@@ -171,7 +171,7 @@ json scene_to_json(const SceneHost& scene) {
     validate_scene(scene);
     const auto vector = [](vec3 value) { return json::array({value.x, value.y, value.z}); };
     json document = {{"version", 2},
-                     {"camera", camera_to_json_stub(scene.camera)},
+                     {"camera", camera_to_json(scene.camera)},
                      {"background", vector(scene.background)},
                      {"ambient", scene.ambient},
                      {"materials", json::array()},
