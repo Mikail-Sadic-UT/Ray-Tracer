@@ -2,6 +2,15 @@
 
 Kept deliberately light. The goal is that four people (and their agents) can work in parallel and merge without breaking each other. Anything heavier is listed under [Deferred](#deferred-process) and switched on only if a real problem shows up.
 
+## Start with open issues
+
+Before you start new work, look at the open [GitHub issues](../../../issues) and try to fix the ones that apply to you first.
+
+- Filter by your name (assigned to you) and by the `bug` and `blocked` labels. Issues that block a teammate come before new features.
+- If an issue is already assigned to someone else, comment on it before picking it up, so two people don't fix the same thing.
+- Fix an issue on its own `<member>/<topic>` branch and close it from the PR with `Closes #N` (see [Branches](#branches)).
+- If nothing open is yours, continue with the next task in [ROADMAP.md](ROADMAP.md). If you find a new problem along the way, open an issue for it instead of fixing it silently in an unrelated PR (see [Issues](#issues)).
+
 ## Branches
 
 ```mermaid
