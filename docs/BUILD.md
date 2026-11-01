@@ -57,6 +57,8 @@ Viewing images: open `\\wsl$\Ubuntu-24.04\home\<user>\...` in Windows Explorer, 
 
 Measure the PCIe link once and record it for [BENCHMARKING.md](BENCHMARKING.md): build `bandwidthTest` from NVIDIA's `cuda-samples` repo. The 4070 Laptop is likely PCIe 4.0 ×8.
 
+GPU performance counters are enabled on the laptop's Windows host, and the NVIDIA GPU debugger interface is on (`reg.exe add "HKLM\SOFTWARE\NVIDIA Corporation\GPUDebugger" /v EnableInterface /t REG_DWORD /d 1 /f`, run once as Administrator on Windows). This may allow better profiling and debug data. It is a per-machine setting, and nothing in the build depends on it.
+
 ## Vista setup
 
 ```bash
