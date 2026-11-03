@@ -16,6 +16,7 @@ These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 |---|---|---|---|---|
 | W1 | §2 `Light` | `pad = 0.0f` makes `Light` non-trivial | A kernel stages lights in shared memory | Po, Mikail |
 | W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | E2 (Blinn-Phong) starts | Po, Arek |
+| W4 | §0 Names and files | `.cu` sources are listed only for `src/gpu/`, `src/optix/`, `apps/hello_cuda/`, but CUDA-only test targets in `tests/` (under `if(RT_ENABLE_CUDA)`) also need them. `tests/test_trace_device.cu` is the first | Next edit of §0, or a second CUDA test target | Mikail |
 
 ### W1: `Light::pad` default initializer
 
@@ -30,3 +31,9 @@ No current impact. The megakernel reads lights from global memory, uploads copy 
 §2 accepts directional lights only in builds with E2, but says nothing about `"specular": true` (`MAT_SPECULAR`). The loader accepts specular materials, and Core shading ignores `ks`, so a scene written for E2 renders as Lambert on a Core build without a warning.
 
 **If triggered:** gate `MAT_SPECULAR` the same way as directional lights, or state that Core ignores it.
+
+### W4: `.cu` sources in `tests/`
+
+INTERFACES §0 "Names and files" lists `.cu` files only in `src/gpu/`, `src/optix/`, and `apps/hello_cuda/`. The same section allows tests that need a GPU in targets that only build with `RT_ENABLE_CUDA`, and BUILD.md "Adding tests" says to wrap them in `if(RT_ENABLE_CUDA)`. Such a target needs a `.cu` source, so the list is incomplete rather than a ban. `tests/test_trace_device.cu` (target `test_trace_device`) is the first one.
+
+**If triggered:** add `tests/` (CUDA-only targets under `if(RT_ENABLE_CUDA)`) to the `.cu` row. This is a clarification and needs only normal review.
