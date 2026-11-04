@@ -32,7 +32,7 @@
 |---|---|---|
 | `AABB`, `vec3` | Arek (landed) | Nothing |
 | `Scene` view | Po (landed, `scene/scene.hpp`) | Synthetic AABB + centroid arrays; the builder never needs a real scene |
-| `Timings` | Arek (struct in review, #22) | Nothing: `build_bvh` takes `Timings&` (fields `bounds`, `build`, `layout`) |
+| `Timings` | Arek (struct landed, #22) | Nothing: `build_bvh` takes `Timings&` (fields `bounds`, `build`, `layout`) |
 
 **Done means:** the validator passes on random, clustered, all-equal-centroid, 0, 1, and 2 primitive inputs. Output bytes are identical for 1, 8, and 72 threads. Mikail's BVH-vs-brute-force test gives identical hits.
 

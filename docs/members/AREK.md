@@ -24,7 +24,7 @@
 |---|---|---|---|
 | `vec3`, `Ray`, `AABB`, `intersect_aabb` | Everyone | Oct 27 | §1 |
 | `shade_hit`, `LitShading`, `NormalShading`, `PixelResult` | Po (CPU backend), Mikail (megakernel) | Nov 6 (`NormalShading` by Oct 30) | §6 |
-| `Timings` struct (names only, `bench/timings.hpp`; [ROADMAP blocker 6](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Jett, Mikail, Po (`build_bvh`, `DeviceScene::upload`, `Backend::prepare` take `Timings&`) | Oct 30 (in review, #22) | §8 |
+| `Timings` struct (names only, `bench/timings.hpp`; [ROADMAP blocker 6](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Jett, Mikail, Po (`build_bvh`, `DeviceScene::upload`, `Backend::prepare` take `Timings&`) | Landed (#22) | §8 |
 | Timers, results writer | Everyone | Nov 6 | §8 |
 | Double-precision intersection oracle | Mikail (independent check) | Nov 6 | [quality §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
 | Golden-image tests (render known scene, `rt_compare` vs committed golden) | CI | ~Nov 6 | [BUILD golden images](../BUILD.md#golden-images) |
@@ -33,7 +33,7 @@
 
 | What | From | Until it lands, use |
 |---|---|---|
-| `Hit`, `brute_any` | Mikail (Oct 30; in review, #20, #21) | Hand-made `Hit`s and a fake query that returns "never occluded" |
+| `Hit`, `brute_any` | Mikail (Oct 30; `Hit` landed #20, intersection and `brute_*` in review #21) | Hand-made `Hit`s and a fake query that returns "never occluded" |
 | `Scene` view | Po (landed, `scene/scene.hpp`) | Nothing |
 | Expected shading values | Jett (Nov 6) | Your own hand checks, replaced by Jett's independent numbers |
 | `rt_compare` | Po (Nov 6) | A temporary exact byte comparison for goldens |

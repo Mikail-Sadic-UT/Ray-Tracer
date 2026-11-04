@@ -348,8 +348,8 @@ Updated by Jett weekly.
 | Check-in 2 date | Postponed, TBD (~Oct 31–Nov 7) | Fill in when announced |
 | INTERFACES v1.0 | Proposed | Sign-off Oct 27 |
 | C1 | Done (Oct 28) | CMake, CI (first GitHub run green), `.clang-format`, PR template, `hello_cuda`. Verified on the laptop (WSL2, GCC 13.3, CUDA 13.3) and on a Vista GH200 node (GCC 13.2, CUDA 13.3, `ctest` 4/4, `hello_cuda`). Branch protection set: `main` needs a PR with 1 approval; `main` and `dev` block force-push and deletion; the admin can bypass. Making the `cpu` CI job a required check is deferred ([WORKFLOW.md](WORKFLOW.md#deferred-process)) |
-| C2 | Partly done | Merged on `dev`: math library and `AABB` slab tests (#1, #13), scene types, IO, validation, hash, image IO and `scene_dump` (#9), `bvh_types.hpp` (#18). `Timings` is in review (#22) |
-| C3 | Partly done | Camera and camera IO merged (#16, #17). Intersection, brute-force queries and `Hit` are in review (#20, #21). Brute-force CPU image not started |
+| C2 | Partly done | Merged on `dev`: math library and `AABB` slab tests (#1, #13), scene types, IO, validation, hash, image IO and `scene_dump` (#9), `bvh_types.hpp` (#18), `Timings` (#22) |
+| C3 | Partly done | Camera and camera IO merged (#16, #17). `Hit` merged (#20). Intersection and brute-force queries are in review (#21). Brute-force CPU image not started |
 | C3G (GPU smoke) | Not started | Target ~Nov 3 |
 | C11 builder decision | Pending | Nov 10: LBVH or task-parallel median |
 | C4–C10, C12–C14 | Not started | |
