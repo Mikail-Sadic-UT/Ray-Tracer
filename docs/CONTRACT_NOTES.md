@@ -16,7 +16,7 @@ These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 |---|---|---|---|---|
 | W1 | §2 `Light` | `pad = 0.0f` makes `Light` non-trivial | A kernel stages lights in shared memory | Po, Mikail |
 | W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | E2 (Blinn-Phong) starts | Po, Arek |
-| W5 | §8 Components | `render_kernel` is named as a diagnostic but `Timings` has no field and the results schema doesn't say where it goes | `GpuTimer` lands (Nov 13), or #22 is amended | Arek, Mikail, Po |
+| W5 | §8 Components | `Timings::render_kernel` exists, but §8 doesn't say it overlaps `render` or where the results JSON reports it | The results writer lands (Nov 6), or `GpuTimer` (Nov 13) | Arek, Mikail, Po |
 
 ### W1: `Light::pad` default initializer
 
@@ -32,10 +32,10 @@ No current impact. The megakernel reads lights from global memory, uploads copy 
 
 **If triggered:** gate `MAT_SPECULAR` the same way as directional lights, or state that Core ignores it.
 
-### W5: `render_kernel` diagnostic
+### W5: `render_kernel` in the results schema
 
-§8 says kernel-only `cudaEvent` times are recorded as an extra diagnostic named `render_kernel`, but `Backend::render(..., Timings&)` only has the `Timings` fields to write to, and `Timings` has none for it. The value overlaps `render` (a host wall-clock interval around the same launch), so summing it with the components would double-count.
+`Timings::render_kernel` (kernel-only `cudaEvent` time) landed in #22. It overlaps `render`, a host wall-clock interval around the same launch, so summing it with the components would double-count. §8 names it as a diagnostic but doesn't say where the results JSON reports it, or that it is excluded from `unattributed` and the totals.
 
-**Proposed:** add `double render_kernel = 0.0;` to `Timings` (the CPU backend leaves it at zero). Report it in the results JSON in a separate per-run `diagnostics` object, not inside `components`, so `unattributed = total − Σ components` and the totals never include it. Add one sentence to §8 saying so. This implements the name already in §8, so it needs the normal single review and a heads-up to Po.
+**Proposed:** report it in a separate per-run `diagnostics` object, not inside `components`, and add one sentence to §8 saying it is excluded from `unattributed` and the totals. The name is already in §8, so this is a clarification: normal single review, heads-up to Po (the CPU backend leaves it at zero).
 
-**Open:** whether the field lands in #22 or with `GpuTimer`, and whether `diagnostics` is the right place in the schema.
+**If triggered:** Arek's results writer needs to know before it sums `components`.

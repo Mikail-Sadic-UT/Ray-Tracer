@@ -21,7 +21,7 @@
 | What | To | When | Contract |
 |---|---|---|---|
 | Building repo + CI | Everyone | Oct 30 | [BUILD.md](../BUILD.md) |
-| `intersect_*`, `brute_*`, `Hit`, `BruteQuery` | Po (first CPU image), Arek (shadow tests) | Oct 30 (in review, #20, #21) | §5, §6 |
+| `intersect_*`, `brute_*`, `Hit`, `BruteQuery` | Po (first CPU image), Arek (shadow tests) | Oct 30 (`Hit` landed #20; intersection and `brute_*` in review #21) | §5, §6 |
 | `traverse_closest` / `traverse_any`, `BvhQuery` | Po (CPU backend), Arek | Nov 6 | §5, §6 |
 | `Backend` interface, `rt_render` CLI | Everyone | Nov 6 | §7 |
 | CUDA megakernel backend | Everyone (GPU results) | Nov 13 | §7 |
@@ -33,7 +33,7 @@
 |---|---|---|
 | `vec3`, `Ray`, `AABB`, slab test | Arek (landed) | Nothing |
 | `Scene` view | Po (landed, `scene/scene.hpp`) | Nothing |
-| `Timings` | Arek (struct in review, #22) | Nothing: `DeviceScene::upload` and `Backend::prepare` take `Timings&`, so wait for the names-only header |
+| `Timings` | Arek (struct landed, #22) | Nothing: `DeviceScene::upload` and `Backend::prepare` take `Timings&` |
 | `Bvh` | Jett (Nov 6) | A hand-built 3-node BVH |
 | `shade_hit` | Arek (Nov 6) | `NormalShading` |
 
