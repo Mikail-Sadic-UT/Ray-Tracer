@@ -21,7 +21,7 @@
 | What | To | When | Contract |
 |---|---|---|---|
 | Building repo + CI | Everyone | Oct 30 | [BUILD.md](../BUILD.md) |
-| `intersect_*`, `brute_*`, `Hit` | Po (first CPU image), Arek (shadow tests) | Oct 30 | §5 |
+| `intersect_*`, `brute_*`, `Hit`, `BruteQuery` | Po (first CPU image), Arek (shadow tests) | Oct 30 (in review, #20, #21) | §5, §6 |
 | `traverse_closest` / `traverse_any`, `BvhQuery` | Po (CPU backend), Arek | Nov 6 | §5, §6 |
 | `Backend` interface, `rt_render` CLI | Everyone | Nov 6 | §7 |
 | CUDA megakernel backend | Everyone (GPU results) | Nov 13 | §7 |
@@ -31,8 +31,9 @@
 
 | What | From | Until it lands, use |
 |---|---|---|
-| `vec3`, `Ray`, `AABB`, slab test | Arek (Oct 27) | Nothing to stub; it's small, so pair with Arek if it's late |
-| `Scene` view | Po (Oct 30) | A hand-filled `Scene` struct in tests |
+| `vec3`, `Ray`, `AABB`, slab test | Arek (landed) | Nothing |
+| `Scene` view | Po (landed, `scene/scene.hpp`) | Nothing |
+| `Timings` | Arek (struct in review, #22) | Nothing: `DeviceScene::upload` and `Backend::prepare` take `Timings&`, so wait for the names-only header |
 | `Bvh` | Jett (Nov 6) | A hand-built 3-node BVH |
 | `shade_hit` | Arek (Nov 6) | `NormalShading` |
 
@@ -44,42 +45,42 @@ Paste this into your coding agent along with `docs/INTERFACES.md`:
 
 ```text
 You are implementing intersection, traversal, the backend interface, and the CUDA backend for a
-C++17/CUDA ray tracer. Repo layout: docs/REPO_SKELETON.md. Build details: docs/BUILD.md.
-Contract: docs/INTERFACES.md sections 5 and 7, plus "Owning storage vs views", "Tracing queries",
-and "Pixel result". Follow them exactly.
+C++17/CUDA ray tracer.
+Read docs/members/MIKAIL.md and docs/INTERFACES.md sections 5 and 7, plus "Owning storage vs
+views", "Tracing queries", and "Pixel result". The contract is authoritative; follow it exactly.
+Layout: docs/REPO_SKELETON.md. Build and toolchain: docs/BUILD.md.
 
 Scope (only edit these): CMakeLists.txt, cmake/, .github/, src/trace/, src/backend.hpp, src/gpu/
 (not wavefront/), apps/rt_render/, apps/hello_cuda/, scripts/tacc/, and tests for these.
-Toolchain: GCC 13 host compiler, CUDA 13.3 (Vista: module load cuda/13.3), sm_89 (laptop) / sm_90 (Vista). A CPU-only build must always work.
+Build: see docs/BUILD.md for the pinned GCC + CUDA pair. A CPU-only build must always work.
 
-Rules:
-- Follow INTERFACES section 0 (code conventions): namespace rt, includes from src/ like
-  "core/math.hpp", host errors as rt::Error, CUDA calls in RT_CUDA_CHECK, one CMake target per module.
-- All RT_HOSTDEV code is inline in headers. No -rdc, no device linking.
-- Hit acceptance: open interval (tmin, tmax); equal t -> lowest PrimRef wins; box culling far bound inclusive.
-- Watertight triangle test (PBRT v4 6.5.3) including the double fallback when an edge function is exactly 0.
-- Traversal: descend into nearer child, push farther; 64-entry stack; set an overflow flag on overflow.
-- DeviceScene: one cudaMalloc + cudaMemcpy per array (scene arrays + BVH nodes + prim refs).
-- prepare() allocates all per-frame buffers; render() never allocates. A resolution change means prepare() again.
-- float only (except the watertight fallback); no -ffast-math / --use_fast_math.
-- Comments are C++ Doxygen (`///`, `///<`, `//`), per INTERFACES section 0. Commit messages are
-  kernel style, signed off with `git commit -s`, per WORKFLOW.md "Commit messages".
+Standing rules:
+- Conventions: INTERFACES section 0 (names, includes, errors, Doxygen comments, CMake targets).
+- Device-callable code is header-inline (RT_HOSTDEV / RT_INLINE), with no -rdc. float only, no
+  fast-math (see "General rules" at the top of INTERFACES.md for the one double exception).
+- Workflow: docs/WORKFLOW.md. Check open issues first. Commits are kernel style and signed off
+  (`git commit -s`).
+- Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
+  --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
+- At the end of the PR, update your own member file (docs/members/<you>.md): the Deliverables
+  and hand-off rows that changed, the "You depend on" rows that landed, and this week's
+  contribution log row.
 - At the start of a session, run the environment check in WORKFLOW.md "Development environment".
-  If it is not WSL Ubuntu 24.04 or Vista with the BUILD.md toolchain, warn the user once (never
-  block), and add the `Developed-on:` / `Needs-check:` trailers to your commits.
+  If the machine doesn't match, warn the user once (never block) and add the `Developed-on:` /
+  `Needs-check:` trailers to your commits.
 - Stubs and local workarounds: mark each with `// STUB(S<n>, <owner>): remove when <x> lands (#<issue>)`
-  and add a row to the ROADMAP.md stub register in the same PR. Delete both when the real code lands
-  (WORKFLOW.md "Stubs and local workarounds").
+  and add a row to the ROADMAP.md stub register in the same PR (WORKFLOW.md "Stubs and local
+  workarounds").
 - If the interface looks wrong or incomplete, do not change it locally. Stop and write a short
   note proposing the change.
 
-Deliverables, in order:
-1. Root CMake (options in BUILD.md), CI workflow, hello_cuda.
-2. intersect_sphere, intersect_triangle, brute_closest, brute_any + tests (hit, miss, grazing,
-   inside sphere, degenerate triangle, shared edge tie, vertex hit).
-3. GPU smoke kernel: render_pixel<BruteQuery, NormalShading>; rt_render --backend cuda --bvh none --shade normal.
-4. traverse_closest / traverse_any + BVH-vs-brute-force tests.
-5. Backend interface, CPU/CUDA dispatch in rt_render, CUDA megakernel with render_pixel<BvhQuery>.
+Before you finish, double-check against:
+- INTERFACES section 5 "Frozen rules" (hit acceptance, tie-breaks, triangle and sphere tests,
+  traversal stack and overflow).
+- INTERFACES section 7 (prepare/render split, what is timed where).
+- docs/BENCHMARKING.md "Quality protocol" for the identical-hits and bit-identical checks.
+
+Work in the order of "First three tasks" and the Deliverables table in docs/members/MIKAIL.md.
 ```
 
 ## Deliverables
@@ -91,6 +92,7 @@ Deliverables, in order:
 | Oct 30 | Intersection + brute force | M |
 | ~Nov 3 | GPU smoke image | S |
 | Nov 6 | Traversal (`BvhQuery`) | M |
+| Nov 6 | `Backend` interface (`backend.hpp`), CPU/CUDA dispatch in `rt_render` | M |
 | Nov 13 | `DeviceScene` (explicit) + megakernel; sweep sbatch scripts; node-hour log | M |
 | Nov 18 | GPU profiling (`-Xptxas -v`, Nsight) | M |
 | Later | E1 memory modes (after G2); E5 trace kernels (after G3); OptiX (stretch) | |
