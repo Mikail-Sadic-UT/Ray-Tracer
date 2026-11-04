@@ -18,6 +18,7 @@ These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 | W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | E2 (Blinn-Phong) starts | Po, Arek |
 | W4 | §0 Names and files | `.cu` sources are listed only for `src/gpu/`, `src/optix/`, `apps/hello_cuda/`, but CUDA-only test targets in `tests/` (under `if(RT_ENABLE_CUDA)`) also need them. `tests/test_trace_device.cu` is the first | Next edit of §0, or a second CUDA test target | Mikail |
 | W5 | §8 Components | `Timings::render_kernel` exists, but §8 doesn't say it overlaps `render` or where the results JSON reports it | The results writer lands (Nov 6), or `GpuTimer` (Nov 13) | Arek, Mikail, Po |
+| W6 | §5 Frozen rules, triangle test | The row cites PBRT v4 Sec. 6.5.3 but doesn't say which parts apply. `intersect_triangle` departs from PBRT in three ways (below); the open interval and `t_hi` rules require the last two | C4 shadow tests, or the next edit of §5 | Mikail, Arek |
 
 ### W1: `Light::pad` default initializer
 
@@ -46,3 +47,15 @@ INTERFACES §0 "Names and files" lists `.cu` files only in `src/gpu/`, `src/opti
 **Proposed:** report it in a separate per-run `diagnostics` object, not inside `components`, and add one sentence to §8 saying it is excluded from `unattributed` and the totals. The name is already in §8, so this is a clarification: normal single review, heads-up to Po (the CPU backend leaves it at zero).
 
 **If triggered:** Arek's results writer needs to know before it sums `components`.
+
+### W6: what "PBRT v4 Sec. 6.5.3" covers in the triangle test
+
+§5 says the triangle test is watertight per Woop et al. 2013 and PBRT v4 Sec. 6.5.3, including the `double` edge-function fallback. `intersect_triangle` (#21) follows that, with three departures documented in its header:
+
+- **Explicit `fmaf`** in the shear and the scaled distance, so a shared vertex transforms to the same bits on every compiler, CPU and GPU. `test_trace_device` checks triangle `t`, `u`, `v` bit for bit against the host.
+- **Exact interval test on the returned `t`**, not PBRT's test on the scaled distance, which can reject by one ulp a distance it just returned. That would break the `t_hi = best.t` re-report that the tie rule depends on.
+- **No conservative `deltaT` rejection.** §5 defines a hit by the open interval `(tmin, tmax)` alone, and self-intersection is handled by `offset_ray_origin` (§6 "Shadow-ray construction", step 4), so rejecting `t <= deltaT` would make brute force disagree with the contract.
+
+No current impact: every rule in §5 is met, and these are the readings the rest of §5 forces.
+
+**If triggered:** if C4 shadow tests show self-shadowing acne on large or distant triangles, fix it in `offset_ray_origin` or the shadow-ray setup, not by reinstating `deltaT` in the primitive test. Either way, add one sentence to the §5 triangle row naming these departures. That is a clarification: normal single review, heads-up to Arek.

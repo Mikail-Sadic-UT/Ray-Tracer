@@ -103,6 +103,14 @@ RT_INLINE bool intersect_sphere(const Ray& r, const Sphere& s, float t_hi, float
 ///
 /// Edges and vertices are inclusive, so a ray through an edge shared by two triangles hits
 /// both. Zero-area triangles and rays with a zero determinant miss.
+///
+/// Deliberate departures from PBRT:
+/// - The shear and the scaled distance use explicit `fmaf`, so a vertex shared by two
+///   triangles transforms to the same bits on every compiler, CPU and GPU.
+/// - The interval is tested exactly on the returned `t` rather than on the scaled distance,
+///   which can reject by one ulp a distance this test returned, breaking the `t_hi` tie rule.
+/// - No conservative error-bound rejection (PBRT's `deltaT`): a hit counts iff
+///   `r.tmin < t <= t_hi`. `offset_ray_origin` keeps secondary rays off the surface they leave.
 /// @param t_hi Inclusive upper bound; hits with `r.tmin < t <= t_hi` count.
 /// @param[out] t Hit distance; unchanged on a miss.
 /// @param[out] u, v Barycentric weights of `v1` and `v2`, each in `[0, 1]` with `u + v <= 1`;
