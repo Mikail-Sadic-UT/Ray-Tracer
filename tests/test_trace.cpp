@@ -103,6 +103,16 @@ TEST(IntersectSphere, Tangent) {
     EXPECT_EQ(t, 5.0f);
 }
 
+/// A ray that touches the sphere at its own origin misses. Here b == 0 and the discriminant is 0,
+/// but c = |oc|^2 - r^2 rounds below 0, so the old c / q gave a hit at t = +inf.
+TEST(IntersectSphere, TangentAtOriginMisses) {
+    const rt::vec3 oc{0x1.0002ap-1f, 0x1.8p-1f, 0.0f};
+    const rt::Sphere s{{0.0f, 0.0f, 0.0f}, 0x1.cd842ap-1f, 0};
+    float t = -1.0f;
+    EXPECT_FALSE(rt::intersect_sphere(make_ray(oc, kUp), s, kInf, t));
+    EXPECT_EQ(t, -1.0f);
+}
+
 /// A ray starting at the center returns the far root.
 TEST(IntersectSphere, OriginInside) {
     float t = -1.0f;

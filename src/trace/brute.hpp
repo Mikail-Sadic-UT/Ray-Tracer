@@ -27,15 +27,14 @@ RT_INLINE bool accept(const Ray& r, bool found, const Hit& best, float t, PrimRe
 /// Closest hit over every sphere and triangle; test oracle for BVH traversal.
 /// @return The accepted hit, or `{r.tmax, RT_MISS_PRIM, 0, 0}` on a miss. Equal distances
 ///         resolve to the lowest PrimRef.
-/// @pre `s.num_spheres < 2^31` and `s.num_triangles < 2^31 - 1`, so every PrimRef differs
+/// @pre `s.num_spheres < 2^31` and `s.num_triangles < 2^31`, so every PrimRef differs
 ///      from `RT_MISS_PRIM`. Null arrays are allowed when their count is 0.
 RT_INLINE Hit brute_closest(const Ray& r, const Scene& s) {
     Hit best{r.tmax, RT_MISS_PRIM, 0.0f, 0.0f};
     bool found = false;
     for (uint32_t i = 0; i < s.num_spheres; ++i) {
         float t;
-        if (intersect_sphere(r, s.spheres[i], found ? best.t : r.tmax, t) &&
-            detail::accept(r, found, best, t, i)) {
+        if (intersect_sphere(r, s.spheres[i], best.t, t) && detail::accept(r, found, best, t, i)) {
             best = Hit{t, i, 0.0f, 0.0f};
             found = true;
         }
@@ -43,7 +42,7 @@ RT_INLINE Hit brute_closest(const Ray& r, const Scene& s) {
     for (uint32_t i = 0; i < s.num_triangles; ++i) {
         float t, u, v;
         const PrimRef p = PRIM_TRIANGLE_BIT | i;
-        if (intersect_triangle(r, s.triangles[i], found ? best.t : r.tmax, t, u, v) &&
+        if (intersect_triangle(r, s.triangles[i], best.t, t, u, v) &&
             detail::accept(r, found, best, t, p)) {
             best = Hit{t, p, u, v};
             found = true;

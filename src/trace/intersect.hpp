@@ -80,7 +80,9 @@ RT_INLINE bool intersect_sphere(const Ray& r, const Sphere& s, float t_hi, float
     if (!(disc >= 0.0f)) return false;  // also rejects NaN
     const float q = -0.5f * (b + ::copysignf(::sqrtf(disc), b));
     float t0 = q / a;
-    float t1 = c / q;  // q == 0 only for a tangent ray at t == 0: NaN, rejected below
+    // q == 0 only for a ray that touches the sphere at its origin (b == 0, disc == 0): a double
+    // root at t0 == +-0. c need not round to 0 there, so c / q would be +-inf or NaN.
+    float t1 = q != 0.0f ? c / q : t0;
     if (t0 > t1) {
         const float tmp = t0;
         t0 = t1;
@@ -108,8 +110,6 @@ RT_INLINE bool intersect_sphere(const Ray& r, const Sphere& s, float t_hi, float
 /// @pre `r.dir` is nonzero and finite. Non-finite inputs give a miss.
 RT_INLINE bool intersect_triangle(const Ray& r, const Triangle& tri, float t_hi, float& t, float& u,
                                   float& v) {
-    if (detail::zero_area(tri)) return false;
-
     // Ray space: translate to the origin, make the largest direction axis z, then shear so
     // the ray points along +z. The transform depends only on the ray, so a vertex shared by
     // two triangles lands on identical bits in both (explicit fmaf avoids contraction drift).
@@ -146,6 +146,9 @@ RT_INLINE bool intersect_triangle(const Ray& r, const Triangle& tri, float t_hi,
     // Exact test on the returned distance, so a distance this test reported is reported
     // again when passed back as t_hi. NaN fails both comparisons.
     if (!(th > r.tmin && th <= t_hi)) return false;
+    // Checked last because most calls are rejected above. A zero-area triangle can still get
+    // here once the shear rounds its vertices apart.
+    if (detail::zero_area(tri)) return false;
 
     const float bu = e1 * inv_det;
     float bv = e2 * inv_det;
