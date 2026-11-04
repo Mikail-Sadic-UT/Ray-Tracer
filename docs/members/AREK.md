@@ -66,9 +66,11 @@ Standing rules:
   (`git commit -s`).
 - Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
   --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
-- At the end of the PR, update your own member file (docs/members/<you>.md): the Deliverables
-  and hand-off rows that changed, the "You depend on" rows that landed, and this week's
-  contribution log row.
+- Assign yourself to the issue before you start and to the PR when you open it.
+- Make the docs update the last commit of the PR: your member file (docs/members/<you>.md) with
+  the Deliverables and hand-off rows that changed, the "You depend on" rows that landed, and this
+  week's contribution log row, plus any ROADMAP status, stub register, or CONTRACT_NOTES rows the
+  PR changes.
 - At the start of a session, run the environment check in WORKFLOW.md "Development environment".
   If the machine doesn't match, warn the user once (never block) and add the `Developed-on:` /
   `Needs-check:` trailers to your commits.

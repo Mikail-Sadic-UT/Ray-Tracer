@@ -8,6 +8,7 @@ Before you start new work, look at the open [GitHub issues](../../../issues) and
 
 - Filter by your name (assigned to you) and by the `bug` and `blocked` labels. Issues that block a teammate come before new features.
 - If an issue is already assigned to someone else, comment on it before picking it up, so two people don't fix the same thing.
+- **Assign yourself** to an issue before you start it (`gh issue edit <N> --add-assignee @me`), so nobody else picks it up. If the task has no issue yet, open one and assign it to yourself.
 - Fix an issue on its own `<member>/<topic>` branch and close it from the PR with `Closes #N` (see [Branches](#branches)).
 - If nothing open is yours, continue with the next task in [ROADMAP.md](ROADMAP.md). If you find a new problem along the way, open an issue for it instead of fixing it silently in an unrelated PR (see [Issues](#issues)).
 
@@ -58,7 +59,8 @@ git switch dev && git pull --ff-only && git branch -d jett/lbvh
 ```
 
 - **One branch per piece of work**, named `<member>/<topic>` and short-lived. Small PRs (under about 400 lines) review faster.
-- **PRs** target `dev`. Put `Closes #N` in the description so merging closes the issue, and check the CI result first (it is informational for now). Merge with a **merge commit**, not squash or rebase, so every signed-off commit is kept.
+- **PRs** target `dev`. **Assign yourself** to the PR when you open it (`gh pr create --assignee @me`, or in the sidebar). Put `Closes #N` in the description so merging closes the issue, and check the CI result first (it is informational for now). Merge with a **merge commit**, not squash or rebase, so every signed-off commit is kept.
+- **Docs are the last commit of the PR.** Once the code and tests are done, make one final `docs:` commit that brings the documentation in line with what the PR does: your [member file](members/) (Deliverables and hand-off rows, "You depend on" rows that landed, this week's contribution log row), the [ROADMAP](ROADMAP.md#status) status and stub register, and [CONTRACT_NOTES.md](CONTRACT_NOTES.md) if you found a gap. Mark rows as landed in that commit, so they are true the moment the PR merges. A PR that changes nothing documented may skip it, and says so in the description.
 - **Cleaning up your own branch:** you may rebase it and force-push, for example to squash fixups or fix a commit message. Use `git push --force-with-lease`, never plain `--force`, so the push fails if someone else has pushed to the branch. Do it only on a `<member>/<topic>` branch that nobody else has based work on. Once a review has started, say so in a PR comment before you force-push, because reviewers lose their place in the diff.
 - **Never** force-push `dev` or `main` (GitHub rejects it), and don't use `git reset --hard` to fix a problem. `git reflog` keeps your earlier commits.
 - **One writer per branch.** If two people must share one, run `git pull --ff-only` before every push.
@@ -173,6 +175,8 @@ Record the result where the reviewer will see it:
 
 PR description (template in [`.github/pull_request_template.md`](../.github/pull_request_template.md)): what and why, tests added, and these checkboxes:
 
+- **Docs updated?** The last commit of the PR updates your member file and any ROADMAP, stub register, or CONTRACT_NOTES rows the PR changes (see [Working on a branch](#working-on-a-branch)).
+- **Assigned?** You are assigned to the PR, and to the issue it closes.
 - **GPU checked?** If you changed render code (`core`, `trace`, `shade`, `bvh`, `camera`, `gpu`) **and** a GPU path exists on `dev`, build with CUDA and run the GPU vs CPU comparison on a known scene. Paste the `rt_compare` summary. Before any GPU path exists, a CUDA build that compiles is enough.
 - **Interface change?** If the PR edits [INTERFACES.md](INTERFACES.md), see [Interface changes](#interface-changes).
 - **Stubs?** If the PR adds, changes, or removes a stub or workaround, the [register](ROADMAP.md#stub-register) is updated in the same PR (see [Stubs and local workarounds](#stubs-and-local-workarounds)).

@@ -11,6 +11,9 @@ Closes #
 ## Tests
 <!-- Tests added or updated -->
 
+- [ ] Docs updated in the last commit of this PR: member file, ROADMAP status, stub register,
+      CONTRACT_NOTES (or nothing documented changed)
+- [ ] Assigned to this PR and to the issue it closes
 - [ ] GPU checked (only if render code changed): CUDA build compiles; if a GPU path exists,
       paste the rt_compare summary for a known scene: ______
 - [ ] Changes docs/INTERFACES.md: approved by each affected owner, version line bumped
