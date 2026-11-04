@@ -19,9 +19,9 @@ namespace {
 constexpr float kInf = INFINITY;
 
 // Host and device evaluate the same expressions, but nvcc contracts a*b + c into FMA by default
-// (--fmad=true) and GCC may contract differently. The triangle test uses explicit fmaf and is
-// expected to match bit for bit; these tolerances cover the sphere math. Scene coordinates lie
-// within +-10, so every t here is below 40.
+// (--fmad=true) and GCC may contract differently. The triangle test uses explicit fmaf, so its
+// results must match bit for bit; these tolerances cover only the sphere math. Scene coordinates
+// lie within +-10, so every t here is below 40.
 constexpr float kTolT = 1.0e-4f;   ///< Absolute tolerance on t from the same ray.
 constexpr float kTolUv = 1.0e-5f;  ///< Absolute tolerance on barycentrics.
 
@@ -140,20 +140,30 @@ rt::Scene trace_scene(const rt::Sphere* spheres, const rt::Triangle* triangles) 
     return s;
 }
 
-/// Compares one primitive test's device and host output.
+/// Compares one primitive test's device and host output: triangles exactly, spheres' t within
+/// tolerance.
 void expect_prim(const PrimResult& d, const PrimResult& h, bool triangle) {
     ASSERT_EQ(d.hit, h.hit);
     if (!h.hit) return;
-    EXPECT_NEAR(d.t, h.t, kTolT);
     if (triangle) {
-        EXPECT_NEAR(d.u, h.u, kTolUv);
-        EXPECT_NEAR(d.v, h.v, kTolUv);
+        EXPECT_EQ(d.t, h.t);
+        EXPECT_EQ(d.u, h.u);
+        EXPECT_EQ(d.v, h.v);
+    } else {
+        EXPECT_NEAR(d.t, h.t, kTolT);
     }
 }
 
-/// Compares one Hit: prim exactly, t / u / v within tolerance.
+/// Compares one Hit: prim exactly, then t / u / v exactly for a triangle hit and within
+/// tolerance otherwise.
 void expect_hit(const rt::Hit& d, const rt::Hit& h) {
-    EXPECT_EQ(d.prim, h.prim);
+    ASSERT_EQ(d.prim, h.prim);
+    if (h.prim != rt::RT_MISS_PRIM && (h.prim & rt::PRIM_TRIANGLE_BIT) != 0) {
+        EXPECT_EQ(d.t, h.t);
+        EXPECT_EQ(d.u, h.u);
+        EXPECT_EQ(d.v, h.v);
+        return;
+    }
     expect_close(d.t, h.t, kTolT);
     EXPECT_NEAR(d.u, h.u, kTolUv);
     EXPECT_NEAR(d.v, h.v, kTolUv);
