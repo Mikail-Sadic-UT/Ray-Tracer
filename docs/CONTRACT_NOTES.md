@@ -16,6 +16,7 @@ These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 |---|---|---|---|---|
 | W1 | §2 `Light` | `pad = 0.0f` makes `Light` non-trivial | A kernel stages lights in shared memory | Po, Mikail |
 | W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | E2 (Blinn-Phong) starts | Po, Arek |
+| W5 | §8 Components | `render_kernel` is named as a diagnostic but `Timings` has no field and the results schema doesn't say where it goes | `GpuTimer` lands (Nov 13), or #22 is amended | Arek, Mikail, Po |
 
 ### W1: `Light::pad` default initializer
 
@@ -30,3 +31,11 @@ No current impact. The megakernel reads lights from global memory, uploads copy 
 §2 accepts directional lights only in builds with E2, but says nothing about `"specular": true` (`MAT_SPECULAR`). The loader accepts specular materials, and Core shading ignores `ks`, so a scene written for E2 renders as Lambert on a Core build without a warning.
 
 **If triggered:** gate `MAT_SPECULAR` the same way as directional lights, or state that Core ignores it.
+
+### W5: `render_kernel` diagnostic
+
+§8 says kernel-only `cudaEvent` times are recorded as an extra diagnostic named `render_kernel`, but `Backend::render(..., Timings&)` only has the `Timings` fields to write to, and `Timings` has none for it. The value overlaps `render` (a host wall-clock interval around the same launch), so summing it with the components would double-count.
+
+**Proposed:** add `double render_kernel = 0.0;` to `Timings` (the CPU backend leaves it at zero). Report it in the results JSON in a separate per-run `diagnostics` object, not inside `components`, so `unattributed = total − Σ components` and the totals never include it. Add one sentence to §8 saying so. This implements the name already in §8, so it needs the normal single review and a heads-up to Po.
+
+**Open:** whether the field lands in #22 or with `GpuTimer`, and whether `diagnostics` is the right place in the schema.

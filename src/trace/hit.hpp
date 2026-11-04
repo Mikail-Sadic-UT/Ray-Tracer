@@ -1,5 +1,5 @@
 /// @file hit.hpp
-/// @brief Closest-hit record returned by tracing queries.
+/// @brief Closest-hit record returned by every tracing query.
 #pragma once
 
 #include <cstdint>
@@ -9,10 +9,12 @@
 
 namespace rt {
 
-/// Primitive reference stored by a miss.
+/// `Hit::prim` value of a miss.
 constexpr PrimRef RT_MISS_PRIM = 0xFFFFFFFFu;
 
 /// Closest hit along a ray (16 bytes, POD).
+///
+/// A miss has `prim == RT_MISS_PRIM` and `t == ray.tmax`. Sphere hits have `u == v == 0`.
 struct Hit {
     float t;       ///< Distance in units of `ray.dir`; `ray.tmax` on a miss.
     PrimRef prim;  ///< Sphere index, or `PRIM_TRIANGLE_BIT | triangle index`.

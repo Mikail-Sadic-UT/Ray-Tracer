@@ -13,16 +13,16 @@ namespace rt {
 
 /// Geometric data at a hit; `ng` is unit length and faces against the incident ray.
 struct SurfacePoint {
-    vec3 p;             ///< World-space hit position.
-    vec3 ng;            ///< Face-forwarded geometric normal.
+    vec3 p;                ///< World-space hit position.
+    vec3 ng;               ///< Face-forwarded geometric normal.
     uint32_t material_id;  ///< Index into the scene's materials.
 };
 
 /// Per-pixel color and auxiliary primitive and light identifiers.
 struct PixelResult {
-    color rgb;           ///< Linear RGB result before clamping.
-    uint32_t prim_id;    ///< Hit primitive, or `RT_MISS_PRIM`.
-    uint32_t light_mask; ///< Bits for contributing lights; zero for normal shading.
+    color rgb;            ///< Linear RGB result before clamping.
+    uint32_t prim_id;     ///< Hit primitive, or `RT_MISS_PRIM`.
+    uint32_t light_mask;  ///< Bits for contributing lights; zero for normal shading.
 };
 
 /// Computes the hit position and face-forwarded geometric normal.

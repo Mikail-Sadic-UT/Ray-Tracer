@@ -1,8 +1,8 @@
 /// @file test_shade.cpp
 /// @brief Tests for shared normal shading.
-#include "shade/shading.hpp"
-
 #include <gtest/gtest.h>
+
+#include "shade/shading.hpp"
 
 namespace {
 
@@ -47,8 +47,7 @@ TEST(SurfaceAt, SphereHitPointNormalAndMaterial) {
 
 /// Computes a triangle hit position from barycentrics and face-forwards its unit normal.
 TEST(SurfaceAt, TriangleHitPointNormalAndMaterial) {
-    const rt::Triangle triangle{{0.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f},
-                                {0.0f, 2.0f, 0.0f}, 9u};
+    const rt::Triangle triangle{{0.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f}, {0.0f, 2.0f, 0.0f}, 9u};
     const rt::Material material{};
     rt::Scene scene{nullptr, 0u, &triangle, 1u, &material, 1u, nullptr, 0u, {}, 0.0f};
     const rt::Ray ray{{0.5f, 1.0f, -1.0f}, 0.0f, {0.0f, 0.0f, 1.0f}, 10.0f};
@@ -68,8 +67,7 @@ TEST(SurfaceAt, TriangleHitPointNormalAndMaterial) {
 
 /// Flips a back-facing triangle normal toward the viewer before mapping it to color.
 TEST(NormalShading, FaceForwardsGeometricNormal) {
-    const rt::Triangle triangle{{-1.0f, -1.0f, 0.0f}, {1.0f, -1.0f, 0.0f},
-                                {0.0f, 1.0f, 0.0f}, 0u};
+    const rt::Triangle triangle{{-1.0f, -1.0f, 0.0f}, {1.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0u};
     const rt::Material material{};
     rt::Scene scene{nullptr, 0u, &triangle, 1u, &material, 1u, nullptr, 0u, {}, 0.0f};
     const rt::Ray ray{{0.0f, 0.0f, -1.0f}, 0.0f, {0.0f, 0.0f, 1.0f}, 10.0f};

@@ -11,6 +11,8 @@
 4. [BENCHMARKING timing quantities](../BENCHMARKING.md#timing-quantities) (what the harness measures)
 5. [INTERFACES §5 Hit and traversal rules](../INTERFACES.md#5-intersection-and-traversal) (what you consume)
 
+**Open issues first** ([WORKFLOW](../WORKFLOW.md#start-with-open-issues)): #2 (`normalize()` range), #3 (slab test with subnormal directions), #4 (proposed §1 changes). #2 and #3 are correctness bugs in code everyone builds on.
+
 **First three tasks:**
 1. Math library (`hostdev.hpp`, `math.hpp`, `ray.hpp`, `aabb.hpp`) with the ray-box slab tests, merged **by Oct 27**.
 2. `shade_hit` (Lambert, point lights, shadow rays, `PixelResult`), tested on hand-made hits (by Nov 6).
@@ -22,7 +24,8 @@
 |---|---|---|---|
 | `vec3`, `Ray`, `AABB`, `intersect_aabb` | Everyone | Oct 27 | §1 |
 | `shade_hit`, `LitShading`, `NormalShading`, `PixelResult` | Po (CPU backend), Mikail (megakernel) | Nov 6 (`NormalShading` by Oct 30) | §6 |
-| `Timings`, timers, results writer | Everyone | Nov 6 | §8 |
+| `Timings` struct (names only, `bench/timings.hpp`; [ROADMAP blocker 6](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Jett, Mikail, Po (`build_bvh`, `DeviceScene::upload`, `Backend::prepare` take `Timings&`) | Oct 30 (in review, #22) | §8 |
+| Timers, results writer | Everyone | Nov 6 | §8 |
 | Double-precision intersection oracle | Mikail (independent check) | Nov 6 | [quality §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
 | Golden-image tests (render known scene, `rt_compare` vs committed golden) | CI | ~Nov 6 | [BUILD golden images](../BUILD.md#golden-images) |
 
@@ -30,8 +33,8 @@
 
 | What | From | Until it lands, use |
 |---|---|---|
-| `Hit`, `brute_any` | Mikail (Oct 30) | Hand-made `Hit`s and a fake query that returns "never occluded" |
-| `Scene` view | Po (Oct 30) | A hand-filled `Scene` in tests |
+| `Hit`, `brute_any` | Mikail (Oct 30; in review, #20, #21) | Hand-made `Hit`s and a fake query that returns "never occluded" |
+| `Scene` view | Po (landed, `scene/scene.hpp`) | Nothing |
 | Expected shading values | Jett (Nov 6) | Your own hand checks, replaced by Jett's independent numbers |
 | `rt_compare` | Po (Nov 6) | A temporary exact byte comparison for goldens |
 
@@ -46,42 +49,42 @@ Paste this into your coding agent along with `docs/INTERFACES.md`:
 
 ```text
 You are implementing the math library, shading, and timing harness for a C++17/CUDA ray tracer.
-Repo layout: docs/REPO_SKELETON.md. Contract: docs/INTERFACES.md sections 1, 6, and 8.
-Timing definitions: docs/BENCHMARKING.md "Timing quantities". Follow them exactly.
+Read docs/members/AREK.md and docs/INTERFACES.md sections 1, 6, and 8. Timing definitions:
+docs/BENCHMARKING.md "Timing quantities". The contract is authoritative; follow it exactly.
+Layout: docs/REPO_SKELETON.md.
 
 Scope (only edit these): src/core/, src/shade/, src/bench/, tests/oracle/ (intersection oracle),
 scripts/plot/, and tests for these.
-Code must compile under both g++ 13 and nvcc (RT_HOSTDEV = __host__ __device__ under __CUDACC__).
+Build: code must compile under both g++ 13 and nvcc (RT_HOSTDEV = __host__ __device__ under
+__CUDACC__). The CPU-only build must always work.
 
-Rules:
-- Follow INTERFACES section 0 (code conventions): namespace rt, includes from src/ like
-  "core/math.hpp", host errors as rt::Error, CUDA calls in RT_CUDA_CHECK, one CMake target per module.
-- Header-only, POD types; no std containers, exceptions, or virtuals in RT_HOSTDEV code.
-- Slab test: choose near/far planes from the sign of inv_dir BEFORE multiplying (INTERFACES 1).
-  Test all 24 zero-direction cases listed there.
-- Shadow rays: follow "Shadow-ray construction (frozen)" step by step. A coincident light
-  (d2 == 0) contributes nothing.
-- Accumulation order is fixed: ambient, then lights 0..L-1. light_mask bit i = light contributed.
-- shade_hit is templated on the query type (q.any for shadow rays). Provide LitShading and NormalShading.
-- Timers: steady_clock for components and totals; measure totals directly, report unattributed time.
-- float only; no -ffast-math.
-- Comments are C++ Doxygen (`///`, `///<`, `//`), per INTERFACES section 0. Commit messages are
-  kernel style, signed off with `git commit -s`, per WORKFLOW.md "Commit messages".
+Standing rules:
+- Conventions: INTERFACES section 0 (names, includes, errors, Doxygen comments, CMake targets).
+- Device-callable code is header-inline (RT_HOSTDEV / RT_INLINE), with no -rdc. float only, no
+  fast-math (see "General rules" at the top of INTERFACES.md for the one double exception).
+- Workflow: docs/WORKFLOW.md. Check open issues first. Commits are kernel style and signed off
+  (`git commit -s`).
+- Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
+  --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
+- At the end of the PR, update your own member file (docs/members/<you>.md): the Deliverables
+  and hand-off rows that changed, the "You depend on" rows that landed, and this week's
+  contribution log row.
 - At the start of a session, run the environment check in WORKFLOW.md "Development environment".
-  If it is not WSL Ubuntu 24.04 or Vista with the BUILD.md toolchain, warn the user once (never
-  block), and add the `Developed-on:` / `Needs-check:` trailers to your commits.
+  If the machine doesn't match, warn the user once (never block) and add the `Developed-on:` /
+  `Needs-check:` trailers to your commits.
 - Stubs and local workarounds: mark each with `// STUB(S<n>, <owner>): remove when <x> lands (#<issue>)`
-  and add a row to the ROADMAP.md stub register in the same PR. Delete both when the real code lands
-  (WORKFLOW.md "Stubs and local workarounds").
+  and add a row to the ROADMAP.md stub register in the same PR (WORKFLOW.md "Stubs and local
+  workarounds").
 - If the interface looks wrong or incomplete, do not change it locally. Stop and write a short
   note proposing the change.
 
-Deliverables, in order:
-1. Math library + slab tests (needed by everyone first).
-2. NormalShading, then surface_at, offset_ray_origin (Ray Tracing Gems ch. 6), light_sample,
-   shade_hit, with analytic tests on hand-made hits.
-3. Timings struct, ScopedTimer, GpuTimer (cudaEvent), results JSON writer, T_br/T_frame loop.
-4. Double-precision ray-sphere / ray-triangle oracle (test-only) compared against the float versions.
+Before you finish, double-check against:
+- INTERFACES section 1 "Ray-box slab test (frozen)" and its required tests.
+- INTERFACES section 6 "Shadow-ray construction (frozen)" and "Accumulation order (frozen)".
+- INTERFACES section 8 and BENCHMARKING "Timing quantities" (totals are measured directly,
+  unattributed time is reported).
+
+Work in the order of "First three tasks" and the Deliverables table in docs/members/AREK.md.
 ```
 
 ## Deliverables
@@ -89,8 +92,9 @@ Deliverables, in order:
 | When | Deliverable | Size |
 |---|---|---|
 | Oct 27 | Math library + slab tests merged; review INTERFACES §1, §6, §8 and sign off | M |
-| Oct 30 | `NormalShading` (for first images) | S |
-| Nov 6 | `shade_hit` with analytic tests; double-precision oracle; harness on CPU; golden tests | M |
+| Oct 30 | `NormalShading` (for first images) and `pixel_result.hpp` | S |
+| Oct 30 | `render_pixel` in `shade/render_pixel.hpp` (proposed owner, [ROADMAP blocker 3](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | S |
+| Nov 6 | `surface_at`, `offset_ray_origin`, `light_sample`, `shade_hit` with analytic tests; double-precision oracle; harness on CPU; golden tests | M |
 | Nov 13 | Harness on GPU (`cuda_init`, `cudaEvent` stages); T_app process script | S |
 | Nov 18 | Target ratios and breakdown plots | M |
 | Later | E2 Blinn-Phong + directional lights (after G2); E5 wavefront queues/shade/accumulate (after G3); OptiX pairing (stretch) | |

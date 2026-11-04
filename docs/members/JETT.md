@@ -20,7 +20,7 @@
 
 | What | To | When | Contract |
 |---|---|---|---|
-| `camera_ray`, `Camera` parsing and overrides | Everyone's renderers | Oct 30 | §4 |
+| `camera_ray`, `Camera` parsing and overrides | Everyone's renderers | Landed (#16, #17: `camera.hpp`, `camera_io.hpp`) | §4 |
 | `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Nov 6 | §3 |
 | Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Nov 6 | [scene families](../BENCHMARKING.md#scene-families) |
 | Expected shading values for analytic tests | Arek | Nov 6 | [quality protocol §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
@@ -30,8 +30,9 @@
 
 | What | From | Until it lands, use |
 |---|---|---|
-| `AABB`, `vec3` | Arek (Oct 27) | A minimal local copy, swapped out when merged |
-| `Scene` view | Po (Oct 30) | Synthetic AABB + centroid arrays; the builder never needs a real scene |
+| `AABB`, `vec3` | Arek (landed) | Nothing |
+| `Scene` view | Po (landed, `scene/scene.hpp`) | Synthetic AABB + centroid arrays; the builder never needs a real scene |
+| `Timings` | Arek (struct in review, #22) | Nothing: `build_bvh` takes `Timings&` (fields `bounds`, `build`, `layout`) |
 
 **Done means:** the validator passes on random, clustered, all-equal-centroid, 0, 1, and 2 primitive inputs. Output bytes are identical for 1, 8, and 72 threads. Mikail's BVH-vs-brute-force test gives identical hits.
 
@@ -41,38 +42,39 @@ Paste this into your coding agent along with `docs/INTERFACES.md`:
 
 ```text
 You are implementing the BVH builder and camera for a C++17/CUDA ray tracer.
-Repo layout: docs/REPO_SKELETON.md. Contract: docs/INTERFACES.md sections 3 and 4. Follow them exactly.
+Read docs/members/JETT.md and docs/INTERFACES.md sections 3 and 4. The contract is
+authoritative; follow it exactly. Layout: docs/REPO_SKELETON.md.
 
-Scope (only edit these): src/bvh/, src/camera/, tests/ for these modules.
+Scope (only edit these): src/bvh/, src/camera/, and tests for these modules.
 Build: CMake, GCC 13, OpenMP. The CPU-only build (-DRT_ENABLE_CUDA=OFF) must compile.
 
-Rules:
-- Follow INTERFACES section 0 (code conventions): namespace rt, includes from src/ like
-  "core/math.hpp", host errors as rt::Error, CUDA calls in RT_CUDA_CHECK, one CMake target per module.
-- BvhNode is 32 bytes, siblings adjacent (right = left + 1), PrimRef high bit = triangle.
-- Canonical primitive order: spheres then triangles. All tie-breaks use it.
-- Builds must be byte-identical for any thread count.
-- Depth cap: subtrees deeper than 32 below depth 32 are rebuilt with the median method.
-- LBVH refit uses std::atomic fetch_add(acq_rel) visit counters (INTERFACES "LBVH refit synchronization").
-- camera_ray is RT_INLINE in camera.hpp (device-callable); camera.cpp is host-only.
-- float only; no -ffast-math. No std containers in RT_HOSTDEV code.
-- Comments are C++ Doxygen (`///`, `///<`, `//`), per INTERFACES section 0. Commit messages are
-  kernel style, signed off with `git commit -s`, per WORKFLOW.md "Commit messages".
+Standing rules:
+- Conventions: INTERFACES section 0 (names, includes, errors, Doxygen comments, CMake targets).
+- Device-callable code is header-inline (RT_HOSTDEV / RT_INLINE), with no -rdc. float only, no
+  fast-math (see "General rules" at the top of INTERFACES.md for the one double exception).
+- Workflow: docs/WORKFLOW.md. Check open issues first. Commits are kernel style and signed off
+  (`git commit -s`).
+- Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
+  --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
+- At the end of the PR, update your own member file (docs/members/<you>.md): the Deliverables
+  and hand-off rows that changed, the "You depend on" rows that landed, and this week's
+  contribution log row.
 - At the start of a session, run the environment check in WORKFLOW.md "Development environment".
-  If it is not WSL Ubuntu 24.04 or Vista with the BUILD.md toolchain, warn the user once (never
-  block), and add the `Developed-on:` / `Needs-check:` trailers to your commits.
+  If the machine doesn't match, warn the user once (never block) and add the `Developed-on:` /
+  `Needs-check:` trailers to your commits.
 - Stubs and local workarounds: mark each with `// STUB(S<n>, <owner>): remove when <x> lands (#<issue>)`
-  and add a row to the ROADMAP.md stub register in the same PR. Delete both when the real code lands
-  (WORKFLOW.md "Stubs and local workarounds").
+  and add a row to the ROADMAP.md stub register in the same PR (WORKFLOW.md "Stubs and local
+  workarounds").
 - If the interface looks wrong or incomplete, do not change it locally. Stop and write a short
   note proposing the change.
 
-Deliverables, in order:
-1. camera_ray + tests (center ray hits look_at, corner rays match vfov/aspect, row 0 = top).
-2. bounds stage, median builder, validate_bvh, sah_cost + tests on synthetic inputs.
-3. LBVH: 30-bit Morton, stable OpenMP radix sort, Karras hierarchy, refit, layout conversion
-   (collapse to max_leaf_size, adjacent child pairs, top-down slot assignment).
-Each deliverable comes with GoogleTest tests. Timings for bounds/build/layout go to the Timings struct.
+Before you finish, double-check against:
+- INTERFACES section 3: "Node layout (frozen)", "Canonical primitive order", "Depth cap",
+  "LBVH refit synchronization", and "Determinism and validation".
+- INTERFACES section 4 for the camera conventions.
+- Timings for bounds, build, and layout go to `Timings` (INTERFACES section 8).
+
+Work in the order of "First three tasks" and the Deliverables table in docs/members/JETT.md.
 ```
 
 ## Deliverables
@@ -81,7 +83,7 @@ Each deliverable comes with GoogleTest tests. Timings for bounds/build/layout go
 |---|---|---|
 | Oct 27 | Review INTERFACES §3–4 and sign off | S |
 | Oct 30 | `camera_ray` + tests | S |
-| Nov 6 | Bounds stage, median builder, validator | M |
+| Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat | M |
 | Nov 6 | Terrain height field for `rt_gen` | S |
 | Nov 6 | Shading expected values for Arek's tests (hand calculations or Python) | S |
 | Nov 10 | **Decision:** if LBVH passes the validator and determinism tests, continue with it. Otherwise ship the task-parallel median builder (an accepted path, not a miss) | |
