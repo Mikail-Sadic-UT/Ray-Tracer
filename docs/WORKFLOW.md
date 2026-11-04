@@ -12,6 +12,18 @@ Before you start new work, look at the open [GitHub issues](../../../issues) and
 - Fix an issue on its own `<member>/<topic>` branch and close it from the PR with `Closes #N` (see [Branches](#branches)).
 - If nothing open is yours, continue with the next task in [ROADMAP.md](ROADMAP.md). If you find a new problem along the way, open an issue for it instead of fixing it silently in an unrelated PR (see [Issues](#issues)).
 
+## When you're out of work
+
+When you check what to work on, go in this order: your assigned issues, then PRs waiting for your review, then the next task in your [member file](members/) and [ROADMAP.md](ROADMAP.md). If you have no issue, nothing to review, and your next task is blocked on someone else's work, **tell the group chat** instead of waiting. Say what you are blocked on, who owns it, and what you would pick up next.
+
+After that, one of these happens:
+
+- **You get unblocked.** The owner lands the piece, or points you to the PR to review.
+- **You continue with a stub.** Use the one listed in your member file, following [Stubs and local workarounds](#stubs-and-local-workarounds) (marker in the code and a row in the stub register). Label the issue `blocked` so the stub's removal condition is visible.
+- **The group decides something else.** For example, taking over a small piece, reordering tasks, or reviewing someone's PR early.
+
+Don't wait silently, and don't start a task that someone else owns without saying so in the chat and on the issue.
+
 ## Branches
 
 ```mermaid
@@ -220,7 +232,7 @@ One GitHub issue per task in [ROADMAP.md](ROADMAP.md), assigned to its owner. La
 
 - **Weekly meeting** (~30 min): done / next / blocked, plus any interface questions. Jett updates the [status table](ROADMAP.md#status). Read the [stub register](ROADMAP.md#stub-register): every open row needs an owner and a removal condition, and rows marked `ready to remove` get removed that week.
 - **Contribution log**: one row per week at the bottom of your [member file](members/). It feeds the report, as the proposal requires.
-- **Blocked more than a day?** Use the stub listed in your member file, label the issue `blocked`, and say so in chat.
+- **Blocked, or out of work?** Tell the group chat (see [When you're out of work](#when-youre-out-of-work)). Then take the stub listed in your member file, label the issue `blocked`, or do whatever the group decides.
 
 ## Deferred process
 

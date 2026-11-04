@@ -52,8 +52,9 @@ Standing rules:
 - Conventions: INTERFACES section 0 (names, includes, errors, Doxygen comments, CMake targets).
 - Device-callable code is header-inline (RT_HOSTDEV / RT_INLINE), with no -rdc. float only, no
   fast-math (see "General rules" at the top of INTERFACES.md for the one double exception).
-- Workflow: docs/WORKFLOW.md. Check open issues first. Commits are kernel style and signed off
-  (`git commit -s`).
+- Workflow: docs/WORKFLOW.md. Check open issues first. If you have no issue, nothing to review,
+  and are blocked, tell the user to notify the group chat (WORKFLOW.md "When you're out of
+  work"). Commits are kernel style and signed off (`git commit -s`).
 - Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
   --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
 - Assign yourself to the issue before you start and to the PR when you open it.
