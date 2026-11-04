@@ -33,7 +33,7 @@
 
 | What | From | Until it lands, use |
 |---|---|---|
-| `Hit`, `brute_any` | Mikail (Oct 30; `Hit` landed #20, intersection and `brute_*` in review #21) | Hand-made `Hit`s and a fake query that returns "never occluded" |
+| `Hit`, `brute_any` | Mikail (landed: `Hit` #20, `brute_any` #21) | Nothing |
 | `Scene` view | Po (landed, `scene/scene.hpp`) | Nothing |
 | Expected shading values | Jett (Nov 6) | Your own hand checks, replaced by Jett's independent numbers |
 | `rt_compare` | Po (Nov 6) | A temporary exact byte comparison for goldens |

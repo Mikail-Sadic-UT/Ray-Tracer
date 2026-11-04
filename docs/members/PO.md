@@ -33,7 +33,7 @@
 | `vec3`, `AABB` | Arek (landed) | Nothing |
 | `Timings` | Arek (struct landed, #22) | Nothing: `Backend::prepare` and `render` take `Timings&` (CPU backend fills `render`; it has no `download`) |
 | Camera JSON parsing and validation | Jett (Oct 30) | Nothing. Landed: `camera/camera.hpp` (`Camera`, `camera_ray`) and `camera/camera_io.hpp` (`parse_camera`, `camera_to_json`, `validate_camera`, #17) |
-| `brute_closest` / `BruteQuery` | Mikail (Oct 30; `Hit` landed #20, intersection and `brute_*` in review #21) | A trivial sphere-only loop in your test |
+| `brute_closest` / `BruteQuery` | Mikail (landed, #21) | Nothing |
 | `shade_hit` / `NormalShading` | Arek | Normal-as-color written inline, replaced when merged |
 | Terrain height field | Jett (Nov 6) | A flat two-triangle floor |
 | `Bvh` + `BvhQuery` | Jett, Mikail (Nov 6) | `BruteQuery` |
