@@ -30,9 +30,10 @@
 
 | What | From | Until it lands, use |
 |---|---|---|
-| `vec3`, `AABB` | Arek (Oct 27) | Nothing to stub; it's small |
+| `vec3`, `AABB` | Arek (landed) | Nothing |
+| `Timings` | Arek (struct in review, #22) | Nothing: `Backend::prepare` and `render` take `Timings&` (CPU backend fills `render`; it has no `download`) |
 | Camera JSON parsing and validation | Jett (Oct 30) | Nothing. Landed: `camera/camera.hpp` (`Camera`, `camera_ray`) and `camera/camera_io.hpp` (`parse_camera`, `camera_to_json`, `validate_camera`, #17) |
-| `brute_closest` / `BruteQuery` | Mikail (Oct 30) | A trivial sphere-only loop in your test |
+| `brute_closest` / `BruteQuery` | Mikail (Oct 30; in review, #20, #21) | A trivial sphere-only loop in your test |
 | `shade_hit` / `NormalShading` | Arek | Normal-as-color written inline, replaced when merged |
 | Terrain height field | Jett (Nov 6) | A flat two-triangle floor |
 | `Bvh` + `BvhQuery` | Jett, Mikail (Nov 6) | `BruteQuery` |
@@ -54,45 +55,44 @@ Paste this into your coding agent along with `docs/INTERFACES.md`:
 
 ```text
 You are implementing the scene layer, generator, image IO, CPU backend, and image comparison
-tool for a C++17/CUDA ray tracer. Repo layout: docs/REPO_SKELETON.md.
-Contract: docs/INTERFACES.md section 2, "Tracing queries", "Pixel result", and section 7.
-Generator spec: docs/BENCHMARKING.md "Scene families". Comparison spec: docs/BENCHMARKING.md
-"Image comparison (rt_compare)", core checks only. Follow them exactly.
+tool for a C++17/CUDA ray tracer.
+Read docs/members/PO.md and docs/INTERFACES.md section 2, "Tracing queries", "Pixel result",
+and section 7. Generator spec: docs/BENCHMARKING.md "Scene families". Comparison spec:
+docs/BENCHMARKING.md "Image comparison (rt_compare)", core checks only. The contract is
+authoritative; follow it exactly. Layout: docs/REPO_SKELETON.md.
 
 Scope (only edit these): src/scene/, src/image/, src/cpu/, apps/rt_gen/, apps/rt_compare/,
 apps/scene_dump/, scenes/known/, scenes/golden/, scripts/fetch_scenes.sh, and tests for these.
 Build: CMake, GCC 13, OpenMP. Use nlohmann/json for JSON, stb_image_write for PNG.
 
-Rules:
-- Follow INTERFACES section 0 (code conventions): namespace rt, includes from src/ like
-  "core/math.hpp", host errors as rt::Error, CUDA calls in RT_CUDA_CHECK, one CMake target per module.
-- Types are POD; padding fields default to 0. Scene hash = FNV-1a over a canonical
-  field-by-field encoding (never raw struct bytes); the camera is excluded.
-- .bin layout and .u32img layout exactly as specified; little-endian.
-- Validate every loaded scene against "Valid input (checked at load)"; reject with field + index.
-- Generator: own PCG32, own u32->float, own Box-Muller; no std distributions; generator
-  sources compiled with -ffp-contract=off. Same binary + args -> identical bytes.
-- CPU backend: OpenMP over 16x16 tiles, schedule(dynamic), num_threads(R); calls
-  render_pixel<Query, Shading>; output must be bit-identical for any thread count.
-- rt_compare: linear floats before clamping; nonfinite, explained hit/shadow mismatch (3x3),
-  mismatch budget, shading tolerance; one pass/fail line per check; nonzero exit on failure.
-- Comments are C++ Doxygen (`///`, `///<`, `//`), per INTERFACES section 0. Commit messages are
-  kernel style, signed off with `git commit -s`, per WORKFLOW.md "Commit messages".
+Standing rules:
+- Conventions: INTERFACES section 0 (names, includes, errors, Doxygen comments, CMake targets).
+- Device-callable code is header-inline (RT_HOSTDEV / RT_INLINE), with no -rdc. float only, no
+  fast-math (see "General rules" at the top of INTERFACES.md for the one double exception).
+- Workflow: docs/WORKFLOW.md. Check open issues first. Commits are kernel style and signed off
+  (`git commit -s`).
+- Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
+  --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
+- At the end of the PR, update your own member file (docs/members/<you>.md): the Deliverables
+  and hand-off rows that changed, the "You depend on" rows that landed, and this week's
+  contribution log row.
 - At the start of a session, run the environment check in WORKFLOW.md "Development environment".
-  If it is not WSL Ubuntu 24.04 or Vista with the BUILD.md toolchain, warn the user once (never
-  block), and add the `Developed-on:` / `Needs-check:` trailers to your commits.
+  If the machine doesn't match, warn the user once (never block) and add the `Developed-on:` /
+  `Needs-check:` trailers to your commits.
 - Stubs and local workarounds: mark each with `// STUB(S<n>, <owner>): remove when <x> lands (#<issue>)`
-  and add a row to the ROADMAP.md stub register in the same PR. Delete both when the real code lands
-  (WORKFLOW.md "Stubs and local workarounds").
+  and add a row to the ROADMAP.md stub register in the same PR (WORKFLOW.md "Stubs and local
+  workarounds").
 - If the interface looks wrong or incomplete, do not change it locally. Stop and write a short
   note proposing the change.
 
-Deliverables, in order:
-1. scene types, JSON IO, hash, validation, scene_dump + tests.
-2. PNG/PFM/.u32img IO; known-case scenes; brute-force CPU loop.
-3. rt_gen --layout uniform --primitives N --seed S (fitted camera, light per spec) + .bin IO.
-4. CPU backend (Backend interface) with AOVs.
-5. rt_compare core checks + the 4 core corruption tests.
+Before you finish, double-check against:
+- INTERFACES section 2: "Valid input (checked at load)", "Scene hash", ".bin layout",
+  "AOV file format", and "Generator determinism and scene distribution".
+- INTERFACES section 7, and section 0 "Other shared rules" for threads (counts come from the
+  parameter structs, never from OMP_NUM_THREADS).
+- docs/BENCHMARKING.md "Scene families" and "Image comparison (rt_compare)".
+
+Work in the order of "First three tasks" and the Deliverables table in docs/members/PO.md.
 ```
 
 ## Deliverables

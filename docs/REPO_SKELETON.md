@@ -14,14 +14,15 @@
 │   ├── workflows/ci.yml
 │   └── pull_request_template.md
 ├── src/
-│   ├── core/       (Arek)      hostdev.hpp  math.hpp  ray.hpp  aabb.hpp  color.hpp  error.hpp
-│   ├── scene/      (Po)        scene.hpp (Scene view)  scene_host.hpp  scene_io.cpp  binary_format.hpp  hash.hpp
-│   │                           generator.cpp  pcg32.hpp      # generator.cpp + hash: -ffp-contract=off
-│   ├── camera/     (Jett)      camera.hpp (inline camera_ray, device-usable)  camera.cpp (host only: parsing, overrides)
+│   ├── core/       (Arek)      hostdev.hpp  math.hpp (vec3, color)  ray.hpp  aabb.hpp  error.hpp
+│   ├── scene/      (Po)        scene.hpp (Scene view)  scene_host.hpp  scene_io.hpp  scene_io.cpp  json_helpers.hpp
+│   │                           binary_format.hpp  hash.hpp  hash.cpp  generator.cpp  pcg32.hpp
+│   │                           # generator.cpp + hash: -ffp-contract=off
+│   ├── camera/     (Jett)      camera.hpp (inline camera_ray, device-usable)  camera_io.hpp  camera.cpp (host only: parsing, overrides)
 │   ├── bvh/        (Jett)      bvh_types.hpp  bvh.hpp  bounds.cpp  build_median.cpp  build_lbvh.cpp  layout.cpp  build_sah.cpp  validate.cpp
 │   │                           morton.hpp  radix_sort.hpp
-│   ├── trace/      (Mikail)    intersect.hpp  traverse.hpp  brute.hpp
-│   ├── shade/      (Arek)      shade.hpp  lights.hpp  offset.hpp
+│   ├── trace/      (Mikail)    hit.hpp  intersect.hpp  traverse.hpp  brute.hpp
+│   ├── shade/      (Arek)      pixel_result.hpp  render_pixel.hpp  shade.hpp  lights.hpp  offset.hpp
 │   ├── cpu/        (Po)        cpu_backend.hpp  cpu_backend.cpp
 │   ├── gpu/        (Mikail, Arek)
 │   │   ├── device_scene.hpp   device_scene.cu      # DeviceScene, memory modes
@@ -31,7 +32,7 @@
 │   ├── embree/     (Po)        embree_backend.hpp  embree_backend.cpp
 │   ├── optix/      (Mikail)    optix_backend.hpp  optix_backend.cpp  programs.cu
 │   ├── bench/      (Arek)      timings.hpp  timer.hpp  gpu_timer.hpp  results.hpp  results.cpp  machine_info.cpp
-│   ├── image/      (Po)        image.hpp  write_png.cpp  write_pfm.cpp  read_pfm.cpp
+│   ├── image/      (Po)        image.hpp  image_io.hpp  image_io.cpp  io_helpers.hpp  write_png.cpp
 │   └── backend.hpp             # Backend interface
 ├── apps/
 │   ├── rt_render/  main.cpp
