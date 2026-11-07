@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <type_traits>
 
 #include "core/hostdev.hpp"
 #include "core/ray.hpp"
@@ -18,6 +19,11 @@ struct SurfacePoint {
     uint32_t material_id;  ///< Index into the scene's materials.
 };
 
+static_assert(sizeof(SurfacePoint) == 28, "SurfacePoint must be 28 bytes");
+static_assert(std::is_standard_layout<SurfacePoint>::value &&
+                  std::is_trivially_copyable<SurfacePoint>::value,
+              "SurfacePoint must have a standard layout and be trivially copyable");
+
 /// Per-pixel color and auxiliary primitive and light identifiers.
 struct PixelResult {
     color rgb;            ///< Linear RGB result before clamping.
@@ -25,7 +31,14 @@ struct PixelResult {
     uint32_t light_mask;  ///< Bits for contributing lights; zero for normal shading.
 };
 
+static_assert(sizeof(PixelResult) == 20, "PixelResult must be 20 bytes");
+static_assert(std::is_standard_layout<PixelResult>::value &&
+                  std::is_trivially_copyable<PixelResult>::value,
+              "PixelResult must have a standard layout and be trivially copyable");
+
 /// Computes the hit position and face-forwarded geometric normal.
+/// @pre h.prim != RT_MISS_PRIM
+/// @pre h.prim must identify a valid primitive in the scene.
 RT_INLINE SurfacePoint surface_at(const Ray& r, const Hit& h, const Scene& s) {
     const bool is_triangle = (h.prim & PRIM_TRIANGLE_BIT) != 0u;
     vec3 p;

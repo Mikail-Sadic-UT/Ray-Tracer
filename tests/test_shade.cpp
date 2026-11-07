@@ -45,6 +45,21 @@ TEST(SurfaceAt, SphereHitPointNormalAndMaterial) {
     EXPECT_EQ(point.material_id, 7u);
 }
 
+/// Face-forwards the sphere normal when the ray starts inside the sphere.
+TEST(SurfaceAt, FaceForwardsSphereNormalFromInside) {
+    const rt::Sphere sphere{{0.0f, 0.0f, 0.0f}, 1.0f, 0u};
+    const rt::Material material{};
+    rt::Scene scene{&sphere, 1u, nullptr, 0u, &material, 1u, nullptr, 0u, {}, 0.0f};
+    const rt::Ray ray{{0.0f, 0.0f, 0.0f}, 0.0f, {0.0f, 0.0f, 1.0f}, 10.0f};
+    const rt::Hit hit{1.0f, 0u, 0.0f, 0.0f};
+
+    const rt::SurfacePoint point = rt::surface_at(ray, hit, scene);
+    EXPECT_FLOAT_EQ(point.ng.x, 0.0f);
+    EXPECT_FLOAT_EQ(point.ng.y, 0.0f);
+    EXPECT_FLOAT_EQ(point.ng.z, -1.0f);
+    EXPECT_LT(rt::dot(point.ng, ray.dir), 0.0f);
+}
+
 /// Computes a triangle hit position from barycentrics and face-forwards its unit normal.
 TEST(SurfaceAt, TriangleHitPointNormalAndMaterial) {
     const rt::Triangle triangle{{0.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f}, {0.0f, 2.0f, 0.0f}, 9u};
