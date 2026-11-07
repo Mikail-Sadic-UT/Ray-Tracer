@@ -63,19 +63,19 @@ flowchart LR
 |---|---|---|---|
 | **G0** | Oct 30 | INTERFACES v1.0 signed off (Oct 27). Repo builds CPU-only in CI and with CUDA on the laptop and Vista. `hello_cuda` prints the recorded GPU name on a GH node. Brute-force CPU image of `known_two_spheres` (normal shading). | |
 | GPU smoke | **~Nov 3** | Normal-colored image of `known_two_spheres` from a CUDA kernel running `render_pixel<BruteQuery, NormalShading>`, on the laptop and a GH node. Finite pixels; `prim_id` matches the CPU brute-force image except explained mismatches. No BVH, no lighting, no performance claims. | |
-| **G1** | Nov 6 | Lambert + point-light shadows on CPU passing analytic tests. Median BVH + validator; BVH = brute force exactly. Multicore CPU bit-identical to 1 thread. `rt_gen` `field_uniform` + `.bin` + hash. `rt_compare` core checks (nonfinite, explained mismatches, shading tolerance). Harness reports T_br and T_frame on CPU. Benchmark scene definitions fixed. | Check-in 2 (postponed to ~Oct 31–Nov 7, date TBD) |
+| **G1** | Nov 6 | Lambert + point-light shadows on CPU passing analytic tests. Median BVH + validator; BVH = brute force exactly. Multicore CPU bit-identical to 1 thread. `rt_gen` `field_uniform` + `.bin` + hash. `rt_compare` core checks (nonfinite, explained mismatches, shading tolerance). Harness reports T_br and T_frame on CPU. Benchmark scene definitions fixed. | Check-in 2 (Nov 12) |
 | **G2** | Nov 13 | CUDA megakernel passes `rt_compare` against CPU on the known scenes and `bench_100k`, on laptop and Vista. A correct parallel builder (LBVH, or the task-parallel median per the Nov 10 decision): validator passes, deterministic for any thread count. First Vista T_app / T_br / T_frame at 3 sizes. Comparison tolerances set from real CPU/GPU data. | |
 | **G3** | Nov 18 | Preparation scaling (B = 1→72) and CPU render scaling. GPU breakdown. Profiling done (`-Xptxas -v`, Nsight). Preliminary 10× / 2× / 20× ratios. Scope frozen; extensions chosen. | Check-in 3 (Nov 16–20) |
 | Final | Nov 30 | Final sweeps, quality review (2 reviewers), slides. Thanksgiving is Nov 26; plan around it. | |
 | | Dec 1/3 | | Presentation |
 | | Dec 6 | Report, reproducibility instructions, `final` tag | Release |
 
-**Check-in 2 (postponed).** It moved from Oct 26–30 to roughly 1–2 weeks after Oct 24. Record the exact date in [Status](#status) once it's announced. The gate dates don't move: the postponement buys no extra time before check-in 3 and the final deadline, so the team keeps working to G0 (Oct 30) and G1 (Nov 6). Present the latest gate that has passed:
+**Check-in 2 (postponed, now Nov 12).** It moved from Oct 26–30 to **Nov 12**. The gate dates don't move: the postponement buys no extra time before check-in 3 and the final deadline, so the team keeps working to G0 (Oct 30), G1 (Nov 6) and G2 (Nov 13). Check-in 2 falls after G1 and the Nov 10 builder decision, and one day before G2. Present the latest gate that has passed:
 
 | If check-in 2 falls on | Present |
 |---|---|
 | Oct 31–Nov 5 | G0 complete, the re-baselined plan, G1 progress (shaded CPU image, median BVH if merged) |
-| Nov 6–7 | G1 complete: correct CPU renderer with shadows, BVH, multicore, `rt_compare`, first CPU timings, fixed benchmark scenes |
+| Nov 6–12 | G1 complete: correct CPU renderer with shadows, BVH, multicore, `rt_compare`, first CPU timings, fixed benchmark scenes. For Nov 10–12 also the C11 builder decision and G2 progress (GPU smoke image, megakernel status) |
 
 The **GPU smoke image** (~Nov 3) can be shown at check-in 2 as evidence that the device path works: device compilation of shared code, scene pointers, kernel launch, download. Full GPU correctness and performance acceptance stay at G2 (Nov 13). Check-in 3 (Nov 16–20) is assumed unchanged; update this table if it moves too.
 
@@ -345,7 +345,7 @@ Updated by Jett weekly.
 
 | Item | Status (Nov 3) | Notes |
 |---|---|---|
-| Check-in 2 date | Postponed, TBD (~Oct 31–Nov 7) | Fill in when announced |
+| Check-in 2 date | Nov 12 | Postponed from Oct 26–30; gates unchanged |
 | INTERFACES v1.0 | Proposed | Sign-off Oct 27 |
 | C1 | Done (Oct 28) | CMake, CI (first GitHub run green), `.clang-format`, PR template, `hello_cuda`. Verified on the laptop (WSL2, GCC 13.3, CUDA 13.3) and on a Vista GH200 node (GCC 13.2, CUDA 13.3, `ctest` 4/4, `hello_cuda`). Branch protection set: `main` needs a PR with 1 approval; `main` and `dev` block force-push and deletion; the admin can bypass. Making the `cpu` CI job a required check is deferred ([WORKFLOW.md](WORKFLOW.md#deferred-process)) |
 | C2 | Partly done | Merged on `dev`: math library and `AABB` slab tests (#1, #13), scene types, IO, validation, hash, image IO and `scene_dump` (#9), `bvh_types.hpp` (#18), `Timings` (#22) |

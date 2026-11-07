@@ -52,8 +52,8 @@ Offline CLI renderer. No native Windows build.
 |---|---|---|
 | Oct 27 | Contract sign-off | [INTERFACES.md](docs/INTERFACES.md) v1.0 accepted |
 | Oct 30 | **G0** | Builds on WSL2 + Vista, CI green, brute-force CPU image |
-| ~Oct 31–Nov 7 | Check-in 2 (postponed, date TBD) | Latest passed gate (G0 or G1) plus the re-baselined plan; see [ROADMAP.md](docs/ROADMAP.md#gates-and-schedule) |
 | Nov 6 | **G1** | Correct CPU renderer, median BVH, multicore, generator, `rt_compare`, CPU timings, benchmark scenes fixed |
+| Nov 12 | Check-in 2 (postponed) | G1 complete, builder decision (Nov 10), G2 progress; see [ROADMAP.md](docs/ROADMAP.md#gates-and-schedule) |
 | Nov 13 | **G2** | CUDA matches CPU; correct parallel builder (LBVH or task-parallel median); first Vista timings. Reduced scope if missed |
 | Nov 16–20 | Check-in 3; **G3** Nov 18 | Scaling, breakdowns, profiling, preliminary ratios; extensions chosen |
 | Nov 30 | Ready | Final runs, review, slides |

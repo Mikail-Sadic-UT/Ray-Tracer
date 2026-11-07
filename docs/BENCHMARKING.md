@@ -76,7 +76,7 @@ Within a comparison, these are identical: scene hash, camera, resolution, lights
 
 ## Scene sizes
 
-Measured in **primitives**. Fixed at gate G1 (Nov 6), and presented at check-in 2:
+Measured in **primitives**. Fixed at gate G1 (Nov 6), and presented at check-in 2 (Nov 12):
 
 | Name | Spheres | Triangles | Primitives | Seed |
 |---|---|---|---|---|
