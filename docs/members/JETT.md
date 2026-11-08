@@ -32,7 +32,7 @@
 |---|---|---|
 | `AABB`, `vec3` | Arek (landed) | Nothing |
 | `Scene` view | Po (landed, `scene/scene.hpp`) | Synthetic AABB + centroid arrays; the builder never needs a real scene |
-| `Timings` | Arek (struct in review, #22) | Nothing: `build_bvh` takes `Timings&` (fields `bounds`, `build`, `layout`) |
+| `Timings` | Arek (struct landed, #22) | Nothing: `build_bvh` takes `Timings&` (fields `bounds`, `build`, `layout`) |
 
 **Done means:** the validator passes on random, clustered, all-equal-centroid, 0, 1, and 2 primitive inputs. Output bytes are identical for 1, 8, and 72 threads. Mikail's BVH-vs-brute-force test gives identical hits.
 
@@ -52,13 +52,16 @@ Standing rules:
 - Conventions: INTERFACES section 0 (names, includes, errors, Doxygen comments, CMake targets).
 - Device-callable code is header-inline (RT_HOSTDEV / RT_INLINE), with no -rdc. float only, no
   fast-math (see "General rules" at the top of INTERFACES.md for the one double exception).
-- Workflow: docs/WORKFLOW.md. Check open issues first. Commits are kernel style and signed off
-  (`git commit -s`).
+- Workflow: docs/WORKFLOW.md. Check open issues first. If you have no issue, nothing to review,
+  and are blocked, tell the user to notify the group chat (WORKFLOW.md "When you're out of
+  work"). Commits are kernel style and signed off (`git commit -s`).
 - Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
   --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
-- At the end of the PR, update your own member file (docs/members/<you>.md): the Deliverables
-  and hand-off rows that changed, the "You depend on" rows that landed, and this week's
-  contribution log row.
+- Assign yourself to the issue before you start and to the PR when you open it.
+- Make the docs update the last commit of the PR: your member file (docs/members/<you>.md) with
+  the Deliverables and hand-off rows that changed, the "You depend on" rows that landed, and this
+  week's contribution log row, plus any ROADMAP status, stub register, or CONTRACT_NOTES rows the
+  PR changes.
 - At the start of a session, run the environment check in WORKFLOW.md "Development environment".
   If the machine doesn't match, warn the user once (never block) and add the `Developed-on:` /
   `Needs-check:` trailers to your commits.

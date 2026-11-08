@@ -31,9 +31,9 @@
 | What | From | Until it lands, use |
 |---|---|---|
 | `vec3`, `AABB` | Arek (landed) | Nothing |
-| `Timings` | Arek (struct in review, #22) | Nothing: `Backend::prepare` and `render` take `Timings&` (CPU backend fills `render`; it has no `download`) |
+| `Timings` | Arek (struct landed, #22) | Nothing: `Backend::prepare` and `render` take `Timings&` (CPU backend fills `render`; it has no `download`) |
 | Camera JSON parsing and validation | Jett (Oct 30) | Nothing. Landed: `camera/camera.hpp` (`Camera`, `camera_ray`) and `camera/camera_io.hpp` (`parse_camera`, `camera_to_json`, `validate_camera`, #17) |
-| `brute_closest` / `BruteQuery` | Mikail (Oct 30; in review, #20, #21) | A trivial sphere-only loop in your test |
+| `brute_closest` / `BruteQuery` | Mikail (landed, #21) | Nothing |
 | `shade_hit` / `NormalShading` | Arek | Normal-as-color written inline, replaced when merged |
 | Terrain height field | Jett (Nov 6) | A flat two-triangle floor |
 | `Bvh` + `BvhQuery` | Jett, Mikail (Nov 6) | `BruteQuery` |
@@ -69,13 +69,16 @@ Standing rules:
 - Conventions: INTERFACES section 0 (names, includes, errors, Doxygen comments, CMake targets).
 - Device-callable code is header-inline (RT_HOSTDEV / RT_INLINE), with no -rdc. float only, no
   fast-math (see "General rules" at the top of INTERFACES.md for the one double exception).
-- Workflow: docs/WORKFLOW.md. Check open issues first. Commits are kernel style and signed off
-  (`git commit -s`).
+- Workflow: docs/WORKFLOW.md. Check open issues first. If you have no issue, nothing to review,
+  and are blocked, tell the user to notify the group chat (WORKFLOW.md "When you're out of
+  work"). Commits are kernel style and signed off (`git commit -s`).
 - Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
   --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
-- At the end of the PR, update your own member file (docs/members/<you>.md): the Deliverables
-  and hand-off rows that changed, the "You depend on" rows that landed, and this week's
-  contribution log row.
+- Assign yourself to the issue before you start and to the PR when you open it.
+- Make the docs update the last commit of the PR: your member file (docs/members/<you>.md) with
+  the Deliverables and hand-off rows that changed, the "You depend on" rows that landed, and this
+  week's contribution log row, plus any ROADMAP status, stub register, or CONTRACT_NOTES rows the
+  PR changes.
 - At the start of a session, run the environment check in WORKFLOW.md "Development environment".
   If the machine doesn't match, warn the user once (never block) and add the `Developed-on:` /
   `Needs-check:` trailers to your commits.
