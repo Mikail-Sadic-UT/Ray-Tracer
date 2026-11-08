@@ -117,4 +117,4 @@ PBRT v4 Ch. 6 (watertight test); Woop et al. 2013; Aila & Laine 2009 (GPU traver
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|
 | Oct 24–30 | | | |
-| | | | |
+| Nov 1–7 | Clarified INTERFACES §8: `render_kernel` is reported in a per-run `diagnostics` object, outside `components` and the totals (resolves W5). Reviewed and merged Arek's `NormalShading` and robust `normalize()` PRs | #24, #28, #29 | |
