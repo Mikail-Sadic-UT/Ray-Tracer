@@ -130,6 +130,61 @@ TEST(Math, Vec3) {
     EXPECT_TRUE(equal(indexed, 7.0f, 8.0f, 9.0f)) << "vec3 mutable indexing";
 }
 
+/// Normalizes finite vectors across extreme magnitudes while preserving their direction.
+TEST(Math, NormalizeExtremeMagnitudes) {
+    const auto expect_direction = [](rt::vec3 input, rt::vec3 expected, const char* label) {
+        const rt::vec3 result = rt::normalize(input);
+        EXPECT_TRUE(std::isfinite(result.x) && std::isfinite(result.y) && std::isfinite(result.z))
+            << label;
+        EXPECT_NEAR(result.x, expected.x, 2.0e-6f) << label;
+        EXPECT_NEAR(result.y, expected.y, 2.0e-6f) << label;
+        EXPECT_NEAR(result.z, expected.z, 2.0e-6f) << label;
+        EXPECT_NEAR(rt::length(result), 1.0f, 2.0e-6f) << label;
+    };
+
+    expect_direction({1.0e20f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, "large axis vector");
+    expect_direction({1.0e-23f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, "small axis vector");
+    expect_direction({-3.0e20f, 4.0e20f, -12.0e20f}, {-3.0f / 13.0f, 4.0f / 13.0f, -12.0f / 13.0f},
+                     "large mixed-sign vector");
+    expect_direction({-3.0e-23f, 4.0e-23f, -12.0e-23f},
+                     {-3.0f / 13.0f, 4.0f / 13.0f, -12.0f / 13.0f}, "small mixed-sign vector");
+}
+
+/// Normalizes a direction made entirely of subnormal components.
+TEST(Math, NormalizeSubnormalComponents) {
+    const float denorm = std::numeric_limits<float>::denorm_min();
+    ASSERT_GT(denorm, 0.0f);
+    const rt::vec3 input{denorm, 2.0f * denorm, -3.0f * denorm};
+
+    const rt::vec3 result = rt::normalize(input);
+    const float inv_length = 1.0f / std::sqrt(14.0f);
+    EXPECT_TRUE(std::isfinite(result.x) && std::isfinite(result.y) && std::isfinite(result.z));
+    EXPECT_NEAR(result.x, inv_length, 2.0e-6f);
+    EXPECT_NEAR(result.y, 2.0f * inv_length, 2.0e-6f);
+    EXPECT_NEAR(result.z, -3.0f * inv_length, 2.0e-6f);
+    EXPECT_NEAR(rt::length(result), 1.0f, 2.0e-6f);
+}
+
+/// Checks direction across widely separated component magnitudes with a double reference.
+TEST(Math, NormalizeWidelySeparatedMagnitudes) {
+    const rt::vec3 input{1.0e20f, -1.0e16f, 3.0e19f};
+    const double scale = static_cast<double>(input.x);
+    const double sx = static_cast<double>(input.x) / scale;
+    const double sy = static_cast<double>(input.y) / scale;
+    const double sz = static_cast<double>(input.z) / scale;
+    const double scaled_length = std::sqrt(sx * sx + sy * sy + sz * sz);
+    const rt::vec3 expected{static_cast<float>(sx / scaled_length),
+                            static_cast<float>(sy / scaled_length),
+                            static_cast<float>(sz / scaled_length)};
+
+    const rt::vec3 result = rt::normalize(input);
+    EXPECT_TRUE(std::isfinite(result.x) && std::isfinite(result.y) && std::isfinite(result.z));
+    EXPECT_NEAR(result.x, expected.x, 2.0e-7f);
+    EXPECT_NEAR(result.y, expected.y, 2.0e-9f);
+    EXPECT_NEAR(result.z, expected.z, 2.0e-7f);
+    EXPECT_NEAR(rt::length(result), 1.0f, 2.0e-6f);
+}
+
 /// AABB members: empty box, grow, centroid, extent, surface area, and is_empty.
 TEST(Math, AabbMembers) {
     const float inf = std::numeric_limits<float>::infinity();
