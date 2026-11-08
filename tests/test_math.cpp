@@ -271,6 +271,176 @@ TEST(Math, DeterministicSlabBoundaries) {
         << "conservative far expansion overlaps interval just beyond geometric exit";
 }
 
+/// Nonzero directions whose reciprocal overflows still define finite, in-range intersections.
+///
+/// The double oracle keeps the direction itself and therefore distinguishes these hits from
+/// the parallel-ray arithmetic artifact produced by an infinite reciprocal.
+TEST(Math, SubnormalDirectionReciprocalOverflow) {
+    const rt::AABB tiny_box{{0.0f, 0.0f, 0.0f}, {1.0e-38f, 1.0e-38f, 1.0e-38f}};
+    for (int axis = 0; axis < 3; ++axis) {
+        for (float sign : {1.0f, -1.0f}) {
+            rt::vec3 origin{0.5e-38f, 0.5e-38f, 0.5e-38f};
+            rt::vec3 direction{0.0f, 0.0f, 0.0f};
+            direction[axis] = sign * 1.0e-39f;
+            origin[axis] = sign > 0.0f ? -1.0e-39f : 1.1e-38f;
+            const rt::Ray ray{origin, 0.0f, direction, 10.0f};
+            float float_enter = -1.0f;
+            double double_enter = -1.0;
+            const bool float_hit = intersect(tiny_box, ray, float_enter);
+            const bool double_hit = intersect_double(tiny_box, ray, double_enter);
+            EXPECT_TRUE(double_hit) << "oracle expects a real hit on axis " << axis;
+            EXPECT_TRUE(float_hit == double_hit)
+                << "subnormal hit agrees with oracle on axis " << axis << " sign " << sign;
+            if (float_hit && double_hit) {
+                EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter)))
+                    << "entry distance agrees with oracle on axis " << axis << " sign " << sign;
+            }
+        }
+    }
+
+    // Exact issue reproduction, with the other axes strictly inside their slabs.
+    const rt::AABB issue_box{{0.0f, 0.0f, 0.0f}, {1.0e-38f, 2.0f, 1.0f}};
+    const rt::Ray issue_ray{{-1.0e-39f, 0.0f, 0.5f}, 0.0f, {1.0e-39f, 1.0f, 0.0f}, 10.0f};
+    float enter = -1.0f;
+    EXPECT_TRUE(intersect(issue_box, issue_ray, enter)) << "exact issue reproduction hits";
+    EXPECT_TRUE(near(enter, 1.0f)) << "issue reproduction enters at t approximately 1";
+
+    const rt::Ray too_short{{-1.0e-39f, 0.0f, 0.5f}, 0.0f, {1.0e-39f, 1.0f, 0.0f}, 0.5f};
+    double double_enter = 0.0;
+    EXPECT_TRUE(!intersect(issue_box, too_short, enter));
+    EXPECT_TRUE(!intersect_double(issue_box, too_short, double_enter))
+        << "short t range has no geometric hit";
+
+    // Starting on the lower face remains inclusive even when the nonzero direction is tiny.
+    const rt::Ray on_face{{0.0f, 0.5f, 0.5f}, 0.0f, {1.0e-39f, 0.0f, 0.0f}, 10.0f};
+    EXPECT_TRUE(intersect(unit_box(), on_face, enter));
+    EXPECT_TRUE(enter == 0.0f) << "subnormal boundary origin enters at t_lo";
+}
+
+/// Reciprocal overflow boundary, finite reciprocals below it, and very small normal directions.
+TEST(Math, TinyDirectionAdjacentToReciprocalOverflow) {
+    const float reciprocal_limit = 1.0f / std::numeric_limits<float>::max();
+    const float directions[] = {
+        std::nextafter(reciprocal_limit, 0.0f), reciprocal_limit,
+        std::nextafter(reciprocal_limit, std::numeric_limits<float>::infinity())};
+    for (float direction : directions) {
+        ASSERT_TRUE(direction > 0.0f);
+        for (float sign : {1.0f, -1.0f}) {
+            const float origin = sign > 0.0f ? -direction : 5.0f * direction;
+            const rt::AABB box{{0.0f, 0.0f, 0.0f}, {4.0f * direction, 1.0f, 1.0f}};
+            const rt::Ray ray{{origin, 0.5f, 0.5f}, 0.0f, {sign * direction, 0.0f, 0.0f}, 10.0f};
+            float float_enter = -1.0f;
+            double double_enter = -1.0;
+            const bool float_hit = intersect(box, ray, float_enter);
+            const bool double_hit = intersect_double(box, ray, double_enter);
+            EXPECT_TRUE(double_hit) << "oracle expects hit adjacent to reciprocal threshold";
+            EXPECT_TRUE(float_hit == double_hit)
+                << "threshold-adjacent result agrees with oracle, direction " << sign * direction;
+            if (float_hit) {
+                EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter)));
+            }
+        }
+    }
+
+    // A tiny normal direction has a finite reciprocal and retains the ordinary fast path.
+    const rt::AABB normal_box{{0.0f, 0.0f, 0.0f}, {1.0e-30f, 1.0f, 1.0f}};
+    const rt::Ray normal_ray{{-1.0e-30f, 0.5f, 0.5f}, 0.0f, {1.0e-30f, 0.0f, 0.0f}, 10.0f};
+    float enter = -1.0f;
+    EXPECT_TRUE(intersect(normal_box, normal_ray, enter));
+    EXPECT_TRUE(near(enter, 1.0f)) << "small normal direction enters at t = 1";
+}
+
+/// Overflowing float subtraction and products must use one complete double interval.
+TEST(Math, SlabOverflowFallbackAgainstDouble) {
+    // Exact review counterexample: the subtraction overflows although the quotient is t ~= 2.
+    const rt::AABB large_box{{3.0e38f, 0.0f, 0.0f}, {3.1e38f, 1.0f, 1.0f}};
+    const rt::Ray large_hit{{-3.0e38f, 0.5f, 0.5f}, 0.0f, {3.0e38f, 0.0f, 0.0f}, 10.0f};
+    float float_enter = -1.0f;
+    double double_enter = -1.0;
+    bool float_hit = intersect(large_box, large_hit, float_enter);
+    bool double_hit = intersect_double(large_box, large_hit, double_enter);
+    EXPECT_TRUE(double_hit) << "double oracle expects large-coordinate hit";
+    EXPECT_TRUE(float_hit == double_hit) << "subtraction-overflow hit agrees with oracle";
+    if (float_hit) {
+        EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter)));
+    }
+
+    // Mirror the large-coordinate overflow with a negative ray direction.
+    const rt::AABB negative_large_box{{-3.1e38f, 0.0f, 0.0f}, {-3.0e38f, 1.0f, 1.0f}};
+    const rt::Ray negative_large_hit{{3.0e38f, 0.5f, 0.5f}, 0.0f, {-3.0e38f, 0.0f, 0.0f}, 10.0f};
+    float_hit = intersect(negative_large_box, negative_large_hit, float_enter);
+    double_hit = intersect_double(negative_large_box, negative_large_hit, double_enter);
+    EXPECT_TRUE(double_hit) << "oracle expects negative-direction large-coordinate hit";
+    EXPECT_TRUE(float_hit == double_hit);
+    if (float_hit) {
+        EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter)));
+    }
+
+    // The same overflowing subtraction must still reject an interval ending before entry.
+    const rt::Ray large_too_short{{-3.0e38f, 0.5f, 0.5f}, 0.0f, {3.0e38f, 0.0f, 0.0f}, 1.5f};
+    float_enter = -1.0f;
+    double_enter = -1.0;
+    EXPECT_TRUE(!intersect(large_box, large_too_short, float_enter));
+    EXPECT_TRUE(!intersect_double(large_box, large_too_short, double_enter));
+
+    // Two axes require the subnormal fallback simultaneously. Their intervals overlap here.
+    const rt::AABB tiny_xy{{0.0f, 0.0f, 0.0f}, {1.0e-38f, 1.0e-38f, 1.0f}};
+    const rt::Ray overlap{{-1.0e-39f, -5.0e-39f, 0.5f}, 0.0f, {1.0e-39f, 1.0e-39f, 0.0f}, 10.0f};
+    float_hit = intersect(tiny_xy, overlap, float_enter);
+    double_hit = intersect_double(tiny_xy, overlap, double_enter);
+    EXPECT_TRUE(double_hit) << "two fallback axes have overlapping intervals";
+    EXPECT_TRUE(float_hit == double_hit);
+    if (float_hit) {
+        EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter)));
+    }
+
+    // The complete double fallback must retain both signs of parallel zero directions.
+    for (float zero : {0.0f, -0.0f}) {
+        const rt::Ray boundary_parallel{
+            {-1.0e-39f, 0.0f, 0.5f}, 0.0f, {1.0e-39f, zero, 0.0f}, 10.0f};
+        float_hit = intersect(tiny_xy, boundary_parallel, float_enter);
+        double_hit = intersect_double(tiny_xy, boundary_parallel, double_enter);
+        EXPECT_TRUE(double_hit) << "parallel zero on the slab boundary is unconstrained";
+        EXPECT_TRUE(float_hit == double_hit);
+
+        const float outside_y = std::nextafter(0.0f, -std::numeric_limits<float>::infinity());
+        const rt::Ray outside_parallel{
+            {-1.0e-39f, outside_y, 0.5f}, 0.0f, {1.0e-39f, zero, 0.0f}, 10.0f};
+        float_hit = intersect(tiny_xy, outside_parallel, float_enter);
+        double_hit = intersect_double(tiny_xy, outside_parallel, double_enter);
+        EXPECT_TRUE(!double_hit) << "parallel zero outside the slab must miss";
+        EXPECT_TRUE(float_hit == double_hit);
+    }
+
+    // Move the y slab interval past x's exit; both overflowed axes still must produce a miss.
+    const rt::Ray disjoint{{-1.0e-39f, -3.0e-38f, 0.5f}, 0.0f, {1.0e-39f, 1.0e-39f, 0.0f}, 100.0f};
+    float_hit = intersect(tiny_xy, disjoint, float_enter);
+    double_hit = intersect_double(tiny_xy, disjoint, double_enter);
+    EXPECT_TRUE(!double_hit) << "two fallback axes have disjoint intervals";
+    EXPECT_TRUE(float_hit == double_hit);
+
+    // A finite reciprocal can still overflow the distance product near FLT_MAX; this range ends
+    // before the true entry (2 * FLT_MAX), so the exceptional path must preserve the miss.
+    const rt::AABB unit = unit_box();
+    const float max = std::numeric_limits<float>::max();
+    const rt::Ray product_overflow{{-max, 0.5f, 0.5f}, 0.0f, {0.5f, 0.0f, 0.0f}, max};
+    float_hit = intersect(unit, product_overflow, float_enter);
+    double_hit = intersect_double(unit, product_overflow, double_enter);
+    EXPECT_TRUE(!double_hit) << "entry beyond FLT_MAX is outside the finite range";
+    EXPECT_TRUE(float_hit == double_hit);
+
+    // An entry exactly at FLT_MAX is still included by the closed AABB interval.
+    const rt::AABB max_point{{max, 0.0f, 0.0f}, {max, 1.0f, 1.0f}};
+    const rt::Ray max_entry{{0.0f, 0.5f, 0.5f}, 0.0f, {1.0f, 0.0f, 0.0f}, max};
+    float_hit = intersect(max_point, max_entry, float_enter);
+    double_hit = intersect_double(max_point, max_entry, double_enter);
+    EXPECT_TRUE(double_hit) << "oracle expects entry at FLT_MAX";
+    EXPECT_TRUE(float_hit == double_hit);
+    if (float_hit) {
+        EXPECT_TRUE(float_enter == max);
+    }
+}
+
 /// Random boxes and rays, compared against intersect_double().
 ///
 /// Fixed seed. Directions with a zero component are redrawn. Most of these rays miss.

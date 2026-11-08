@@ -1,6 +1,6 @@
 # Interfaces (shared contracts)
 
-**Status: v1.0, PROPOSED.** Sign-off at the team meeting (target **Oct 27**). After that, changes follow [Interface changes](#interface-changes).
+**Status: v1.1, PROPOSED.** The slab-test behavior update for issue #3 is pending review by the affected owners and team sign-off. After sign-off, changes follow [Interface changes](#interface-changes).
 
 This file is the contract that lets each member (and each member's agent) build a part independently and have the parts fit together. If something here turns out wrong during implementation, fix it through a small interface PR. Don't work around it locally. Known gaps that don't need a change yet are tracked in [CONTRACT_NOTES.md](CONTRACT_NOTES.md).
 Signatures are sketches. Field order, sizes, and the stated rules are what matter.
@@ -22,7 +22,7 @@ General rules:
 - C++17. Types used in device code are POD, header-only, and contain no `std::` containers, exceptions, or virtual calls.
 - Indices are `uint32_t`. On-disk data is little-endian.
 - `static_assert(sizeof(T) == N)` for every on-disk or on-device struct.
-- `float` for all scene data and ordinary arithmetic in shared render code, including the CPU reference. **One narrow exception:** the watertight triangle test's `double` fallback when an edge function is exactly zero (see [section 5](#frozen-rules)). It runs identically on CPU and GPU, and fires rarely (on exact edge and vertex hits). No other `double` in render code.
+- `float` for all scene data and ordinary arithmetic in shared render code, including the CPU reference. **Two narrow exceptions:** (1) the watertight triangle test's `double` fallback when an edge function is exactly zero (see [section 5](#frozen-rules)); and (2) the AABB slab test's complete-interval `double` fallback when float reciprocal, subtraction, or distance multiplication overflows (see [section 1](#ray-box-slab-test-frozen)). Both are shared by CPU and GPU; the slab fallback is exceptional and the common path remains float. No other `double` in render code.
 - No `-ffast-math` / `--use_fast_math` anywhere (NaN comparisons below depend on IEEE semantics).
 - **Header-inline device code.** Every `RT_HOSTDEV` function lives inline in a header (`RT_INLINE`), so each `.cu` and `.cpp` translation unit compiles its own copy. No relocatable device code (`-rdc`) and no device linking. `.cpp` files hold host-only code (parsing, IO, builders).
 - FMA contraction differs between compilers, so CPU and GPU outputs differ slightly. Comparison rules are in [BENCHMARKING.md](BENCHMARKING.md#quality-protocol).
@@ -166,37 +166,35 @@ constexpr float RT_GAMMA3 = (3 * RT_EPS) / (1 - 3 * RT_EPS);    // PBRT gamma(3)
 
 ### Ray-box slab test (frozen)
 
-`inv_dir = 1.0f / dir` per component, computed once per ray. A zero component gives `+inf` for `+0` and `-inf` for `-0`. When the origin lies exactly on a slab plane, `0 * ±inf = NaN`.
+For each component, `precompute()` stores `inv_d = 1.0f / dir`, the original direction, a mask for nonzero reciprocal overflow, and the sign used to select near/far planes. Ordinary inputs use the existing float multiply path. If any reciprocal overflows, or a float coordinate difference or distance product becomes non-finite for a nonzero direction, the complete box interval is recomputed in `double`. The fallback restarts from `[t_lo, t_hi]` and recomputes all three axes; it never combines float and double interval endpoints. It uses the original float inputs converted to double, whose exponent range is sufficient for ratios made from finite float coordinates and nonzero finite float directions.
 
-Near and far planes are chosen **from the sign of `inv_dir` before multiplying**, never by comparing the products. Comparing products fails when one of them is NaN. For example, with box `[0,1]³`, origin `(0, 0.5, 0.5)`, and direction `(-0.0, 1, 0)`, comparing gives `tn = NaN`, `tf = -inf`, no swap, and a false miss. Selecting by sign gives `tn = -inf`, `tf = NaN`: the NaN comparisons leave the interval unchanged, and the ray correctly hits. Boxes are closed (boundary inclusive).
+The original subnormal failure occurred because `1.0f / dir` became infinity and the slab calculation lost the direction magnitude. The large-coordinate failure occurs when subtracting opposite-sign finite values (for example, `3e38f - (-3e38f)`) overflows even though dividing the mathematical difference by a large direction gives a small finite distance. Neither case is fixed by clamping the reciprocal.
+
+In the common float path, near/far planes are chosen from the reciprocal sign before multiplication. In the double fallback, they are chosen from the direction sign. Both paths explicitly preserve axis ordering. The fallback treats either `+0` or `-0` as parallel: an origin inside or on the slab leaves the interval unconstrained; an origin outside it misses. In the float path, the existing `0 * ±inf` boundary NaN remains ignored by the interval updates. Boxes are closed (boundary inclusive).
+
+The far distance is widened in both paths by `1 + 2 * RT_GAMMA3` before intersecting with the running interval. The double path uses the same widening factor, which is much larger than double division rounding error. `t_lo` and `t_hi` are converted to double for fallback comparisons; `t_enter` is converted back to float on a hit and can therefore be `+inf` when a hit entry exceeds `FLT_MAX` and the caller supplied an infinite upper bound.
+
+This contract requires finite box endpoints, origin, and direction components (zero directions are valid), an ordered non-NaN t interval, IEEE-style infinities/NaN comparisons, and gradual underflow. CUDA flush-to-zero can turn subnormal directions into zero and invalidate the intended behavior; CUDA compilation and device execution remain to be validated. The double fallback adds exceptional-path FP64 work; the common path retains float arithmetic plus finite-distance checks. The `RayPrecomp` layout grows to retain direction and reciprocal-overflow data; it is not a serialized structure, but callers that aggregate-initialize or depend on its old layout need recompilation and source updates.
 
 ```cpp
-struct RayPrecomp { vec3 inv_d; int neg[3]; };   // neg[a] = (inv_d[a] < 0), computed once per ray
+struct RayPrecomp { vec3 inv_d; vec3 dir; int reciprocal_overflow_mask; int neg[3]; };
 
 RT_INLINE RayPrecomp precompute(const Ray& r) {
   RayPrecomp p;
   p.inv_d = vec3{1.0f / r.dir.x, 1.0f / r.dir.y, 1.0f / r.dir.z};
-  for (int a = 0; a < 3; ++a) p.neg[a] = p.inv_d[a] < 0.0f;   // -0 dir -> -inf -> neg = 1
+  p.dir = r.dir;
+  p.reciprocal_overflow_mask = 0;
+  for (int a = 0; a < 3; ++a) {
+    p.neg[a] = p.inv_d[a] < 0.0f;   // -0 dir -> -inf -> neg = 1
+    if (r.dir[a] != 0 && (p.inv_d[a] > FLT_MAX || p.inv_d[a] < -FLT_MAX))
+      p.reciprocal_overflow_mask |= 1 << a;
+  }
   return p;
 }
 
-RT_INLINE bool intersect_aabb(const AABB& b, const vec3& o, const RayPrecomp& p,
-                              float t_lo, float t_hi, float& t_enter) {
-  float t0 = t_lo, t1 = t_hi;
-  for (int a = 0; a < 3; ++a) {
-    const float near_plane = p.neg[a] ? b.hi[a] : b.lo[a];
-    const float far_plane  = p.neg[a] ? b.lo[a] : b.hi[a];
-    float tn = (near_plane - o[a]) * p.inv_d[a];
-    float tf = (far_plane  - o[a]) * p.inv_d[a];
-    tf *= 1.0f + 2.0f * RT_GAMMA3;        // conservative far bound (PBRT v4, Sec. 6.1)
-    t0 = tn > t0 ? tn : t0;               // keep this form: NaN -> unchanged
-    t1 = tf < t1 ? tf : t1;
-    if (t0 > t1) return false;
-  }
-  t_enter = t0;
-  return true;
-}
 ```
+
+Before returning a float-path miss, the remaining axes are also checked for risk; if a later axis is unsafe, the result is recomputed from the original interval rather than returning a partial-precision miss. On any unsafe axis, the helper starts at `t_lo`/`t_hi`, checks zero directions explicitly, divides double-precision plane differences by the double direction, widens each far distance, and intersects all three intervals. On a safe box, the original float loop and NaN-preserving min/max updates are used.
 
 Why it works for a zero component on axis `a` (finite origin, non-empty box):
 
@@ -214,6 +212,12 @@ Required tests (CI):
 - Ray starting inside → hit with `t_enter = t_lo`.
 - Box entirely behind the origin → miss.
 - Non-axis-aligned rays agree with a double-precision reference on random boxes.
+- The issue #3 case, positive and negative subnormal hits on all three axes, and directions on either side of the reciprocal-overflow threshold agree with the double-precision reference.
+- The large-coordinate subtraction-overflow example, its negative-direction mirror, and large-coordinate restricted-range miss agree with the double-precision reference.
+- Positive and negative threshold-adjacent directions, simultaneous overflow on multiple axes with overlapping and disjoint intervals, and distance-product overflow agree with the oracle.
+- Entries at `FLT_MAX`, very small normal directions, both signed zeros, boundary origins, outside parallel rays, and restricted `t_lo`/`t_hi` retain the required behavior.
+
+The candidate version change is v1.1 under the written interface-change workflow because the numeric rule changes. Issue #3 discussion notes that v1.0 is still proposed and the behavior may be settled before sign-off, so whether to fold this into v1.0 or retain v1.1 is pending affected-owner/team review. No approval is implied. The fallback covers finite inputs within double's range; it does not promise finite `t_enter` when the entry exceeds `FLT_MAX`, and NaN inputs remain outside the contract. CUDA FTZ must remain disabled for subnormal directions; this requirement is documented but not enforced by the build system. The ordinary path performs float arithmetic and finite-distance checks; exceptional boxes recompute all axes in double.
 
 ## 2. Scene, image, and file formats
 
