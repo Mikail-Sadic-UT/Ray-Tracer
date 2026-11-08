@@ -770,7 +770,7 @@ Owner: Arek. Definitions and protocol: [BENCHMARKING.md](BENCHMARKING.md#timing-
 
 | Diagnostic | Phase | Notes |
 |---|---|---|
-| `render_kernel` | Frame (CUDA) | Kernel-only `cudaEvent` time. Overlaps `render`. Zero on the CPU backend |
+| `render_kernel` | Frame (CUDA) | Kernel-only `cudaEvent` time. Overlaps `render`. CUDA backends only; omitted from `diagnostics` on the CPU backend, where `Timings::render_kernel` stays 0 |
 
 Components are host wall-clock intervals (`steady_clock`) with `cudaDeviceSynchronize` at stage boundaries. A diagnostic overlaps a component (`render_kernel` is part of the `render` interval), so it is reported in the run's `diagnostics` object, never in `components`, and is excluded from `unattributed` and from the totals. **Totals are measured directly with their own timer.** `unattributed = total − Σ components` is reported, not assumed to be zero.
 
@@ -805,7 +805,7 @@ Components are host wall-clock intervals (`steady_clock`) with `cudaDeviceSynchr
 ```
 
 - `spread = (max − min) / median`.
-- `diagnostics` holds overlapping measurements such as `render_kernel`. Its values are never summed with `components`. It is present in every run of `build_and_render` and `frame`, empty when the backend records none.
+- `diagnostics` holds overlapping measurements such as `render_kernel`. Its values are never summed with `components`. It is present in every run of `build_and_render` and `frame`, empty when the backend records none. `app` has no `diagnostics`; the kernel time is reported per run.
 - `median_run_index` identifies the run whose components explain the median total. Medians of individual components are not summed.
 
 ## Interface changes
