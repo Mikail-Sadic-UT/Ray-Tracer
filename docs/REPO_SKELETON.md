@@ -22,7 +22,7 @@
 │   ├── bvh/        (Jett)      bvh_types.hpp  bvh.hpp  bounds.cpp  build_median.cpp  build_lbvh.cpp  layout.cpp  build_sah.cpp  validate.cpp
 │   │                           morton.hpp  radix_sort.hpp
 │   ├── trace/      (Mikail)    hit.hpp  intersect.hpp  traverse.hpp  brute.hpp
-│   ├── shade/      (Arek)      pixel_result.hpp  render_pixel.hpp  shade.hpp  lights.hpp  offset.hpp
+│   ├── shade/      (Arek)      shading.hpp  render_pixel.hpp  shade.hpp  lights.hpp  offset.hpp
 │   ├── cpu/        (Po)        cpu_backend.hpp  cpu_backend.cpp
 │   ├── gpu/        (Mikail, Arek)
 │   │   ├── device_scene.hpp   device_scene.cu      # DeviceScene, memory modes
