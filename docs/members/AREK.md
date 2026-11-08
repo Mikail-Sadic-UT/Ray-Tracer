@@ -11,7 +11,7 @@
 4. [BENCHMARKING timing quantities](../BENCHMARKING.md#timing-quantities) (what the harness measures)
 5. [INTERFACES §5 Hit and traversal rules](../INTERFACES.md#5-intersection-and-traversal) (what you consume)
 
-**Open issues first** ([WORKFLOW](../WORKFLOW.md#start-with-open-issues)): #2 (`normalize()` range), #3 (slab test with subnormal directions), #4 (proposed §1 changes). #2 and #3 are correctness bugs in code everyone builds on.
+**Open issues first** ([WORKFLOW](../WORKFLOW.md#start-with-open-issues)): #3 (slab test with subnormal directions), #4 (proposed §1 changes). Issue #3 is a correctness bug in code everyone builds on.
 
 **First three tasks:**
 1. Math library (`hostdev.hpp`, `math.hpp`, `ray.hpp`, `aabb.hpp`) with the ray-box slab tests, merged **by Oct 27**.
@@ -119,4 +119,4 @@ Ray Tracing Gems I Ch. 6 (self-intersection offset); PBRT v4 (floating-point err
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|
 | Oct 24–30 | | | |
-| Nov 1–7 | `NormalShading`, `surface_at`, `SurfacePoint` and `PixelResult` in `shade/shading.hpp`, with tests | #23, #24 | |
+| Nov 1–7 | Implemented scale-first `normalize()` for finite, nonzero vectors; added regression tests for extreme, subnormal, and widely separated magnitudes. `NormalShading`, `surface_at`, `SurfacePoint` and `PixelResult` in `shade/shading.hpp`, with tests | #2, #23, #24 | — |
