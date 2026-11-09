@@ -8,6 +8,7 @@
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <string>
+#include <string_view>
 
 #include "core/aabb.hpp"
 #include "core/error.hpp"
@@ -21,11 +22,16 @@ namespace rt::detail {
 }
 
 /// Requires an object member instead of silently supplying a default.
+///
+/// @p path is a `std::string_view`: a `const std::string&` bound to a temporary makes GCC 13
+/// warn that the returned reference may dangle, although it points into @p object (#11).
+/// An empty @p path is the document root.
 inline const nlohmann::json& member(const nlohmann::json& object, const char* key,
-                                    const std::string& path) {
-    if (!object.is_object()) scene_error(path, "expected an object");
+                                    std::string_view path) {
+    const std::string where(path);
+    if (!object.is_object()) scene_error(where.empty() ? "<root>" : where, "expected an object");
     const auto it = object.find(key);
-    if (it == object.end()) scene_error(path.empty() ? key : path + "." + key, "missing field");
+    if (it == object.end()) scene_error(where.empty() ? key : where + "." + key, "missing field");
     return *it;
 }
 
