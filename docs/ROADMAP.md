@@ -140,6 +140,7 @@ The table above lists the stand-ins the plan expects. This register lists the on
 
 | ID | Used by | Where | Stands in for | Remove when | Status |
 |---|---|---|---|---|---|
+| S3 | Po (`rt_gen`) | `src/scene/terrain_stub.hpp` | Jett's terrain height-field/grid generator | Adopt Jett's terrain hand-off, delete the stub and generator metadata marker; track in #35 | open |
 
 `Status` is `open` while the real thing hasn't landed, and `ready to remove` once it has but the stub is still in the code. Add a row in the PR that adds the stub (next free ID, `S1`, `S2`, ...), and delete the row in the PR that removes it. The weekly meeting reads this table.
 
