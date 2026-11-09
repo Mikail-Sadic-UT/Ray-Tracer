@@ -258,7 +258,7 @@ Coordinates: right-handed, **Y-up**.
 | Item | Requirement | Otherwise |
 |---|---|---|
 | All coordinates, radii, colors, intensities, `ambient`, `shininess` | Finite (no NaN/Inf) | Reject |
-| Sphere centers and radii, triangle vertices, light positions, camera `position` and `look_at` | Every component `|x| ≤ 1e18` (`RT_MAX_COORD`), so the slab test's `plane - origin` can't overflow ([section 1](#ray-box-slab-test-frozen)) | Reject |
+| Sphere centers and radii, triangle vertices, light positions, camera `position` and `look_at` | Every component `|x| ≤ 1e18` (`RT_MAX_COORD` in `core/aabb.hpp`), so the slab test's `plane - origin` can't overflow ([section 1](#ray-box-slab-test-frozen)). The camera part is in `validate_camera`, so it also holds after CLI overrides | Reject |
 | Sphere `radius` | `> 0` | Reject |
 | Triangle vertices | Finite. Degenerate (zero-area) triangles are allowed and never hit. | Allowed |
 | `material_id` | `< num_materials`. At least one material if any primitive exists. | Reject |
