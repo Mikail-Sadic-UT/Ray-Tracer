@@ -13,8 +13,8 @@
 #include "trace/brute.hpp"
 
 namespace {
-rt::SceneHost known_scene() {
-    return rt::load_scene(std::string(RT_TEST_SCENES_DIR) + "/known_two_spheres.json");
+rt::SceneHost known_scene(const char* name = "known_two_spheres") {
+    return rt::load_scene(std::string(RT_TEST_SCENES_DIR) + "/" + name + ".json");
 }
 }  // namespace
 
@@ -65,4 +65,44 @@ TEST(CpuNormal, KnownPixelsAndOutputReuse) {
     EXPECT_TRUE(image.prim_id.empty());
     EXPECT_TRUE(image.light_mask.empty());
     EXPECT_THROW(rt::render_normal(scene, image, {0, false, false}, timings), rt::Error);
+}
+
+/// The degenerate-triangle scene is the two-sphere scene plus a zero-area triangle. A
+/// zero-area triangle is never hit, so its image must be bit-identical to the two-sphere one.
+TEST(CpuNormal, ZeroAreaTriangleIsNeverHit) {
+    const auto base = known_scene();
+    const auto degenerate = known_scene("known_degenerate_triangle");
+    ASSERT_EQ(degenerate.spheres.size(), base.spheres.size());
+    ASSERT_EQ(degenerate.triangles.size(), base.triangles.size() + 1);
+    const auto& extra = degenerate.triangles.back();
+    ASSERT_EQ(rt::length(rt::cross(extra.v1 - extra.v0, extra.v2 - extra.v0)), 0.0f);
+    const uint32_t extra_id =
+        rt::PRIM_TRIANGLE_BIT | static_cast<uint32_t>(degenerate.triangles.size() - 1);
+
+    rt::Image expected, image;
+    rt::Timings timings;
+    rt::render_normal(base, expected, {4, true, false}, timings);
+    rt::render_normal(degenerate, image, {4, true, false}, timings);
+    ASSERT_EQ(image.rgb.size(), expected.rgb.size());
+    EXPECT_EQ(std::memcmp(image.rgb.data(), expected.rgb.data(), image.rgb.size() * sizeof(float)),
+              0);
+    EXPECT_EQ(image.prim_id, expected.prim_id);
+    for (const uint32_t id : image.prim_id) ASSERT_NE(id, extra_id);
+}
+
+/// The single-sphere scene loads, renders finite pixels, and shows its sphere and floor.
+TEST(CpuNormal, SingleSphereSceneRenders) {
+    const auto scene = known_scene("known_single_sphere");
+    ASSERT_EQ(scene.spheres.size(), 1u);
+    rt::Image image;
+    rt::Timings timings;
+    rt::render_normal(scene, image, {4, true, false}, timings);
+    bool sphere = false, floor = false;
+    for (const uint32_t id : image.prim_id) {
+        sphere = sphere || id == 0u;
+        floor = floor || (id != rt::RT_MISS_PRIM && (id & rt::PRIM_TRIANGLE_BIT) != 0);
+    }
+    EXPECT_TRUE(sphere);
+    EXPECT_TRUE(floor);
+    for (const float value : image.rgb) ASSERT_TRUE(std::isfinite(value));
 }
