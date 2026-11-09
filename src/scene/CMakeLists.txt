@@ -1,4 +1,4 @@
-add_library(rt_scene STATIC scene_io.cpp hash.cpp)
+add_library(rt_scene STATIC scene_io.cpp hash.cpp binary_io.cpp)
 target_link_libraries(rt_scene PUBLIC rt_camera rt_core nlohmann_json::nlohmann_json)
 
 # BUILD.md requires contraction disabled for canonical scene-hash sources.

@@ -9,8 +9,8 @@
 
 namespace rt {
 
-/// Parses version 2 inline geometry, validates it, and computes its canonical scene hash.
-/// Binary geometry is rejected until the binary reader is implemented.
+/// Parses version 2 inline or binary geometry, validates it, and computes its scene hash.
+/// Binary paths in this in-memory API resolve against the current working directory.
 /// @throws Error for invalid schema or scene fields, naming the field and array index.
 SceneHost parse_scene(const nlohmann::json& document);
 
@@ -26,6 +26,13 @@ nlohmann::json scene_to_json(const SceneHost& scene);
 /// Writes a validated inline JSON scene. Recomputes the hash when the file is loaded again.
 /// @throws Error on validation or file write failure.
 void save_scene(const std::string& path, const SceneHost& scene);
+
+/// Saves a .json metadata file and a sibling .bin geometry file with matching stem.
+/// Binary geometry references in load_scene resolve relative to the JSON file's directory.
+/// Optional generator metadata is emitted unchanged, outside the canonical scene hash.
+/// @throws Error if the destination is not .json, validation fails, or files cannot be written.
+void save_binary_scene(const std::string& path, const SceneHost& scene,
+                       const nlohmann::json& generator);
 
 /// Validates scenes assembled by code, or after camera/resolution overrides.
 /// Core accepts point lights only. The light-mask flag additionally limits lights to 32.
