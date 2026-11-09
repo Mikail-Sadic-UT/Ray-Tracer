@@ -64,6 +64,7 @@ TEST_F(Compare, RejectsInteriorColorBlock) {
     EXPECT_EQ(rt::compare_images(reference, changed).shading_mismatches, 100u);
 }
 
+// STUB(S5, po): remove when LitShading lands and corruption test 4 uses a real lit image (#43).
 /// Synthetic masks model a uniformly lit floor region until real Lambert reference images exist.
 TEST_F(Compare, RejectsSyntheticShadowBlock) {
     auto lit = reference;
