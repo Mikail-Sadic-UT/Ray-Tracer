@@ -476,7 +476,7 @@ constexpr int RT_FALLBACK_DEPTH = 32;  // see depth cap
 struct Bvh {                   // host, owning
   std::vector<BvhNode> nodes;  // nodes[0] = root; empty if the scene is empty
   std::vector<PrimRef> prim_refs;
-  BvhStats stats;              // nodes, leaves, depth, fallbacks, sah_cost
+  BvhStats stats;              // nodes, leaves, depth, fallbacks, sah_cost, max_leaf_size (the build parameter, so the validator can check leaves)
 };
 struct BvhView { const BvhNode* nodes; const PrimRef* prim_refs; uint32_t num_nodes; };
 ```
