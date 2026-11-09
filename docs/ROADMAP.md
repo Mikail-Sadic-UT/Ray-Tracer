@@ -353,7 +353,7 @@ Updated by Jett weekly.
 | C3 | Partly done | Camera/IO (#16, #17), Hit/intersection/BruteQuery (#20, #21), NormalShading (#24), and render_pixel (#33) landed. CPU normal previews with saved PNG/PFM/AOVs implemented via scene_dump (#35); canonical rt_render integration and reference-platform verification pending |
 | C3G (GPU smoke) | Partly done | `render_pixel<BruteQuery, NormalShading>` runs in a CUDA test kernel on `known_two_spheres` and matches the CPU image (0 `prim_id` differences on the laptop, #33). `DeviceScene`, the kernel in `src/gpu/`, and `rt_render --backend cuda` not started |
 | C11 builder decision | Pending | Nov 10: LBVH or task-parallel median |
-| C5 | Partly done | Median builder and validator merged (#31). Traversal and BVH-vs-brute-force test not started |
+| C5 | Partly done | Median builder and validator merged (#31). Follow-up #39 hardens large-coordinate SAH diagnostics and nonfinite-bound validation, with analytic, degenerate and clustered tests (#40). Traversal and BVH-vs-brute-force integration remain Mikail/Po hand-offs |
 | C6 | Partly done | Version 2 binary IO and development uniform generation implemented (#35), with exact counts, canonical hashes and fitted camera. Terrain S3, canonical manifest/release and reference-platform checks pending |
 | C7 | Partly done | Deterministic 16x16 OpenMP normal-render loop (#35); full Backend, lit shading and BVH traversal integration pending |
 | C8 | Partly done | rt_compare core CLI/logic tests (#35), three known normal-image corruptions plus a synthetic shadow-mask corruption. Real lit-image corruption fixtures, oracle and golden integration still required |
