@@ -352,5 +352,5 @@ Updated by Jett weekly.
 | C3 | Partly done | Camera and camera IO merged (#16, #17). `Hit` merged (#20). Intersection, brute-force queries, and `BruteQuery` merged (#21). `NormalShading` and `surface_at` merged (#24). `render_pixel` merged (#33). Brute-force CPU image not started |
 | C3G (GPU smoke) | Partly done | `render_pixel<BruteQuery, NormalShading>` runs in a CUDA test kernel on `known_two_spheres` and matches the CPU image (0 `prim_id` differences on the laptop, #33). `DeviceScene`, the kernel in `src/gpu/`, and `rt_render --backend cuda` not started |
 | C11 builder decision | Pending | Nov 10: LBVH or task-parallel median |
-| C5 | Partly done | Median builder and validator merged (#31). Traversal and BVH-vs-brute-force test not started |
+| C5 | Partly done | Median builder and validator merged (#31). Follow-up #39 hardens large-coordinate SAH diagnostics and nonfinite-bound validation, with analytic/clustered/thread-count tests; runtime verification pending. Traversal and BVH-vs-brute-force integration remain Mikail/Po hand-offs |
 | C4, C6–C10, C12–C14 | Not started | |
