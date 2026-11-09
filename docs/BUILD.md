@@ -181,12 +181,12 @@ The CPU normal renderer and comparison tools can be exercised before the full Ba
 `rt_render` integration land:
 
 ```bash
-mkdir -p build-mac/previews build-mac/generated
-./build-mac/apps/scene_dump/scene_dump scenes/known/known_two_spheres.json \
-  --render-normal build-mac/previews/known.pfm --png build-mac/previews/known.png --render-threads 4
-./build-mac/apps/rt_compare/rt_compare build-mac/previews/known.pfm build-mac/previews/known.pfm
-./build-mac/apps/rt_gen/rt_gen --layout uniform --primitives 10000 --seed 1 \
-  --out build-mac/generated/dev_uniform_10000
+mkdir -p build/previews build/generated
+./build/apps/scene_dump/scene_dump scenes/known/known_two_spheres.json \
+  --render-normal build/previews/known.pfm --png build/previews/known.png --render-threads 4
+./build/apps/rt_compare/rt_compare build/previews/known.pfm build/previews/known.pfm
+./build/apps/rt_gen/rt_gen --layout uniform --primitives 10000 --seed 1 \
+  --out build/generated/dev_uniform_10000
 ```
 
 Normal previews are for correctness and demonstrations, not benchmark timings. Generation
