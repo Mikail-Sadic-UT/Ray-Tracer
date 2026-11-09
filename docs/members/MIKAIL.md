@@ -34,7 +34,7 @@
 | `vec3`, `Ray`, `AABB`, slab test | Arek (landed) | Nothing |
 | `Scene` view | Po (landed, `scene/scene.hpp`) | Nothing |
 | `Timings` | Arek (struct landed, #22) | Nothing: `DeviceScene::upload` and `Backend::prepare` take `Timings&` |
-| `Bvh` | Jett (Nov 6) | A hand-built 3-node BVH |
+| `Bvh` | Jett (median builder landed, #31) | Nothing |
 | `shade_hit` | Arek (Nov 6) | `NormalShading` |
 
 **Done means:** BVH traversal gives identical hits to brute force (same `prim`, bit-identical `t`) on random rays. GPU vs CPU passes `rt_compare` on the known scenes and `bench_100k`, on both machines. Repeated GPU runs are bit-identical.

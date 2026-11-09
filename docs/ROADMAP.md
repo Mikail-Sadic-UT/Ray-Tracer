@@ -352,4 +352,5 @@ Updated by Jett weekly.
 | C3 | Partly done | Camera and camera IO merged (#16, #17). `Hit` merged (#20). Intersection, brute-force queries, and `BruteQuery` merged (#21). `NormalShading` and `surface_at` merged (#24). Brute-force CPU image not started |
 | C3G (GPU smoke) | Not started | Target ~Nov 3 |
 | C11 builder decision | Pending | Nov 10: LBVH or task-parallel median |
-| C4–C10, C12–C14 | Not started | |
+| C5 | Partly done | Median builder and validator merged (#31). Traversal and BVH-vs-brute-force test not started |
+| C4, C6–C10, C12–C14 | Not started | |
