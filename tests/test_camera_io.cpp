@@ -114,6 +114,8 @@ TEST(CameraIoTest, ValidationRejectsInvalidCameras) {
         {[](auto& c) { c.vfov_deg = -10; }, "camera.vfov_deg"},
         {[&](auto& c) { c.vfov_deg = inf; }, "camera.vfov_deg"},
         {[&](auto& c) { c.position.z = nan; }, "camera.position[2]"},
+        {[](auto& c) { c.position.x = -2e18f; }, "camera.position[0]"},
+        {[](auto& c) { c.look_at.y = 3e38f; }, "camera.look_at[1]"},
         {[&](auto& c) { c.look_at.y = inf; }, "camera.look_at[1]"},
         {[&](auto& c) { c.up.x = nan; }, "camera.up[0]"},
         {[](auto& c) { c.width = 0; }, "camera.width"},

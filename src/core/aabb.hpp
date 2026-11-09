@@ -16,6 +16,10 @@ constexpr float RT_EPS = 5.9604645e-8f;
 /// gamma(3) = 3u / (1 - 3u): relative error bound after three float roundings (PBRT).
 constexpr float RT_GAMMA3 = (3.0f * RT_EPS) / (1.0f - 3.0f * RT_EPS);
 
+/// Largest allowed magnitude of any world coordinate or sphere radius (INTERFACES section 2,
+/// enforced at load). Keeps `plane - origin` in intersect_aabb() from overflowing float.
+constexpr float RT_MAX_COORD = 1.0e18f;
+
 /// Closed axis-aligned box `[lo, hi]` (24 bytes, POD).
 ///
 /// The empty box is `lo = {+inf, +inf, +inf}`, `hi = {-inf, -inf, -inf}`; growing it by a point

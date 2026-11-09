@@ -38,9 +38,7 @@ std::string indexed(const char* array, size_t index) {
 void validate_scene(const SceneHost& scene, bool require_light_mask) {
     validate_counts(scene.spheres.size(), scene.triangles.size(), scene.materials.size(),
                     scene.lights.size());
-    validate_camera(scene.camera);
-    world_vec3(scene.camera.position, "camera.position");
-    world_vec3(scene.camera.look_at, "camera.look_at");
+    validate_camera(scene.camera);  // includes the coordinate bound, so overrides get it too
     nonnegative_vec3(scene.background, "background");
     finite_float(scene.ambient, "ambient");
     if (scene.ambient < 0.0f) scene_error("ambient", "must be nonnegative");
@@ -61,8 +59,7 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
         world_vec3(sphere.center, path + ".center");
         finite_float(sphere.radius, path + ".radius");
         if (sphere.radius <= 0.0f) scene_error(path + ".radius", "must be positive");
-        if (sphere.radius > RT_MAX_COORD)
-            scene_error(path + ".radius", "exceeds the coordinate bound 1e18");
+        bounded_float(sphere.radius, path + ".radius");
         if (sphere.material_id >= scene.materials.size())
             scene_error(path + ".material_id", "must index an existing material");
     }
