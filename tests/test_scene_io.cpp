@@ -240,9 +240,11 @@ TEST_F(SceneIo, ChecksLightCountOnlyForLightMask) {
     expect_error([&] { rt::validate_scene(scene, true); }, "lights");
 }
 
-/// Generated binary references must fail explicitly until the binary reader lands.
-TEST_F(SceneIo, RejectsBinaryGeometryForNow) {
-    document["geometry"] = {{"binary", "scene.bin"}};
+/// Binary and inline geometry cannot be mixed, and binary filenames must be nonempty strings.
+TEST_F(SceneIo, RejectsAmbiguousBinaryGeometry) {
+    document["geometry"]["binary"] = "scene.bin";
+    expect_error([&] { rt::parse_scene(document); }, "geometry");
+    document["geometry"] = {{"binary", ""}};
     expect_error([&] { rt::parse_scene(document); }, "geometry.binary");
 }
 
