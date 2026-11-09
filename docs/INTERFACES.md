@@ -41,7 +41,7 @@ These are the mundane choices that four independently written modules must share
 | Types | `PascalCase`. Exceptions kept from the math library: `vec3`, `color` | `BvhNode`, `PixelResult` |
 | Functions, variables, members | `snake_case` | `traverse_closest`, `num_spheres` |
 | Enums | `enum class` by default. Flag sets that are stored in files or bit-ORed (`MaterialFlags`, `LightType`, `AovFlags`) stay plain `enum : uint32_t` | `BvhMethod::LBVH` |
-| Files | `snake_case`. `.hpp` headers, `.cpp` host sources, `.cu` CUDA sources (only in `src/gpu/`, `src/optix/`, `apps/hello_cuda/`) | `device_scene.cu` |
+| Files | `snake_case`. `.hpp` headers, `.cpp` host sources, `.cu` CUDA sources (only in `src/gpu/`, `src/optix/`, `apps/hello_cuda/`, and CUDA-only test targets in `tests/`) | `device_scene.cu` |
 | Header guard | `#pragma once` | |
 | Integers | `<cstdint>` fixed-width types in shared structs (`uint32_t`, `uint64_t`); `size_t` for host container sizes | |
 

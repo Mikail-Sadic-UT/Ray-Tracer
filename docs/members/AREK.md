@@ -96,8 +96,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 |---|---|---|
 | Oct 27 | Math library + slab tests merged; review INTERFACES §1, §6, §8 and sign off | M |
 | Oct 30 | `NormalShading` (for first images) and `PixelResult`, in `shade/shading.hpp` (landed, #24) | S |
-| Oct 30 | `render_pixel` in `shade/render_pixel.hpp` (proposed owner, [ROADMAP blocker 3](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | S |
-| Nov 6 | `surface_at` (landed, #24), `offset_ray_origin`, `light_sample`, `shade_hit` with analytic tests; double-precision oracle; harness on CPU; golden tests | M |
+| Nov 6 | `surface_at` (landed, #24), `offset_ray_origin`, `light_sample`, `shade_hit` with analytic tests (and add the `LitShading` default to `render_pixel`, W7); double-precision oracle; harness on CPU; golden tests | M |
 | Nov 13 | Harness on GPU (`cuda_init`, `cudaEvent` stages); T_app process script | S |
 | Nov 18 | Target ratios and breakdown plots | M |
 | Later | E2 Blinn-Phong + directional lights (after G2); E5 wavefront queues/shade/accumulate (after G3); OptiX pairing (stretch) | |
