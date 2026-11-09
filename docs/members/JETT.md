@@ -21,7 +21,7 @@
 | What | To | When | Contract |
 |---|---|---|---|
 | `camera_ray`, `Camera` parsing and overrides | Everyone's renderers | Landed (#16, #17: `camera.hpp`, `camera_io.hpp`) | §4 |
-| `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Landed (#31: `bvh/bvh.hpp`, serial); diagnostic/validation follow-up #39 | §3 |
+| `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Landed (#31: `bvh/bvh.hpp`, serial); validation and SAH follow-up landed (#40) | §3 |
 | Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Nov 6 | [scene families](../BENCHMARKING.md#scene-families) |
 | Expected shading values for analytic tests | Arek | Nov 6 | [quality protocol §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
 | `Bvh` from the parallel builder | Everyone | Nov 13 | §3 |
@@ -86,7 +86,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 |---|---|---|
 | Oct 27 | Review INTERFACES §3–4 and sign off | S |
 | Oct 30 | `camera_ray` + tests | S |
-| Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat (landed, #31); large-scene SAH and acceptance-coverage follow-up #39 | M |
+| Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat (landed, #31); large-scene SAH and acceptance-coverage follow-up (landed, #40) | M |
 | Nov 6 | Terrain height field for `rt_gen` | S |
 | Nov 6 | Shading expected values for Arek's tests (hand calculations or Python) | S |
 | Nov 10 | **Decision:** if LBVH passes the validator and determinism tests, continue with it. Otherwise ship the task-parallel median builder (an accepted path, not a miss) | |
@@ -96,15 +96,6 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Later | E3 binned SAH (after G2), E6 `obj2bin` + Blender (after G3), backup for E4 Embree | |
 
 ## Risks
-
-Median-builder follow-up (#39): host-only SAH area arithmetic uses double to
-avoid float area overflow for valid large-coordinate scenes; shared render math
-is unchanged. The validator rejects nonfinite node bounds and clears stale error
-messages. Tests cover analytic SAH at two scales, zero-area triangles, clustered
-scenes with 1/8/72 requested threads, and reused preparation timings. Local CMake
-Tools cannot configure/build targets; reference CPU/CUDA checks are pending CI
-and teammate verification. Production traversal and BVH-vs-brute-force integration
-remain Mikail/Po hand-offs, not part of the serial builder implementation.
 
 | Risk | Mitigation |
 |---|---|
@@ -122,4 +113,4 @@ Karras 2012 (LBVH); PBRT v4 Ch. 7; Jacco Bikker, "How to build a BVH"; Wald 2007
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Bounds stage, serial median builder, `validate_bvh`, and `BvhStats` in `bvh/bvh.hpp`, with builder and validator tests | #31 | — |
-| Nov 8–14 | Hardened nonfinite-bound validation and large-scale SAH diagnostics; added independent analytic SAH, degenerate geometry, clustered thread-count determinism and timing-reset tests. Local runtime verification unavailable; CI verification required. | #39; branch `jett/bvh-median-builder` | — |
+| Nov 8–14 | Hardened nonfinite-bound validation and large-scale SAH diagnostics; added independent analytic SAH, degenerate geometry, clustered thread-count determinism and timing-reset tests | #39, #40 | — |
