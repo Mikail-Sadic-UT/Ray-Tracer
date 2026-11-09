@@ -351,6 +351,6 @@ Updated by Jett weekly.
 | C2 | Partly done | Merged on `dev`: math library and `AABB` slab tests (#1, #13), scene types, IO, validation, hash, image IO and `scene_dump` (#9), `bvh_types.hpp` (#18), `Timings` (#22), subnormal slab fix and 1e18 coordinate bound (#30) |
 | C3 | Partly done | Camera and camera IO merged (#16, #17). `Hit` merged (#20). Intersection, brute-force queries, and `BruteQuery` merged (#21). `NormalShading` and `surface_at` merged (#24). `render_pixel` merged (#33). Brute-force CPU image not started |
 | C3G (GPU smoke) | Partly done | `render_pixel<BruteQuery, NormalShading>` runs in a CUDA test kernel on `known_two_spheres` and matches the CPU image (0 `prim_id` differences on the laptop, #33). `DeviceScene`, the kernel in `src/gpu/`, and `rt_render --backend cuda` not started |
-| C11 builder decision | Pending | Nov 10: LBVH or task-parallel median |
+| C11 builder decision | Pending (Nov 9) | Draft LBVH on `jett/lbvh` (#37): Morton sort, hierarchy tasks, layout conversion and initial tests. Parallel Karras/refit, parallel layout, depth-32 subtree recovery and runtime verification remain outstanding. Nov 10 decision is not yet satisfied |
 | C5 | Partly done | Median builder and validator merged (#31). Traversal and BVH-vs-brute-force test not started |
 | C4, C6–C10, C12–C14 | Not started | |

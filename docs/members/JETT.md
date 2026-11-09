@@ -24,7 +24,7 @@
 | `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Landed (#31: `bvh/bvh.hpp`, serial) | §3 |
 | Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Nov 6 | [scene families](../BENCHMARKING.md#scene-families) |
 | Expected shading values for analytic tests | Arek | Nov 6 | [quality protocol §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
-| `Bvh` from the parallel builder | Everyone | Nov 13 | §3 |
+| `Bvh` from the parallel builder | Everyone | Draft on `jett/lbvh` (#37); not ready for integration | §3 |
 
 **You depend on:**
 
@@ -90,12 +90,30 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Nov 6 | Terrain height field for `rt_gen` | S |
 | Nov 6 | Shading expected values for Arek's tests (hand calculations or Python) | S |
 | Nov 10 | **Decision:** if LBVH passes the validator and determinism tests, continue with it. Otherwise ship the task-parallel median builder (an accepted path, not a miss) | |
-| Nov 13 | Parallel builder (LBVH preferred), layout conversion, depth fallback | L |
+| Nov 13 | Parallel builder (LBVH preferred), layout conversion, depth fallback: draft in progress (#37), acceptance pending | L |
 | Nov 18 | Preparation scaling, B = 1→72, per stage | M |
 | Weekly | Status table in [ROADMAP](../ROADMAP.md#status), weekly meeting | S |
 | Later | E3 binned SAH (after G2), E6 `obj2bin` + Blender (after G3), backup for E4 Embree | |
 
 ## Risks
+
+### Current LBVH draft (Nov 9)
+
+The `jett/lbvh` branch contains parallel bounds generation, stable Morton radix
+sorting, recursive OpenMP hierarchy tasks, serial sibling-adjacent layout conversion
+and leaf collapse, and an initial whole-tree median recovery. These are draft work,
+not a completed implementation of INTERFACES §3. The remaining work is tracked in
+[#37](https://github.com/Mikail-Sadic-UT/Ray-Tracer/issues/37): parallel Karras
+hierarchy construction, atomic `acq_rel` bottom-up refit, parallel layout conversion,
+and the specified depth-32 subtree recovery. The existing 17-primitive determinism
+test does not exercise the hierarchy task threshold (>1024 primitives).
+
+CMake Tools currently exposes no configured targets; CPU/CUDA compilation and
+runtime verification remain pending. Editing/formatting was performed from native
+Windows with WSL clang-format; the reference GCC 13/CUDA environment was not verified.
+The Nov 10 LBVH versus task-parallel median decision remains pending test results.
+Terrain and independent analytic shading values can be prepared before their
+integration into Po's generator and Arek's shading path; they are not blocked tasks.
 
 | Risk | Mitigation |
 |---|---|
@@ -113,3 +131,4 @@ Karras 2012 (LBVH); PBRT v4 Ch. 7; Jacco Bikker, "How to build a BVH"; Wald 2007
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Bounds stage, serial median builder, `validate_bvh`, and `BvhStats` in `bvh/bvh.hpp`, with builder and validator tests | #31 | — |
+| Nov 8–14 | Preserved the LBVH draft, added Morton sorting, hierarchy tasks, layout conversion and initial determinism cases; merged current `dev` and retained upstream validator fixes. Contract compliance and CPU/CUDA runtime verification remain pending. | #37; branch `jett/lbvh` | — |
