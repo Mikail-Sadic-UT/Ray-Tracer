@@ -29,6 +29,8 @@ struct BvhStats {
     uint32_t depth = 0;
     uint32_t fallbacks = 0;
     double sah_cost = 0.0;
+    /// Leaf-size limit the tree was built with; checked by the validator.
+    uint32_t max_leaf_size = 4;
 };
 
 /// Owning host BVH. Node zero is the root when the scene is nonempty.
@@ -42,9 +44,9 @@ struct Bvh {
 /// @throws Error if parameters are invalid or an unimplemented method is selected.
 Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings);
 
-/// Checks structure, primitive coverage, bounds, leaf sizes, and depth.
+/// Checks structure, primitive coverage, bounds, depth, and leaf sizes against
+/// `bvh.stats.max_leaf_size`.
 /// @return True when the BVH satisfies the frozen layout contract.
-bool validate_bvh(const Bvh& bvh, const Scene& scene, std::string* error = nullptr,
-                  uint32_t max_leaf_size = 4);
+bool validate_bvh(const Bvh& bvh, const Scene& scene, std::string* error = nullptr);
 
 }  // namespace rt

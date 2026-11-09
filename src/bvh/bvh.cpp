@@ -25,9 +25,15 @@ AABB empty_box() {
     return {{inf, inf, inf}, {-inf, -inf, -inf}};
 }
 
+/// Rounds `center ± radius` outward by one ulp, so rounding never clips the sphere.
 AABB sphere_bounds(const Sphere& s) {
-    const vec3 r{s.radius, s.radius, s.radius};
-    return {s.center - r, s.center + r};
+    const float inf = std::numeric_limits<float>::infinity();
+    AABB b;
+    for (int a = 0; a < 3; ++a) {
+        b.lo[a] = std::nextafter(s.center[a] - s.radius, -inf);
+        b.hi[a] = std::nextafter(s.center[a] + s.radius, inf);
+    }
+    return b;
 }
 
 AABB triangle_bounds(const Triangle& t) {
@@ -115,6 +121,9 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
     if (params.threads <= 0) throw Error("bvh: threads must be positive");
 
     Bvh result;
+    result.stats.max_leaf_size = params.max_leaf_size;
+    timings.build = 0.0;
+    timings.layout = 0.0;
     const auto bounds_start = std::chrono::steady_clock::now();
     std::vector<Prim> prims;
     prims.reserve(static_cast<size_t>(scene.num_spheres) + scene.num_triangles);
@@ -147,7 +156,8 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
     return result;
 }
 
-bool validate_bvh(const Bvh& bvh, const Scene& scene, std::string* error, uint32_t max_leaf_size) {
+bool validate_bvh(const Bvh& bvh, const Scene& scene, std::string* error) {
+    const uint32_t max_leaf_size = bvh.stats.max_leaf_size;
     if (max_leaf_size == 0) return fail(error, "bvh: max_leaf_size must be positive");
     const uint32_t primitive_count = scene.num_spheres + scene.num_triangles;
     if (primitive_count == 0) {
@@ -156,10 +166,12 @@ bool validate_bvh(const Bvh& bvh, const Scene& scene, std::string* error, uint32
         return true;
     }
     if (bvh.nodes.empty()) return fail(error, "bvh: nonempty scene has no root");
-    if (bvh.prim_refs.size() != primitive_count) return fail(error, "bvh: primitive coverage count mismatch");
+    if (bvh.prim_refs.size() != primitive_count)
+        return fail(error, "bvh: primitive coverage count mismatch");
     std::vector<bool> seen(primitive_count, false);
     std::vector<bool> visited(bvh.nodes.size(), false);
-    std::function<bool(uint32_t, uint32_t, AABB&)> visit = [&](uint32_t index, uint32_t depth, AABB& box) {
+    std::function<bool(uint32_t, uint32_t, AABB&)> visit = [&](uint32_t index, uint32_t depth,
+                                                               AABB& box) {
         if (index >= bvh.nodes.size()) return fail(error, "bvh: child index out of range");
         if (depth > RT_MAX_BVH_DEPTH) return fail(error, "bvh: depth exceeds 64");
         if (visited[index]) return fail(error, "bvh: node is referenced more than once");
@@ -179,12 +191,16 @@ bool validate_bvh(const Bvh& bvh, const Scene& scene, std::string* error, uint32
                 if ((!triangle && primitive_index >= scene.num_spheres) ||
                     (triangle && primitive_index >= scene.num_triangles))
                     return fail(error, "bvh: invalid primitive reference");
-                const uint32_t ordinal = triangle ? scene.num_spheres + primitive_index : primitive_index;
+                const uint32_t ordinal =
+                    triangle ? scene.num_spheres + primitive_index : primitive_index;
                 if (seen[ordinal]) return fail(error, "bvh: duplicate primitive");
-                const AABB primitive_bounds = triangle ? triangle_bounds(scene.triangles[primitive_index])
-                                                       : sphere_bounds(scene.spheres[primitive_index]);
-                if (primitive_bounds.is_empty()) return fail(error, "bvh: primitive has empty bounds");
-                if (!contains(node.bounds, primitive_bounds)) return fail(error, "bvh: primitive escapes leaf bounds");
+                const AABB primitive_bounds =
+                    triangle ? triangle_bounds(scene.triangles[primitive_index])
+                             : sphere_bounds(scene.spheres[primitive_index]);
+                if (primitive_bounds.is_empty())
+                    return fail(error, "bvh: primitive has empty bounds");
+                if (!contains(node.bounds, primitive_bounds))
+                    return fail(error, "bvh: primitive escapes leaf bounds");
                 seen[ordinal] = true;
             }
             return true;
@@ -192,15 +208,19 @@ bool validate_bvh(const Bvh& bvh, const Scene& scene, std::string* error, uint32
         if (node.left_or_first >= bvh.nodes.size() - 1)
             return fail(error, "bvh: sibling index out of range");
         AABB left{}, right{};
-        if (!visit(node.left_or_first, depth + 1, left) || !visit(node.left_or_first + 1, depth + 1, right)) return false;
-        if (!contains(node.bounds, left) || !contains(node.bounds, right)) return fail(error, "bvh: child escapes parent bounds");
+        if (!visit(node.left_or_first, depth + 1, left) ||
+            !visit(node.left_or_first + 1, depth + 1, right))
+            return false;
+        if (!contains(node.bounds, left) || !contains(node.bounds, right))
+            return fail(error, "bvh: child escapes parent bounds");
         return true;
     };
     AABB root{};
     if (!visit(0, 0, root)) return false;
     if (std::find(visited.begin(), visited.end(), false) != visited.end())
         return fail(error, "bvh: unreachable node");
-    if (std::find(seen.begin(), seen.end(), false) != seen.end()) return fail(error, "bvh: primitive missing");
+    if (std::find(seen.begin(), seen.end(), false) != seen.end())
+        return fail(error, "bvh: primitive missing");
     return true;
 }
 
