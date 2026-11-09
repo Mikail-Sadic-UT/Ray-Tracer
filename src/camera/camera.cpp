@@ -9,6 +9,7 @@
 #include "camera/camera_io.hpp"
 #include "core/aabb.hpp"
 #include "core/error.hpp"
+#include "core/float_format.hpp"
 
 namespace rt {
 namespace {
@@ -90,11 +91,13 @@ Camera parse_camera(const json& value) {
 }
 
 json camera_to_json(const Camera& camera) {
-    const auto vector = [](vec3 v) { return json::array({v.x, v.y, v.z}); };
+    const auto vector = [](vec3 v) {
+        return json::array({shortest_decimal(v.x), shortest_decimal(v.y), shortest_decimal(v.z)});
+    };
     return {{"position", vector(camera.position)},
             {"look_at", vector(camera.look_at)},
             {"up", vector(camera.up)},
-            {"vfov_deg", camera.vfov_deg},
+            {"vfov_deg", shortest_decimal(camera.vfov_deg)},
             {"width", camera.width},
             {"height", camera.height}};
 }

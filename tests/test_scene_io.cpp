@@ -137,13 +137,13 @@ TEST_F(SceneIo, RejectsInvalidSceneValues) {
         {[&](auto& s) { s.spheres[0].radius = nan; }, "spheres[0].radius"},
         {[](auto& s) { s.spheres[0].center.y = -2e18f; }, "spheres[0].center[1]"},
         {[](auto& s) { s.spheres[0].radius = 2e18f; }, "spheres[0].radius"},
-        {[](auto& s) { s.triangles[0].v1.x = 2e18f; }, "triangles[0].v1[0]"},
+        {[](auto& s) { s.triangles[0].v1.x = 2e18f; }, "triangles[0].v[1][0]"},
         {[](auto& s) { s.lights[0].pos_or_dir.z = 3e38f; }, "lights[0].position[2]"},
         {[](auto& s) { s.camera.position.x = -2e18f; }, "camera.position[0]"},
-        {[](auto& s) { s.spheres[0].material_id = 3; }, "spheres[0].material_id"},
-        {[](auto& s) { s.triangles[1].material_id = 3; }, "triangles[1].material_id"},
-        {[&](auto& s) { s.triangles[1].v2.z = nan; }, "triangles[1].v2[2]"},
-        {[](auto& s) { s.materials.clear(); }, "spheres[0].material_id"},
+        {[](auto& s) { s.spheres[0].material_id = 3; }, "spheres[0].material"},
+        {[](auto& s) { s.triangles[1].material_id = 3; }, "triangles[1].material"},
+        {[&](auto& s) { s.triangles[1].v2.z = nan; }, "triangles[1].v[2][2]"},
+        {[](auto& s) { s.materials.clear(); }, "spheres[0].material"},
         {[](auto& s) { s.materials[0].albedo.y = -0.1f; }, "materials[0].albedo[1]"},
         {[](auto& s) { s.materials[0].ks.z = -1; }, "materials[0].ks[2]"},
         {[&](auto& s) { s.materials[0].albedo.x = nan; }, "materials[0].albedo[0]"},
@@ -184,10 +184,10 @@ TEST_F(SceneIo, CoordinateBoundAtLoadReportsValue) {
     document["geometry"]["triangles"][0]["v"][1][0] = -2.5e18;
     try {
         rt::parse_scene(document);
-        FAIL() << "expected the coordinate bound to reject triangles[0].v1[0]";
+        FAIL() << "expected the coordinate bound to reject triangles[0].v[1][0]";
     } catch (const rt::Error& error) {
         const std::string message = error.what();
-        EXPECT_NE(message.find("triangles[0].v1[0]"), std::string::npos) << message;
+        EXPECT_NE(message.find("triangles[0].v[1][0]"), std::string::npos) << message;
         EXPECT_NE(message.find("-2.5e+18"), std::string::npos) << message;
     }
     // The bound is inclusive: exactly 1e18 still loads.
@@ -325,3 +325,31 @@ TEST_F(SceneIo, RejectsInvalidWritesAndFileErrors) {
 }
 
 }  // namespace
+
+/// File errors carry the "scene_io:" prefix once, followed by the path and the field (#12).
+TEST_F(SceneIo, LoadErrorHasSinglePrefix) {
+    document["geometry"]["triangles"][1]["material"] = 7;
+    const std::string path = (directory / "bad_material.json").string();
+    std::ofstream(path) << document.dump();
+    try {
+        rt::load_scene(path);
+        FAIL() << "expected a material index error";
+    } catch (const rt::Error& error) {
+        const std::string message = error.what();
+        EXPECT_EQ(message, "scene_io: " + path + ": triangles[1].material: = 7 >= num_materials 3");
+    }
+}
+
+/// A non-object document names the root instead of an empty field (#12).
+TEST_F(SceneIo, NonObjectDocumentNamesRoot) {
+    expect_error([] { rt::parse_scene(json::array()); }, "<root>");
+}
+
+/// Saved JSON uses the shortest decimal that reads back as the same float (#12).
+TEST_F(SceneIo, SavedFloatsAreShortAndExact) {
+    const rt::SceneHost scene = rt::parse_scene(document);
+    const std::string text = rt::scene_to_json(scene).dump();
+    EXPECT_NE(text.find("\"ambient\":0.05"), std::string::npos) << text;
+    EXPECT_EQ(text.find("0.0500000007"), std::string::npos) << text;
+    EXPECT_EQ(rt::parse_scene(json::parse(text)).hash, scene.hash);
+}

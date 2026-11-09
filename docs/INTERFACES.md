@@ -124,7 +124,7 @@ Each module's `CMakeLists.txt` is owned by its module owner and only defines tha
 
 ### Errors and logging
 
-- **Host code** reports errors by throwing `rt::Error` (derives from `std::runtime_error`, in `core/error.hpp`). The message names what failed, e.g. `"scene_io: triangles[42].material_id = 7 >= num_materials 3"`.
+- **Host code** reports errors by throwing `rt::Error` (derives from `std::runtime_error`, in `core/error.hpp`). The message names what failed, e.g. `"scene_io: triangles[42].material: = 7 >= num_materials 3"`. Field paths use the JSON key names. Errors from `load_scene` insert the file path after the prefix, once.
 - **CUDA calls** are wrapped in `RT_CUDA_CHECK(expr)`, which throws `rt::Error` with the file, line, and `cudaGetErrorString`.
 - **Device code** never throws or prints. Runtime problems (stack overflow) set a device flag that the backend checks after `render` and turns into `rt::Error`.
 - **Apps** catch `rt::Error` (and `std::exception`) in `main`, print `error: <message>` to stderr, and exit with code 1. Command-line usage errors are reported by CLI11 (`CLI11_PARSE`) with its own message and non-zero exit code, and `--help` exits 0. Scripts check for a non-zero exit, never for exactly 1.

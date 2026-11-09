@@ -12,9 +12,14 @@
 #include <memory>
 #include <string>
 
+// stb_image triggers GCC 13 -Wmaybe-uninitialized after inlining, which SYSTEM include
+// directories don't suppress. Third-party, test-only PNG decoding, so silence it here (#11).
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #include <stb_image.h>
+#pragma GCC diagnostic pop
 
 #include "core/error.hpp"
 #include "image/image_io.hpp"
