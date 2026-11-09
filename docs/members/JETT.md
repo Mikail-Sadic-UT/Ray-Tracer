@@ -2,7 +2,7 @@
 
 ## Start here
 
-**You build:** the scene preparation stage, which turns a scene into a BVH (median builder, then a parallel builder), plus the camera and the terrain part of the generator. You also track milestones.
+**You build:** the scene preparation stage, which turns a scene into a BVH (median builder, then a parallel builder), plus the camera and the terrain part of the generator.
 
 **Read first, in order:**
 1. [INTERFACES §3 BVH layout and build pipeline](../INTERFACES.md#3-bvh-layout-and-build-pipeline) (your contract)
@@ -92,7 +92,6 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Nov 10 | **Decision:** if LBVH passes the validator and determinism tests, continue with it. Otherwise ship the task-parallel median builder (an accepted path, not a miss) | |
 | Nov 13 | Parallel builder (LBVH preferred), layout conversion, depth fallback | L |
 | Nov 18 | Preparation scaling, B = 1→72, per stage | M |
-| Weekly | Status table in [ROADMAP](../ROADMAP.md#status), weekly meeting | S |
 | Later | E3 binned SAH (after G2), E6 `obj2bin` + Blender (after G3), backup for E4 Embree | |
 
 ## Risks

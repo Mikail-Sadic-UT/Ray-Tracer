@@ -230,7 +230,7 @@ One GitHub issue per task in [ROADMAP.md](ROADMAP.md), assigned to its owner. La
 
 ## Routines
 
-- **Weekly meeting** (~30 min): done / next / blocked, plus any interface questions. Jett updates the [status table](ROADMAP.md#status). Read the [stub register](ROADMAP.md#stub-register): every open row needs an owner and a removal condition, and rows marked `ready to remove` get removed that week.
+- **Weekly meeting** (~30 min): done / next / blocked, plus any interface questions. Mikail updates the [status table](ROADMAP.md#status). Read the [stub register](ROADMAP.md#stub-register): every open row needs an owner and a removal condition, and rows marked `ready to remove` get removed that week.
 - **Contribution log**: one row per week at the bottom of your [member file](members/). It feeds the report, as the proposal requires.
 - **Blocked, or out of work?** Tell the group chat (see [When you're out of work](#when-youre-out-of-work)). Then take the stub listed in your member file, label the issue `blocked`, or do whatever the group decides.
 

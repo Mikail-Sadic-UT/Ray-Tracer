@@ -2,7 +2,7 @@
 
 **Re-baselined Oct 24.** As of this date the repository contains planning docs only, with no code merged. The original September dates no longer describe an executable plan. If work exists outside this repo, merge it and update [Status](#status) before using these dates.
 
-Owners, gates, tasks, and risks are below. Per-person views are in [members/](members/). Jett updates the status table weekly.
+Owners, gates, tasks, and risks are below. Per-person views are in [members/](members/). Mikail updates the status table weekly.
 
 ## Scope
 
@@ -85,8 +85,8 @@ The **GPU smoke image** (~Nov 3) can be shown at check-in 2 as evidence that the
 
 | Member | Core | Extensions |
 |---|---|---|
-| Jett (M1) | Camera; median builder + validator; parallel builder (LBVH preferred, task-parallel median fallback) + layout conversion + depth fallback; **terrain generation** (height field); preparation scaling; shading expected values (independent check); milestones | E3 SAH, E6 `obj2bin`, E4 backup |
-| Mikail (M2) | Skeleton, CMake, CI, Vista; intersection + traversal; **GPU smoke image**; `DeviceScene` + megakernel; sweep scripts; GPU profiling; node-hour log | E1 memory modes, E5 trace kernels |
+| Jett (M1) | Camera; median builder + validator; parallel builder (LBVH preferred, task-parallel median fallback) + layout conversion + depth fallback; **terrain generation** (height field); preparation scaling; shading expected values (independent check) | E3 SAH, E6 `obj2bin`, E4 backup |
+| Mikail (M2) | Skeleton, CMake, CI, Vista; intersection + traversal; **GPU smoke image**; `DeviceScene` + megakernel; sweep scripts; GPU profiling; node-hour log; milestones and the [status table](#status) | E1 memory modes, E5 trace kernels |
 | Arek (M3) | Math library; Lambert shading + shadow rays; harness (T_app / T_br / T_frame); double-precision intersection oracle; **golden-image CI integration** (render known scenes, compare, commit goldens); plots | E2 Blinn-Phong, E5 queues/shade/accumulate |
 | Po (M4) | `SceneHost` + `scene_io` + validation + hash; sphere placement + `.bin` for `rt_gen`; image IO; CPU backend (1 and N threads); `rt_compare` + core corruption tests; CPU render scaling; final reproducibility | E4 Embree |
 
@@ -344,19 +344,24 @@ From the proposal; adopted at Nov 13 if G2 fails:
 
 ## Status
 
-Updated by Jett weekly.
+Updated by Mikail weekly.
 
-| Item | Status (Nov 3) | Notes |
+| Item | Status (Nov 9) | Notes |
 |---|---|---|
 | Check-in 2 date | Nov 12 | Postponed from Oct 26–30; gates unchanged |
-| INTERFACES v1.0 | Proposed | Sign-off Oct 27 |
+| G0 (Oct 30) | Met except sign-off | CPU CI, CUDA builds on the laptop and Vista, `hello_cuda` on a GH node (C1). Brute-force normal-shaded CPU image of `known_two_spheres` saved by `scene_dump --render-normal` (#36, stub S4). INTERFACES v1.0 is still marked Proposed |
+| G1 (Nov 6) | **Not met** | Landed: median builder and validator (#31, #40), multicore CPU loop bit-identical to 1 thread (#36), `rt_gen` uniform + `.bin` + hash (#36, terrain stub S3), `rt_compare` core checks (#36). Missing: Lambert + shadows (C4, #43), traversal and BVH = brute force (C5), harness T_br/T_frame on CPU (C9), CPU backend through `Backend` (C7, #42), fixed benchmark scenes (needs terrain, #41) |
+| G2 (Nov 13) | At risk | Needs C10 megakernel, C11 parallel builder, and first Vista timings. Not met by Nov 13 means [reduced scope](#reduced-scope-fallback) |
+| INTERFACES v1.0 | Proposed | Sign-off was due Oct 27. Open interface proposal #4 (Arek) |
 | C1 | Done (Oct 28) | CMake, CI (first GitHub run green), `.clang-format`, PR template, `hello_cuda`. Verified on the laptop (WSL2, GCC 13.3, CUDA 13.3) and on a Vista GH200 node (GCC 13.2, CUDA 13.3, `ctest` 4/4, `hello_cuda`). Branch protection set: `main` needs a PR with 1 approval; `main` and `dev` block force-push and deletion; the admin can bypass. Making the `cpu` CI job a required check is deferred ([WORKFLOW.md](WORKFLOW.md#deferred-process)) |
-| C2 | Partly done | Merged on `dev`: math library and `AABB` slab tests (#1, #13), scene types, IO, validation, hash, image IO and `scene_dump` (#9), `bvh_types.hpp` (#18), `Timings` (#22), subnormal slab fix and 1e18 coordinate bound (#30) |
-| C3 | Partly done | Camera/IO (#16, #17), Hit/intersection/BruteQuery (#20, #21), NormalShading (#24), and render_pixel (#33) landed. CPU normal previews with saved PNG/PFM/AOVs implemented via scene_dump (#35); canonical rt_render integration and reference-platform verification pending |
+| C2 | Partly done | Merged on `dev`: math library and `AABB` slab tests (#1, #13), scene types, IO, validation, hash, image IO and `scene_dump` (#9), `bvh_types.hpp` (#18), `Timings` (#22), subnormal slab fix and 1e18 coordinate bound (#30), robust `normalize()` (#29). Remaining: INTERFACES sign-off |
+| C3 | Mostly done | Camera and camera IO (#16, #17), `Hit`, intersection and `BruteQuery` (#20, #21), `NormalShading` (#24) and `render_pixel` (#33) landed. First CPU image saved through `scene_dump --render-normal` (#36), verified on WSL. Remaining: `rt_render --backend cpu --bvh none --shade normal` (#42) |
 | C3G (GPU smoke) | Partly done | `render_pixel<BruteQuery, NormalShading>` runs in a CUDA test kernel on `known_two_spheres` and matches the CPU image (0 `prim_id` differences on the laptop, #33). `DeviceScene`, the kernel in `src/gpu/`, and `rt_render --backend cuda` not started |
-| C11 builder decision | Pending | Nov 10: LBVH or task-parallel median |
-| C5 | Partly done | Median builder and validator merged (#31). Follow-up #39 hardens large-coordinate SAH diagnostics and nonfinite-bound validation, with analytic, degenerate and clustered tests (#40). Traversal and BVH-vs-brute-force integration remain Mikail/Po hand-offs |
-| C6 | Partly done | Version 2 binary IO and development uniform generation implemented (#35), with exact counts, canonical hashes and fitted camera. Terrain S3, canonical manifest/release and reference-platform checks pending |
-| C7 | Partly done | Deterministic 16x16 OpenMP normal-render loop (#35); full Backend, lit shading and BVH traversal integration pending |
-| C8 | Partly done | rt_compare core CLI/logic tests (#35), three known normal-image corruptions plus a synthetic shadow-mask corruption. Real lit-image corruption fixtures, oracle and golden integration still required |
-| C4, C9–C10, C12–C14 | Not started | |
+| C4 | Not started | `shade_hit`, shadow rays and `LitShading` (Arek, #43). Blocks lit images, goldens and corruption test 4 (stub S5) |
+| C5 | Partly done | Median builder and validator merged (#31, #40). Traversal (`BvhQuery`) and the BVH-vs-brute-force test not started (Mikail) |
+| C6 | Partly done | `.bin` IO and development `uniform` generation merged (#36): exact counts, canonical hashes, fitted camera, archive fetch script. Waiting on Jett's terrain (#41, stub S3) before generating and publishing `scenes-v1`. Vista check pending |
+| C7 | Partly done | Deterministic 16×16 OpenMP normal-render loop merged (#36), 1 vs 32 threads byte-identical. Waiting on `Backend` + `rt_render` (#42), traversal and lit shading |
+| C8 | Partly done | `rt_compare` core checks merged (#36), with corruption tests 1–3 on the real normal image and test 4 on synthetic masks (stub S5). Not started: double-precision oracle and golden tests (Arek), shading expected values (Jett) |
+| C9 | Not started | `Timings` struct landed (#22); timers, results writer and `--mode app\|prepared` not started (Arek) |
+| C11 builder decision | Due Nov 10 | LBVH draft (#38) is valid and byte-identical at 1/8/72 threads on 10K–1M test scenes (review on #38). Before relying on it: fix the depth fallback, which rebuilds the whole tree too early, and add tests above the 1,024-primitive task threshold. Fallback: task-parallel median |
+| C10, C12–C14 | Not started | |
