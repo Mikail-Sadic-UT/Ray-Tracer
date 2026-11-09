@@ -39,6 +39,8 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
     validate_counts(scene.spheres.size(), scene.triangles.size(), scene.materials.size(),
                     scene.lights.size());
     validate_camera(scene.camera);
+    world_vec3(scene.camera.position, "camera.position");
+    world_vec3(scene.camera.look_at, "camera.look_at");
     nonnegative_vec3(scene.background, "background");
     finite_float(scene.ambient, "ambient");
     if (scene.ambient < 0.0f) scene_error("ambient", "must be nonnegative");
@@ -56,18 +58,20 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
     for (size_t i = 0; i < scene.spheres.size(); ++i) {
         const Sphere& sphere = scene.spheres[i];
         const std::string path = indexed("spheres", i);
-        finite_vec3(sphere.center, path + ".center");
+        world_vec3(sphere.center, path + ".center");
         finite_float(sphere.radius, path + ".radius");
         if (sphere.radius <= 0.0f) scene_error(path + ".radius", "must be positive");
+        if (sphere.radius > RT_MAX_COORD)
+            scene_error(path + ".radius", "exceeds the coordinate bound 1e18");
         if (sphere.material_id >= scene.materials.size())
             scene_error(path + ".material_id", "must index an existing material");
     }
     for (size_t i = 0; i < scene.triangles.size(); ++i) {
         const Triangle& triangle = scene.triangles[i];
         const std::string path = indexed("triangles", i);
-        finite_vec3(triangle.v0, path + ".v0");
-        finite_vec3(triangle.v1, path + ".v1");
-        finite_vec3(triangle.v2, path + ".v2");
+        world_vec3(triangle.v0, path + ".v0");
+        world_vec3(triangle.v1, path + ".v1");
+        world_vec3(triangle.v2, path + ".v2");
         if (triangle.material_id >= scene.materials.size())
             scene_error(path + ".material_id", "must index an existing material");
     }
@@ -78,7 +82,7 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
         const std::string path = indexed("lights", i);
         if (light.type != LIGHT_POINT)
             scene_error(path + ".type", "core supports point lights only");
-        finite_vec3(light.pos_or_dir, path + ".position");
+        world_vec3(light.pos_or_dir, path + ".position");
         nonnegative_vec3(light.intensity, path + ".intensity");
         if (light.pad != 0.0f) scene_error(path + ".pad", "reserved field must be zero");
     }

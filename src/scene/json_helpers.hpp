@@ -10,6 +10,7 @@
 
 #include "core/error.hpp"
 #include "core/math.hpp"
+#include "scene/scene.hpp"
 
 namespace rt::detail {
 
@@ -69,6 +70,14 @@ inline void finite_float(float value, const std::string& path) {
 /// Checks a world-space vector component by component.
 inline void finite_vec3(vec3 value, const std::string& path) {
     for (int i = 0; i < 3; ++i) finite_float(value[i], path + "[" + std::to_string(i) + "]");
+}
+
+/// Checks a world-space position: finite, with every component within RT_MAX_COORD.
+inline void world_vec3(vec3 value, const std::string& path) {
+    finite_vec3(value, path);
+    for (int i = 0; i < 3; ++i)
+        if (std::fabs(value[i]) > RT_MAX_COORD)
+            scene_error(path + "[" + std::to_string(i) + "]", "exceeds the coordinate bound 1e18");
 }
 
 /// Checks a linear color or intensity, with no upper bound or clamping.

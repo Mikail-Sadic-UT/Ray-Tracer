@@ -67,6 +67,10 @@ struct Scene {
     float ambient;              ///< Nonnegative ambient illumination.
 };
 
+/// Largest allowed magnitude of any scene coordinate and sphere radius (INTERFACES section 2).
+/// Keeps `plane - origin` in the slab test from overflowing float.
+constexpr float RT_MAX_COORD = 1.0e18f;
+
 static_assert(sizeof(Sphere) == 20, "Sphere must be 20 bytes");
 static_assert(sizeof(Triangle) == 40, "Triangle must be 40 bytes");
 static_assert(sizeof(Material) == 32, "Material must be 32 bytes");
