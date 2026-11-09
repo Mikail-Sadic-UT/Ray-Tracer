@@ -11,7 +11,7 @@
 4. [BENCHMARKING timing quantities](../BENCHMARKING.md#timing-quantities) (what the harness measures)
 5. [INTERFACES §5 Hit and traversal rules](../INTERFACES.md#5-intersection-and-traversal) (what you consume)
 
-**Open issues first** ([WORKFLOW](../WORKFLOW.md#start-with-open-issues)): #3 (slab test with subnormal directions), #4 (proposed §1 changes). Issue #3 is a correctness bug in code everyone builds on.
+**Open issues first** ([WORKFLOW](../WORKFLOW.md#start-with-open-issues)): #4 (proposed §1 changes). #3 (slab test with subnormal directions) is fixed by #30.
 
 **First three tasks:**
 1. Math library (`hostdev.hpp`, `math.hpp`, `ray.hpp`, `aabb.hpp`) with the ray-box slab tests, merged **by Oct 27**.
@@ -96,8 +96,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 |---|---|---|
 | Oct 27 | Math library + slab tests merged; review INTERFACES §1, §6, §8 and sign off | M |
 | Oct 30 | `NormalShading` (for first images) and `PixelResult`, in `shade/shading.hpp` (landed, #24) | S |
-| Oct 30 | `render_pixel` in `shade/render_pixel.hpp` (proposed owner, [ROADMAP blocker 3](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | S |
-| Nov 6 | `surface_at` (landed, #24), `offset_ray_origin`, `light_sample`, `shade_hit` with analytic tests; double-precision oracle; harness on CPU; golden tests | M |
+| Nov 6 | `surface_at` (landed, #24), `offset_ray_origin`, `light_sample`, `shade_hit` with analytic tests (and add the `LitShading` default to `render_pixel`, W7); double-precision oracle; harness on CPU; golden tests | M |
 | Nov 13 | Harness on GPU (`cuda_init`, `cudaEvent` stages); T_app process script | S |
 | Nov 18 | Target ratios and breakdown plots | M |
 | Later | E2 Blinn-Phong + directional lights (after G2); E5 wavefront queues/shade/accumulate (after G3); OptiX pairing (stretch) | |
@@ -120,3 +119,4 @@ Ray Tracing Gems I Ch. 6 (self-intersection offset); PBRT v4 (floating-point err
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Implemented scale-first `normalize()` for finite, nonzero vectors; added regression tests for extreme, subnormal, and widely separated magnitudes. `NormalShading`, `surface_at`, `SurfacePoint` and `PixelResult` in `shade/shading.hpp`, with tests | #2, #23, #24 | — |
+| Nov 8–14 | Slab test for subnormal ray directions (#3): reproduction, overflow analysis, and tests against the double reference. Final fix divides on subnormal axes in `float`, with a scene coordinate bound (§1, §2) | #3, #30 | — |

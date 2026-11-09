@@ -41,7 +41,7 @@ These are the mundane choices that four independently written modules must share
 | Types | `PascalCase`. Exceptions kept from the math library: `vec3`, `color` | `BvhNode`, `PixelResult` |
 | Functions, variables, members | `snake_case` | `traverse_closest`, `num_spheres` |
 | Enums | `enum class` by default. Flag sets that are stored in files or bit-ORed (`MaterialFlags`, `LightType`, `AovFlags`) stay plain `enum : uint32_t` | `BvhMethod::LBVH` |
-| Files | `snake_case`. `.hpp` headers, `.cpp` host sources, `.cu` CUDA sources (only in `src/gpu/`, `src/optix/`, `apps/hello_cuda/`) | `device_scene.cu` |
+| Files | `snake_case`. `.hpp` headers, `.cpp` host sources, `.cu` CUDA sources (only in `src/gpu/`, `src/optix/`, `apps/hello_cuda/`, and CUDA-only test targets in `tests/`) | `device_scene.cu` |
 | Header guard | `#pragma once` | |
 | Integers | `<cstdint>` fixed-width types in shared structs (`uint32_t`, `uint64_t`); `size_t` for host container sizes | |
 
@@ -124,7 +124,7 @@ Each module's `CMakeLists.txt` is owned by its module owner and only defines tha
 
 ### Errors and logging
 
-- **Host code** reports errors by throwing `rt::Error` (derives from `std::runtime_error`, in `core/error.hpp`). The message names what failed, e.g. `"scene_io: triangles[42].material_id = 7 >= num_materials 3"`.
+- **Host code** reports errors by throwing `rt::Error` (derives from `std::runtime_error`, in `core/error.hpp`). The message names what failed, e.g. `"scene_io: triangles[42].material: = 7 >= num_materials 3"`. Field paths use the JSON key names. Errors from `load_scene` insert the file path after the prefix, once.
 - **CUDA calls** are wrapped in `RT_CUDA_CHECK(expr)`, which throws `rt::Error` with the file, line, and `cudaGetErrorString`.
 - **Device code** never throws or prints. Runtime problems (stack overflow) set a device flag that the backend checks after `render` and turns into `rt::Error`.
 - **Apps** catch `rt::Error` (and `std::exception`) in `main`, print `error: <message>` to stderr, and exit with code 1. Command-line usage errors are reported by CLI11 (`CLI11_PARSE`) with its own message and non-zero exit code, and `--help` exits 0. Scripts check for a non-zero exit, never for exactly 1.
@@ -171,17 +171,25 @@ constexpr float RT_GAMMA3 = (3 * RT_EPS) / (1 - 3 * RT_EPS);    // PBRT gamma(3)
 Near and far planes are chosen **from the sign of `inv_dir` before multiplying**, never by comparing the products. Comparing products fails when one of them is NaN. For example, with box `[0,1]³`, origin `(0, 0.5, 0.5)`, and direction `(-0.0, 1, 0)`, comparing gives `tn = NaN`, `tf = -inf`, no swap, and a false miss. Selecting by sign gives `tn = -inf`, `tf = NaN`: the NaN comparisons leave the interval unchanged, and the ray correctly hits. Boxes are closed (boundary inclusive).
 
 ```cpp
-struct RayPrecomp { vec3 inv_d; int neg[3]; };   // neg[a] = (inv_d[a] < 0), computed once per ray
+struct RayPrecomp { vec3 inv_d; int neg[3]; int div_mask; };  // computed once per ray
 
 RT_INLINE RayPrecomp precompute(const Ray& r) {
   RayPrecomp p;
   p.inv_d = vec3{1.0f / r.dir.x, 1.0f / r.dir.y, 1.0f / r.dir.z};
-  for (int a = 0; a < 3; ++a) p.neg[a] = p.inv_d[a] < 0.0f;   // -0 dir -> -inf -> neg = 1
+  p.div_mask = 0;
+  for (int a = 0; a < 3; ++a) {
+    p.neg[a] = p.inv_d[a] < 0.0f;                            // -0 dir -> -inf -> neg = 1
+    if (r.dir[a] != 0.0f && fabsf(r.dir[a]) < FLT_MIN) {     // nonzero subnormal
+      p.div_mask |= 1 << a;
+      p.inv_d[a] = r.dir[a];                                 // that axis divides instead
+    }
+  }
   return p;
 }
 
 RT_INLINE bool intersect_aabb(const AABB& b, const vec3& o, const RayPrecomp& p,
                               float t_lo, float t_hi, float& t_enter) {
+  if (p.div_mask) return intersect_aabb_div(b, o, p, t_lo, t_hi, t_enter);  // see below
   float t0 = t_lo, t1 = t_hi;
   for (int a = 0; a < 3; ++a) {
     const float near_plane = p.neg[a] ? b.hi[a] : b.lo[a];
@@ -197,6 +205,11 @@ RT_INLINE bool intersect_aabb(const AABB& b, const vec3& o, const RayPrecomp& p,
   return true;
 }
 ```
+
+**Subnormal direction components.** A nonzero component with `|d| ≤ 2^-128` has a reciprocal that overflows to `±inf`, so the axis would look parallel, and a ray that enters the box could miss it. `precompute` flags every nonzero subnormal component (`|d| < FLT_MIN`, which leaves a margin below the overflow threshold) in `div_mask` and stores `d` in place of the reciprocal. For such rays, `intersect_aabb_div` runs the same loop, but flagged axes compute `(plane - o[a]) / d`. A single correctly rounded division has less error than the reciprocal and product, so the far-bound widening still covers it. A quotient that overflows means the true distance exceeds `FLT_MAX`, so `±inf` is the correct result. The fast path for every other ray is unchanged, and the check depends only on the ray. Everything stays `float`.
+
+- Compute the flag from `|d|`, never from `inv_d` (for example `inv_d > FLT_MAX`): GCC 13's range analysis miscompiles code guarded that way at `-O2` and above (#30).
+- Precondition: box, origin, and direction are finite, with coordinates within the scene bound in [section 2](#valid-input-checked-at-load), so `plane - o[a]` can't overflow. Device code relies on IEEE subnormals, which holds because fast-math is forbidden (nvcc keeps denormals and IEEE division by default).
 
 Why it works for a zero component on axis `a` (finite origin, non-empty box):
 
@@ -214,6 +227,8 @@ Required tests (CI):
 - Ray starting inside → hit with `t_enter = t_lo`.
 - Box entirely behind the origin → miss.
 - Non-axis-aligned rays agree with a double-precision reference on random boxes.
+- Subnormal direction components (#3): the issue reproduction; both signs on every axis; directions on both sides of the reciprocal-overflow threshold; two subnormal axes with overlapping and with disjoint intervals; a subnormal axis next to a parallel `±0` axis; and random subnormal directions against the double reference (no false misses).
+- Slab tests pass their inputs through an optimization barrier, so they test runtime code rather than constant-folded results.
 
 ## 2. Scene, image, and file formats
 
@@ -243,6 +258,7 @@ Coordinates: right-handed, **Y-up**.
 | Item | Requirement | Otherwise |
 |---|---|---|
 | All coordinates, radii, colors, intensities, `ambient`, `shininess` | Finite (no NaN/Inf) | Reject |
+| Sphere centers and radii, triangle vertices, light positions, camera `position` and `look_at` | Every component `|x| ≤ 1e18` (`RT_MAX_COORD` in `core/aabb.hpp`), so the slab test's `plane - origin` can't overflow ([section 1](#ray-box-slab-test-frozen)). The camera part is in `validate_camera`, so it also holds after CLI overrides | Reject |
 | Sphere `radius` | `> 0` | Reject |
 | Triangle vertices | Finite. Degenerate (zero-area) triangles are allowed and never hit. | Allowed |
 | `material_id` | `< num_materials`. At least one material if any primitive exists. | Reject |
@@ -460,7 +476,7 @@ constexpr int RT_FALLBACK_DEPTH = 32;  // see depth cap
 struct Bvh {                   // host, owning
   std::vector<BvhNode> nodes;  // nodes[0] = root; empty if the scene is empty
   std::vector<PrimRef> prim_refs;
-  BvhStats stats;              // nodes, leaves, depth, fallbacks, sah_cost
+  BvhStats stats;              // nodes, leaves, depth, fallbacks, sah_cost, max_leaf_size (the build parameter, so the validator can check leaves)
 };
 struct BvhView { const BvhNode* nodes; const PrimRef* prim_refs; uint32_t num_nodes; };
 ```
@@ -768,7 +784,11 @@ Owner: Arek. Definitions and protocol: [BENCHMARKING.md](BENCHMARKING.md#timing-
 | `render`, `download` | Frame | CPU backend has no `download` |
 | `write` | Excluded | PNG/PFM output |
 
-Components are host wall-clock intervals (`steady_clock`) with `cudaDeviceSynchronize` at stage boundaries. Kernel-only `cudaEvent` times are recorded as extra diagnostics (`render_kernel`). **Totals are measured directly with their own timer.** `unattributed = total − Σ components` is reported, not assumed to be zero.
+| Diagnostic | Phase | Notes |
+|---|---|---|
+| `render_kernel` | Frame (CUDA) | Kernel-only `cudaEvent` time. Overlaps `render`. CUDA backends only; omitted from `diagnostics` on the CPU backend, where `Timings::render_kernel` stays 0 |
+
+Components are host wall-clock intervals (`steady_clock`) with `cudaDeviceSynchronize` at stage boundaries. A diagnostic overlaps a component (`render_kernel` is part of the `render` interval), so it is reported in the run's `diagnostics` object, never in `components`, and is excluded from `unattributed` and from the totals. **Totals are measured directly with their own timer.** `unattributed = total − Σ components` is reported, not assumed to be zero.
 
 ### Results file (one JSON object per process)
 
@@ -789,10 +809,11 @@ Components are host wall-clock intervals (`steady_clock`) with `cudaDeviceSynchr
               "mem": { "mode": "explicit", "advice": "none", "prefetch": false, "realloc_per_prepare": true,
                        "geometry_reused": false, "fresh_pages": null } },
   "app": { "total_ms": 0.0, "components": {}, "unattributed_ms": 0.0 },
-  "build_and_render": { "runs": [ { "total_ms": 0.0, "components": {}, "unattributed_ms": 0.0 } ],
+  "build_and_render": { "runs": [ { "total_ms": 0.0, "components": {}, "diagnostics": {},
+                                    "unattributed_ms": 0.0 } ],
                         "median_ms": 0.0, "min_ms": 0.0, "max_ms": 0.0, "spread": 0.0,
                         "median_run_index": 0 },
-  "frame": { "runs": [ { "total_ms": 0.0, "components": {} } ],
+  "frame": { "runs": [ { "total_ms": 0.0, "components": {}, "diagnostics": {} } ],
              "median_ms": 0.0, "min_ms": 0.0, "max_ms": 0.0, "spread": 0.0 },
   "bvh_stats": { "nodes": 0, "leaves": 0, "depth": 0, "fallbacks": 0, "sah_cost": 0.0 },
   "image": { "path": "", "rgb_hash": "0x..." }
@@ -800,6 +821,7 @@ Components are host wall-clock intervals (`steady_clock`) with `cudaDeviceSynchr
 ```
 
 - `spread = (max − min) / median`.
+- `diagnostics` holds overlapping timing measurements in milliseconds, such as `render_kernel`. Its values are never summed with `components`. Workload diagnostics such as visible and hit fraction ([BENCHMARKING.md](BENCHMARKING.md#scene-families)) are not timings and don't go here. It is present in every run of `build_and_render` and `frame`, empty when the backend records none. `app` has no `diagnostics`; kernel time is measured only in prepared mode, in the `build_and_render` and `frame` runs.
 - `median_run_index` identifies the run whose components explain the median total. Medians of individual components are not summed.
 
 ## Interface changes
