@@ -16,8 +16,8 @@ These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 |---|---|---|---|---|
 | W1 | §2 `Light` | `pad = 0.0f` makes `Light` non-trivial | A kernel stages lights in shared memory | Po, Mikail |
 | W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | E2 (Blinn-Phong) starts | Po, Arek |
-| W4 | §0 Names and files | `.cu` sources are listed only for `src/gpu/`, `src/optix/`, `apps/hello_cuda/`, but CUDA-only test targets in `tests/` (under `if(RT_ENABLE_CUDA)`) also need them. `tests/test_trace_device.cu` is the first | Next edit of §0, or a second CUDA test target | Mikail |
 | W6 | §5 Frozen rules, triangle test | The row cites PBRT v4 Sec. 6.5.3 but doesn't say which parts apply. `intersect_triangle` departs from PBRT in three ways (below); the open interval and `t_hi` rules require the last two | C4 shadow tests, or the next edit of §5 | Mikail, Arek |
+| W7 | §6 Pixel result | `render_pixel` has no default for `Shading`, but §6 gives it `LitShading`. `LitShading` doesn't exist yet, so the default can't compile; every caller names `NormalShading` | `shade_hit` and `LitShading` land (C4) | Arek |
 
 ### W1: `Light::pad` default initializer
 
@@ -33,12 +33,6 @@ No current impact. The megakernel reads lights from global memory, uploads copy 
 
 **If triggered:** gate `MAT_SPECULAR` the same way as directional lights, or state that Core ignores it.
 
-### W4: `.cu` sources in `tests/`
-
-INTERFACES §0 "Names and files" lists `.cu` files only in `src/gpu/`, `src/optix/`, and `apps/hello_cuda/`. The same section allows tests that need a GPU in targets that only build with `RT_ENABLE_CUDA`, and BUILD.md "Adding tests" says to wrap them in `if(RT_ENABLE_CUDA)`. Such a target needs a `.cu` source, so the list is incomplete rather than a ban. `tests/test_trace_device.cu` (target `test_trace_device`) is the first one.
-
-**If triggered:** add `tests/` (CUDA-only targets under `if(RT_ENABLE_CUDA)`) to the `.cu` row. This is a clarification and needs only normal review.
-
 ### W6: what "PBRT v4 Sec. 6.5.3" covers in the triangle test
 
 §5 says the triangle test is watertight per Woop et al. 2013 and PBRT v4 Sec. 6.5.3, including the `double` edge-function fallback. `intersect_triangle` (#21) follows that, with three departures documented in its header:
@@ -50,3 +44,9 @@ INTERFACES §0 "Names and files" lists `.cu` files only in `src/gpu/`, `src/opti
 No current impact: every rule in §5 is met, and these are the readings the rest of §5 forces.
 
 **If triggered:** if C4 shadow tests show self-shadowing acne on large or distant triangles, fix it in `offset_ray_origin` or the shadow-ray setup, not by reinstating `deltaT` in the primitive test. Either way, add one sentence to the §5 triangle row naming these departures. That is a clarification: normal single review, heads-up to Arek.
+
+### W7: `render_pixel` default `Shading`
+
+§6 declares `template <class Query, class Shading = LitShading> render_pixel(...)`. `shade/render_pixel.hpp` (#33) declares it without the default because `LitShading` (Lambert and shadows, ROADMAP C4) isn't written, and a default naming an undeclared type doesn't compile. Callers write `render_pixel<BruteQuery, NormalShading>(...)` or pass the policy as an argument. The signature is otherwise as written.
+
+**If triggered:** the PR that adds `LitShading` also adds `class Shading = LitShading` to `render_pixel`, and deletes this entry.

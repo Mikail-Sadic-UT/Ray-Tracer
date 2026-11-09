@@ -40,7 +40,7 @@
 | `Backend`, `PrepareInput`, `RenderSettings` | Mikail (Nov 6; declarations requested early in ROADMAP) | Keep scene and image IO independent until the backend header lands |
 
 The shared `render_pixel` entry point for the CPU loop has landed in `shade/render_pixel.hpp`
-(#27). The first image calls `render_pixel<BruteQuery, NormalShading>(cam, px, py, scene, q)`.
+(#33). The first image calls `render_pixel<BruteQuery, NormalShading>(cam, px, py, scene, q)`.
 
 **Done means:**
 - JSON and `.bin` round trips are exact, and the readers reject bad files.
