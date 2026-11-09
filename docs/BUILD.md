@@ -173,10 +173,28 @@ includes primitive, material, and light counts, camera settings, and both canoni
 `--json` prints normalized inline JSON. `SceneHost` stores scene values, so normalized JSON
 omits material names and generator metadata that are not stored there.
 
-Current scene IO supports version 2 inline JSON; binary geometry references fail explicitly
-until the `.bin` reader lands. `--verify` checks parsing and load validation for inline scenes;
-it does not yet verify a generated archive. A successful scene inspection does not establish
-G0: the brute-force CPU image and reference-platform checks are still required.
+Scene IO supports version 2 inline JSON and binary geometry. Binary paths resolve relative to
+the JSON file; loading checks the binary header/content hash and validates the combined scene.
+`--verify` reports those checks. It does not by itself check a manifest's SHA-256 values.
+
+The CPU normal renderer and comparison tools can be exercised before the full Backend and
+`rt_render` integration land:
+
+```bash
+mkdir -p build-mac/previews build-mac/generated
+./build-mac/apps/scene_dump/scene_dump scenes/known/known_two_spheres.json \
+  --render-normal build-mac/previews/known.pfm --png build-mac/previews/known.png --render-threads 4
+./build-mac/apps/rt_compare/rt_compare build-mac/previews/known.pfm build-mac/previews/known.pfm
+./build-mac/apps/rt_gen/rt_gen --layout uniform --primitives 10000 --seed 1 \
+  --out build-mac/generated/dev_uniform_10000
+```
+
+Normal previews are for correctness and demonstrations, not benchmark timings. Generation
+currently uses registered terrain stub S3 and marks outputs as development scenes; the
+canonical release remains pending. Python 3 is required for `scripts/fetch_scenes.sh` and
+the archive/CLI integration tests. See [Po's hand-off notes](PO_PROGRESS.md) for validation,
+retrieval commands, environment overrides and remaining dependencies. No gate is established
+by these tools alone; reference-platform and integrated-renderer checks are still required.
 
 ### CMake options
 
