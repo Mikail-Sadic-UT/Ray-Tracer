@@ -118,4 +118,4 @@ PBRT v4 Ch. 6 (watertight test); Woop et al. 2013; Aila & Laine 2009 (GPU traver
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|
 | Oct 24–30 | | | |
-| | | | |
+| Nov 8–14 | Reviewed and finished #30 (subnormal slab test; found a GCC 13 range-analysis miscompile, replaced the double fallback with float division, coordinate bound) and #31 (median BVH: validator signature, outward sphere bounds, tests). Fixed GCC 13 warnings and scene IO error messages and float output for Po's #11, #12 | #30, #31, #11, #12 | — |
