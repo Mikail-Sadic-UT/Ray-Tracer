@@ -23,6 +23,7 @@ int main(int argc, char** argv) {
         app.add_option("scene", path, "Version 2 scene JSON file")->required();
         app.add_flag("--verify", verify, "Print successful validation after loading");
         app.add_flag("--json", json, "Print normalized inline scene JSON");
+        // STUB(S4, po): remove when the Backend interface and rt_render --backend cpu land (#42).
         app.add_option("--render-normal", preview,
                        "Save a brute-force normal-shaded preview as PFM");
         app.add_option("--png", png, "Also save the normal preview as PNG")

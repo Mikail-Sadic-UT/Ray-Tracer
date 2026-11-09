@@ -10,7 +10,7 @@
 
 namespace rt::detail {
 
-// STUB(S3, po): remove when Jett's terrain height-field generator lands (#35).
+// STUB(S3, po): remove when Jett's terrain height-field generator lands (#41).
 /// Matches the documented height formula for testing the generator before terrain integration.
 inline float terrain_height_stub(float x, float z) {
     constexpr float pi = 3.14159265358979323846f;
