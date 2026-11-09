@@ -60,7 +60,7 @@ double sah_cost(const Bvh& bvh) {
         return 2.0 * (x * y + y * z + z * x);
     };
     const double root_area = area(bvh.nodes[0].bounds);
-    if (!(root_area > 0.0f) || !std::isfinite(root_area)) return 0.0;
+    if (!(root_area > 0.0) || !std::isfinite(root_area)) return 0.0;
 
     // The diagnostic is the usual normalized leaf SAH: each primitive in a leaf pays
     // the leaf surface-area probability relative to the root.

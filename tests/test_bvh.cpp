@@ -266,8 +266,9 @@ TEST(Bvh, RejectsInvalidParameters) {
 
 TEST(Bvh, SahCostMatchesAnalyticLeafAreasAtDifferentScales) {
     // Two boxes of area 24 and a root of area 56: leaf SAH = 48/56 = 6/7.
-    // Large coordinates are valid scene data, but their float surface areas overflow.
-    for (float scale : {1.0f, 1.0e17f}) {
+    // Large coordinates are valid scene data, but their float surface areas overflow:
+    // at scale 1e19 the root area is 56e38, above FLT_MAX (about 3.4e38).
+    for (float scale : {1.0f, 1.0e19f}) {
         const std::vector<rt::Triangle> triangles{
             {{0, 0, 0}, {2 * scale, 0, 2 * scale}, {0, 2 * scale, 0}, 0},
             {{4 * scale, 0, 0}, {6 * scale, 0, 2 * scale}, {4 * scale, 2 * scale, 0}, 0}};
@@ -316,6 +317,8 @@ TEST(Bvh, ValidatorRejectsNonfiniteRootLeafBounds) {
 }
 
 TEST(Bvh, ClusteredSceneIsByteIdenticalForOneEightAndSeventyTwoThreads) {
+    // The serial median builder ignores params.threads, so today this guards the
+    // contract for the task-parallel median variant (INTERFACES §3) once it lands.
     std::vector<rt::Sphere> spheres;
     std::vector<rt::Triangle> triangles;
     random_primitives(2048, spheres, triangles);
