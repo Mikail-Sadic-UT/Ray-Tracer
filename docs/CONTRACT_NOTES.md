@@ -17,7 +17,6 @@ These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 | W1 | §2 `Light` | `pad = 0.0f` makes `Light` non-trivial | A kernel stages lights in shared memory | Po, Mikail |
 | W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | E2 (Blinn-Phong) starts | Po, Arek |
 | W4 | §0 Names and files | `.cu` sources are listed only for `src/gpu/`, `src/optix/`, `apps/hello_cuda/`, but CUDA-only test targets in `tests/` (under `if(RT_ENABLE_CUDA)`) also need them. `tests/test_trace_device.cu` is the first | Next edit of §0, or a second CUDA test target | Mikail |
-| W5 | §8 Components | `Timings::render_kernel` exists, but §8 doesn't say it overlaps `render` or where the results JSON reports it | The results writer lands (Nov 6), or `GpuTimer` (Nov 13) | Arek, Mikail, Po |
 | W6 | §5 Frozen rules, triangle test | The row cites PBRT v4 Sec. 6.5.3 but doesn't say which parts apply. `intersect_triangle` departs from PBRT in three ways (below); the open interval and `t_hi` rules require the last two | C4 shadow tests, or the next edit of §5 | Mikail, Arek |
 
 ### W1: `Light::pad` default initializer
@@ -39,14 +38,6 @@ No current impact. The megakernel reads lights from global memory, uploads copy 
 INTERFACES §0 "Names and files" lists `.cu` files only in `src/gpu/`, `src/optix/`, and `apps/hello_cuda/`. The same section allows tests that need a GPU in targets that only build with `RT_ENABLE_CUDA`, and BUILD.md "Adding tests" says to wrap them in `if(RT_ENABLE_CUDA)`. Such a target needs a `.cu` source, so the list is incomplete rather than a ban. `tests/test_trace_device.cu` (target `test_trace_device`) is the first one.
 
 **If triggered:** add `tests/` (CUDA-only targets under `if(RT_ENABLE_CUDA)`) to the `.cu` row. This is a clarification and needs only normal review.
-
-### W5: `render_kernel` in the results schema
-
-`Timings::render_kernel` (kernel-only `cudaEvent` time) landed in #22. It overlaps `render`, a host wall-clock interval around the same launch, so summing it with the components would double-count. §8 names it as a diagnostic but doesn't say where the results JSON reports it, or that it is excluded from `unattributed` and the totals.
-
-**Proposed:** report it in a separate per-run `diagnostics` object, not inside `components`, and add one sentence to §8 saying it is excluded from `unattributed` and the totals. The name is already in §8, so this is a clarification: normal single review, heads-up to Po (the CPU backend leaves it at zero).
-
-**If triggered:** Arek's results writer needs to know before it sums `components`.
 
 ### W6: what "PBRT v4 Sec. 6.5.3" covers in the triangle test
 
