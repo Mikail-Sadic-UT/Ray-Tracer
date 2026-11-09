@@ -4,10 +4,12 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <string>
 
+#include "core/aabb.hpp"
 #include "core/error.hpp"
 #include "core/math.hpp"
 
@@ -69,6 +71,21 @@ inline void finite_float(float value, const std::string& path) {
 /// Checks a world-space vector component by component.
 inline void finite_vec3(vec3 value, const std::string& path) {
     for (int i = 0; i < 3; ++i) finite_float(value[i], path + "[" + std::to_string(i) + "]");
+}
+
+/// Checks that a finite world coordinate or radius is within RT_MAX_COORD in magnitude.
+inline void bounded_float(float value, const std::string& path) {
+    if (std::fabs(value) > RT_MAX_COORD) {
+        char text[32];
+        std::snprintf(text, sizeof(text), "%g", static_cast<double>(value));
+        scene_error(path, std::string("= ") + text + " exceeds the coordinate bound 1e18");
+    }
+}
+
+/// Checks a world-space position: finite, with every component within RT_MAX_COORD.
+inline void world_vec3(vec3 value, const std::string& path) {
+    finite_vec3(value, path);
+    for (int i = 0; i < 3; ++i) bounded_float(value[i], path + "[" + std::to_string(i) + "]");
 }
 
 /// Checks a linear color or intensity, with no upper bound or clamping.

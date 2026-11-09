@@ -171,17 +171,25 @@ constexpr float RT_GAMMA3 = (3 * RT_EPS) / (1 - 3 * RT_EPS);    // PBRT gamma(3)
 Near and far planes are chosen **from the sign of `inv_dir` before multiplying**, never by comparing the products. Comparing products fails when one of them is NaN. For example, with box `[0,1]³`, origin `(0, 0.5, 0.5)`, and direction `(-0.0, 1, 0)`, comparing gives `tn = NaN`, `tf = -inf`, no swap, and a false miss. Selecting by sign gives `tn = -inf`, `tf = NaN`: the NaN comparisons leave the interval unchanged, and the ray correctly hits. Boxes are closed (boundary inclusive).
 
 ```cpp
-struct RayPrecomp { vec3 inv_d; int neg[3]; };   // neg[a] = (inv_d[a] < 0), computed once per ray
+struct RayPrecomp { vec3 inv_d; int neg[3]; int div_mask; };  // computed once per ray
 
 RT_INLINE RayPrecomp precompute(const Ray& r) {
   RayPrecomp p;
   p.inv_d = vec3{1.0f / r.dir.x, 1.0f / r.dir.y, 1.0f / r.dir.z};
-  for (int a = 0; a < 3; ++a) p.neg[a] = p.inv_d[a] < 0.0f;   // -0 dir -> -inf -> neg = 1
+  p.div_mask = 0;
+  for (int a = 0; a < 3; ++a) {
+    p.neg[a] = p.inv_d[a] < 0.0f;                            // -0 dir -> -inf -> neg = 1
+    if (r.dir[a] != 0.0f && fabsf(r.dir[a]) < FLT_MIN) {     // nonzero subnormal
+      p.div_mask |= 1 << a;
+      p.inv_d[a] = r.dir[a];                                 // that axis divides instead
+    }
+  }
   return p;
 }
 
 RT_INLINE bool intersect_aabb(const AABB& b, const vec3& o, const RayPrecomp& p,
                               float t_lo, float t_hi, float& t_enter) {
+  if (p.div_mask) return intersect_aabb_div(b, o, p, t_lo, t_hi, t_enter);  // see below
   float t0 = t_lo, t1 = t_hi;
   for (int a = 0; a < 3; ++a) {
     const float near_plane = p.neg[a] ? b.hi[a] : b.lo[a];
@@ -197,6 +205,11 @@ RT_INLINE bool intersect_aabb(const AABB& b, const vec3& o, const RayPrecomp& p,
   return true;
 }
 ```
+
+**Subnormal direction components.** A nonzero component with `|d| ≤ 2^-128` has a reciprocal that overflows to `±inf`, so the axis would look parallel, and a ray that enters the box could miss it. `precompute` flags every nonzero subnormal component (`|d| < FLT_MIN`, which leaves a margin below the overflow threshold) in `div_mask` and stores `d` in place of the reciprocal. For such rays, `intersect_aabb_div` runs the same loop, but flagged axes compute `(plane - o[a]) / d`. A single correctly rounded division has less error than the reciprocal and product, so the far-bound widening still covers it. A quotient that overflows means the true distance exceeds `FLT_MAX`, so `±inf` is the correct result. The fast path for every other ray is unchanged, and the check depends only on the ray. Everything stays `float`.
+
+- Compute the flag from `|d|`, never from `inv_d` (for example `inv_d > FLT_MAX`): GCC 13's range analysis miscompiles code guarded that way at `-O2` and above (#30).
+- Precondition: box, origin, and direction are finite, with coordinates within the scene bound in [section 2](#valid-input-checked-at-load), so `plane - o[a]` can't overflow. Device code relies on IEEE subnormals, which holds because fast-math is forbidden (nvcc keeps denormals and IEEE division by default).
 
 Why it works for a zero component on axis `a` (finite origin, non-empty box):
 
@@ -214,6 +227,8 @@ Required tests (CI):
 - Ray starting inside → hit with `t_enter = t_lo`.
 - Box entirely behind the origin → miss.
 - Non-axis-aligned rays agree with a double-precision reference on random boxes.
+- Subnormal direction components (#3): the issue reproduction; both signs on every axis; directions on both sides of the reciprocal-overflow threshold; two subnormal axes with overlapping and with disjoint intervals; a subnormal axis next to a parallel `±0` axis; and random subnormal directions against the double reference (no false misses).
+- Slab tests pass their inputs through an optimization barrier, so they test runtime code rather than constant-folded results.
 
 ## 2. Scene, image, and file formats
 
@@ -243,6 +258,7 @@ Coordinates: right-handed, **Y-up**.
 | Item | Requirement | Otherwise |
 |---|---|---|
 | All coordinates, radii, colors, intensities, `ambient`, `shininess` | Finite (no NaN/Inf) | Reject |
+| Sphere centers and radii, triangle vertices, light positions, camera `position` and `look_at` | Every component `|x| ≤ 1e18` (`RT_MAX_COORD` in `core/aabb.hpp`), so the slab test's `plane - origin` can't overflow ([section 1](#ray-box-slab-test-frozen)). The camera part is in `validate_camera`, so it also holds after CLI overrides | Reject |
 | Sphere `radius` | `> 0` | Reject |
 | Triangle vertices | Finite. Degenerate (zero-area) triangles are allowed and never hit. | Allowed |
 | `material_id` | `< num_materials`. At least one material if any primitive exists. | Reject |

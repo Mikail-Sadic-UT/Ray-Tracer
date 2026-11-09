@@ -135,6 +135,11 @@ TEST_F(SceneIo, RejectsInvalidSceneValues) {
         {[](auto& s) { s.spheres[0].radius = -1; }, "spheres[0].radius"},
         {[&](auto& s) { s.spheres[0].center.x = inf; }, "spheres[0].center[0]"},
         {[&](auto& s) { s.spheres[0].radius = nan; }, "spheres[0].radius"},
+        {[](auto& s) { s.spheres[0].center.y = -2e18f; }, "spheres[0].center[1]"},
+        {[](auto& s) { s.spheres[0].radius = 2e18f; }, "spheres[0].radius"},
+        {[](auto& s) { s.triangles[0].v1.x = 2e18f; }, "triangles[0].v1[0]"},
+        {[](auto& s) { s.lights[0].pos_or_dir.z = 3e38f; }, "lights[0].position[2]"},
+        {[](auto& s) { s.camera.position.x = -2e18f; }, "camera.position[0]"},
         {[](auto& s) { s.spheres[0].material_id = 3; }, "spheres[0].material_id"},
         {[](auto& s) { s.triangles[1].material_id = 3; }, "triangles[1].material_id"},
         {[&](auto& s) { s.triangles[1].v2.z = nan; }, "triangles[1].v2[2]"},
@@ -172,6 +177,22 @@ TEST_F(SceneIo, RejectsInvalidSceneValues) {
         test.corrupt(invalid);
         expect_error([&] { rt::validate_scene(invalid); }, test.diagnostic);
     }
+}
+
+/// The coordinate bound applies at load and names both the field and the offending value.
+TEST_F(SceneIo, CoordinateBoundAtLoadReportsValue) {
+    document["geometry"]["triangles"][0]["v"][1][0] = -2.5e18;
+    try {
+        rt::parse_scene(document);
+        FAIL() << "expected the coordinate bound to reject triangles[0].v1[0]";
+    } catch (const rt::Error& error) {
+        const std::string message = error.what();
+        EXPECT_NE(message.find("triangles[0].v1[0]"), std::string::npos) << message;
+        EXPECT_NE(message.find("-2.5e+18"), std::string::npos) << message;
+    }
+    // The bound is inclusive: exactly 1e18 still loads.
+    document["geometry"]["triangles"][0]["v"][1][0] = 1.0e18;
+    EXPECT_NO_THROW(rt::parse_scene(document));
 }
 
 /// Loading must actually invoke numeric validation, rather than only checking JSON types.

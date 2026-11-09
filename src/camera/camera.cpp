@@ -2,10 +2,12 @@
 /// @brief Host-only camera support: JSON parsing, encoding, and validation.
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <limits>
 #include <string>
 
 #include "camera/camera_io.hpp"
+#include "core/aabb.hpp"
 #include "core/error.hpp"
 
 namespace rt {
@@ -61,6 +63,18 @@ void finite_vec3(vec3 value, const std::string& path) {
             camera_error(path + "[" + std::to_string(i) + "]", "must be finite");
 }
 
+/// Checks a finite world-space point against RT_MAX_COORD (INTERFACES section 2).
+void bounded_vec3(vec3 value, const std::string& path) {
+    for (int i = 0; i < 3; ++i) {
+        if (std::fabs(value[i]) > RT_MAX_COORD) {
+            char text[32];
+            std::snprintf(text, sizeof(text), "%g", static_cast<double>(value[i]));
+            camera_error(path + "[" + std::to_string(i) + "]",
+                         std::string("= ") + text + " exceeds the coordinate bound 1e18");
+        }
+    }
+}
+
 }  // namespace
 
 Camera parse_camera(const json& value) {
@@ -89,6 +103,8 @@ void validate_camera(const Camera& camera) {
     finite_vec3(camera.position, "camera.position");
     finite_vec3(camera.look_at, "camera.look_at");
     finite_vec3(camera.up, "camera.up");
+    bounded_vec3(camera.position, "camera.position");
+    bounded_vec3(camera.look_at, "camera.look_at");
     if (!std::isfinite(camera.vfov_deg)) camera_error("camera.vfov_deg", "must be finite");
     if (!(camera.vfov_deg > 0.0f && camera.vfov_deg < 180.0f))
         camera_error("camera.vfov_deg", "must be between 0 and 180 degrees, exclusively");
