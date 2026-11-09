@@ -10,8 +10,13 @@
 #include "scene/scene_io.hpp"
 
 namespace {
-/// Quotes one argument for an unambiguous, reproducible generator.command string.
+/// Quotes one argument for the shell only when it needs it, so ordinary commands read as
+/// typed (`rt_gen --primitives 10000 ...`) and an unusual path still round-trips.
 std::string quote(const std::string& value) {
+    const bool plain = !value.empty() && value.find_first_not_of(
+                                             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+                                             "0123456789_-+=.,/:@%") == std::string::npos;
+    if (plain) return value;
     std::string result = "'";
     for (char c : value) result += c == '\'' ? "'\\''" : std::string(1, c);
     return result + "'";
@@ -29,8 +34,10 @@ int main(int argc, char** argv) {
         app.add_option("--seed", settings.seed, "PCG32 seed");
         app.add_option("--out", output, "Output prefix or .json path")->required();
         CLI11_PARSE(app, argc, argv);
-        std::string command;
-        for (int i = 0; i < argc; ++i) command += (i ? " " : "") + quote(argv[i]);
+        // Record the program as `rt_gen`, not argv[0]: the invocation path is not an input,
+        // and the JSON bytes (and their manifest SHA-256) must not depend on it.
+        std::string command = "rt_gen";
+        for (int i = 1; i < argc; ++i) command += " " + quote(argv[i]);
         const auto scene = rt::generate_uniform(settings);
         auto path = std::filesystem::path(output);
         if (path.extension() != ".json") path += ".json";

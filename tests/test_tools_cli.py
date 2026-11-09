@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 import subprocess
@@ -14,8 +15,8 @@ parser.add_argument('--generator', required=True)
 parser.add_argument('--scene', required=True)
 args = parser.parse_args()
 
-def run(command, expected=0):
-    result = subprocess.run(command, capture_output=True, text=True)
+def run(command, expected=0, cwd=None):
+    result = subprocess.run(command, capture_output=True, text=True, cwd=cwd)
     assert result.returncode == expected, f'{command}: {result.stdout}\n{result.stderr}'
     return result
 
@@ -51,6 +52,13 @@ with tempfile.TemporaryDirectory(prefix='rt-cli-') as directory:
     metadata = json.loads(prefix.with_suffix('.json').read_text())['generator']
     assert metadata['terrain_source'] == 'stub-S3'
     assert metadata['num_spheres'] + metadata['num_triangles'] == 17
-    assert '--seed' in metadata['command'] and '--out' in metadata['command']
+    assert metadata['command'] == f'rt_gen --layout uniform --primitives 17 --seed 42 --out {prefix}'
+    # The same arguments through a different invocation path and working directory must
+    # give the same bytes: the manifest records each file's SHA-256.
+    generator = Path(args.generator).resolve()
+    relative = Path(os.path.relpath(generator, prefix.parent))
+    run([str(relative), '--layout', 'uniform', '--primitives', '17', '--seed', '42', '--out', str(prefix)],
+        cwd=prefix.parent)
+    assert before == hashes()
     run([args.dump, '--verify', str(prefix.with_suffix('.json'))])
 print('CPU files, 1/N determinism, comparator failure exits and generator bytes verified')
