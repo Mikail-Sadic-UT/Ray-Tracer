@@ -821,7 +821,7 @@ Components are host wall-clock intervals (`steady_clock`) with `cudaDeviceSynchr
 ```
 
 - `spread = (max − min) / median`.
-- `diagnostics` holds overlapping measurements such as `render_kernel`. Its values are never summed with `components`. It is present in every run of `build_and_render` and `frame`, empty when the backend records none. `app` has no `diagnostics`; the kernel time is reported per run.
+- `diagnostics` holds overlapping timing measurements in milliseconds, such as `render_kernel`. Its values are never summed with `components`. Workload diagnostics such as visible and hit fraction ([BENCHMARKING.md](BENCHMARKING.md#scene-families)) are not timings and don't go here. It is present in every run of `build_and_render` and `frame`, empty when the backend records none. `app` has no `diagnostics`; the kernel time is reported per run.
 - `median_run_index` identifies the run whose components explain the median total. Medians of individual components are not summed.
 
 ## Interface changes
