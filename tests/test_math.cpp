@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <random>
 #include <stdexcept>
@@ -12,6 +13,7 @@
 
 #include "core/aabb.hpp"
 #include "core/error.hpp"
+#include "core/float_format.hpp"
 #include "core/math.hpp"
 #include "core/ray.hpp"
 
@@ -591,3 +593,25 @@ static_assert(sizeof(rt::vec3) == 12 && sizeof(rt::Ray) == 32 && sizeof(rt::AABB
               "math type layouts changed");
 
 }  // namespace
+
+/// shortest_decimal() prints short and always reads back as the same float bits.
+TEST(FloatFormat, ShortestDecimalRoundTrips) {
+    EXPECT_EQ(rt::shortest_decimal(0.05f), 0.05);
+    EXPECT_EQ(rt::shortest_decimal(-0.0f), 0.0);
+    EXPECT_TRUE(std::signbit(rt::shortest_decimal(-0.0f)));
+    std::mt19937 rng(2447);
+    std::uniform_int_distribution<uint32_t> bits;
+    int checked = 0;
+    for (int i = 0; i < 1000000; ++i) {
+        const uint32_t pattern = bits(rng);
+        float f;
+        std::memcpy(&f, &pattern, sizeof(f));
+        if (!std::isfinite(f)) continue;
+        const float back = static_cast<float>(rt::shortest_decimal(f));
+        uint32_t result;
+        std::memcpy(&result, &back, sizeof(back));
+        ASSERT_EQ(result, pattern) << "float bits 0x" << std::hex << pattern;
+        ++checked;
+    }
+    EXPECT_GT(checked, 990000);
+}
