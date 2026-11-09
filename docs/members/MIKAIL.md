@@ -22,6 +22,7 @@
 |---|---|---|---|
 | Building repo + CI | Everyone | Oct 30 | [BUILD.md](../BUILD.md) |
 | `intersect_*`, `brute_*`, `Hit`, `BruteQuery` | Po (first CPU image), Arek (shadow tests) | Oct 30 (landed: `Hit` #20; intersection, `brute_*`, and `BruteQuery` #21) | §5, §6 |
+| `render_pixel` ([ROADMAP blocker 3](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Po (CPU loop), megakernel | Landed (#27: `shade/render_pixel.hpp`) | §6 |
 | `traverse_closest` / `traverse_any`, `BvhQuery` | Po (CPU backend), Arek | Nov 6 | §5, §6 |
 | `Backend` interface, `rt_render` CLI | Everyone | Nov 6 | §7 |
 | CUDA megakernel backend | Everyone (GPU results) | Nov 13 | §7 |
@@ -93,6 +94,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Oct 27 | Review INTERFACES §5, §7 and sign off | S |
 | Oct 30 | Repo skeleton files, CMake, CI, `hello_cuda` on laptop + GH node; toolchain pair recorded in BUILD.md | M |
 | Oct 30 | Intersection + brute force | M |
+| Oct 30 | `render_pixel` in `shade/render_pixel.hpp`, with host and device tests (landed, #27) | S |
 | ~Nov 3 | GPU smoke image | S |
 | Nov 6 | Traversal (`BvhQuery`) | M |
 | Nov 6 | `Backend` interface (`backend.hpp`), CPU/CUDA dispatch in `rt_render` | M |
@@ -119,4 +121,4 @@ PBRT v4 Ch. 6 (watertight test); Woop et al. 2013; Aila & Laine 2009 (GPU traver
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Clarified INTERFACES §8: `render_kernel` is reported in a per-run `diagnostics` object, outside `components` and the totals (resolves W5). Reviewed and merged Arek's `NormalShading` and robust `normalize()` PRs | #24, #28, #29 | |
-| Nov 8–14 | Reviewed and finished #30 (subnormal slab test; found a GCC 13 range-analysis miscompile, replaced the double fallback with float division, coordinate bound) and #31 (median BVH: validator signature, outward sphere bounds, tests). Fixed GCC 13 warnings and scene IO error messages and float output for Po's #11, #12 | #30, #31, #11, #12 | — |
+| Nov 8–14 | Reviewed and finished #30 (subnormal slab test; found a GCC 13 range-analysis miscompile, replaced the double fallback with float division, coordinate bound) and #31 (median BVH: validator signature, outward sphere bounds, tests). Fixed GCC 13 warnings and scene IO error messages and float output for Po's #11, #12. Wrote `render_pixel` with host tests and a CUDA test that matches the CPU image | #30, #31, #11, #12, #27 | — |

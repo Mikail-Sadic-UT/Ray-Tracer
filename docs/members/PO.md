@@ -39,9 +39,8 @@
 | `Bvh` + `BvhQuery` | Jett, Mikail (Nov 6) | `BruteQuery` |
 | `Backend`, `PrepareInput`, `RenderSettings` | Mikail (Nov 6; declarations requested early in ROADMAP) | Keep scene and image IO independent until the backend header lands |
 
-The shared `render_pixel` entry point is also needed for the CPU loop. Its assignment to Arek
-is still a proposal in [ROADMAP cross-owner blocker 3](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28);
-confirm that hand-off before integrating the renderer.
+The shared `render_pixel` entry point for the CPU loop has landed in `shade/render_pixel.hpp`
+(#27). The first image calls `render_pixel<BruteQuery, NormalShading>(cam, px, py, scene, q)`.
 
 **Done means:**
 - JSON and `.bin` round trips are exact, and the readers reject bad files.
