@@ -37,10 +37,10 @@
 | `Timings` | Arek (struct landed, #22) | Nothing: `Backend::prepare` and `render` take `Timings&` (CPU backend fills `render`; it has no `download`) |
 | Camera JSON parsing and validation | Jett (Oct 30) | Nothing. Landed: `camera/camera.hpp` (`Camera`, `camera_ray`) and `camera/camera_io.hpp` (`parse_camera`, `camera_to_json`, `validate_camera`, #17) |
 | `brute_closest` / `BruteQuery` | Mikail (landed, #21) | Nothing |
-| `shade_hit` / `NormalShading` | Arek | Real `NormalShading`/`surface_at` landed (#24); Lambert and shadows still needed for lit-image gates |
-| Terrain height field | Jett | Registered S3 in `scene/terrain_stub.hpp` matches the specified formula for development; do not publish its output as the canonical scene set |
+| `shade_hit` / `NormalShading` | Arek (#43) | Real `NormalShading`/`surface_at` landed (#24). Stub S5: corruption test 4 uses synthetic shadow masks until `LitShading` lands |
+| Terrain height field | Jett (#41) | Stub S3 in `scene/terrain_stub.hpp` matches the specified formula for development; do not publish its output as the canonical scene set |
 | `Bvh` + `BvhQuery` | Jett, Mikail | Median builder/validator landed (#31); traversal pending. Use the real `BruteQuery` on small scenes |
-| `Backend`, `PrepareInput`, `RenderSettings` | Mikail (Nov 6; declarations requested early in ROADMAP) | Keep scene and image IO independent until the backend header lands |
+| `Backend`, `PrepareInput`, `RenderSettings`, `rt_render` | Mikail (#42) | Stub S4: `scene_dump --render-normal` saves CPU images through `cpu/normal_renderer.hpp` until the backend and `rt_render` land |
 
 The shared `render_pixel` entry point for the CPU loop has landed in `shade/render_pixel.hpp`
 (#33). The first image calls `render_pixel<BruteQuery, NormalShading>(cam, px, py, scene, q)`.

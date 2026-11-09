@@ -23,7 +23,7 @@
 | What | To | When | Contract |
 |---|---|---|---|
 | `vec3`, `Ray`, `AABB`, `intersect_aabb` | Everyone | Oct 27 | §1 |
-| `shade_hit`, `LitShading`, `NormalShading`, `PixelResult` | Po (CPU backend), Mikail (megakernel) | Nov 6 (`NormalShading`, `PixelResult` landed, #24) | §6 |
+| `shade_hit`, `LitShading`, `NormalShading`, `PixelResult` | Po (CPU backend), Mikail (megakernel) | Nov 6 (`NormalShading`, `PixelResult` landed, #24; `shade_hit` and `LitShading` tracked in #43, which unblocks Po's stub S5) | §6 |
 | `Timings` struct (names only, `bench/timings.hpp`; [ROADMAP blocker 6](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Jett, Mikail, Po (`build_bvh`, `DeviceScene::upload`, `Backend::prepare` take `Timings&`) | Landed (#22) | §8 |
 | Timers, results writer | Everyone | Nov 6 | §8 |
 | Double-precision intersection oracle | Mikail (independent check) | Nov 6 | [quality §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
@@ -36,7 +36,7 @@
 | `Hit`, `brute_any` | Mikail (landed: `Hit` #20, `brute_any` #21) | Nothing |
 | `Scene` view | Po (landed, `scene/scene.hpp`) | Nothing |
 | Expected shading values | Jett (Nov 6) | Your own hand checks, replaced by Jett's independent numbers |
-| `rt_compare` | Po (Nov 6) | A temporary exact byte comparison for goldens |
+| `rt_compare` | Po (landed, #36: `image/compare.hpp`, `apps/rt_compare`) | Nothing. Corruption test 4 still uses synthetic masks (stub S5) until `LitShading` lands (#43) |
 
 **Done means:**
 - Lambert value at a sphere's pole, 1/d² falloff, shadow boundary location, and no acne all match Jett's expected values (relative 1e-5).

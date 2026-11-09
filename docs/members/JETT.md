@@ -22,7 +22,7 @@
 |---|---|---|---|
 | `camera_ray`, `Camera` parsing and overrides | Everyone's renderers | Landed (#16, #17: `camera.hpp`, `camera_io.hpp`) | §4 |
 | `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Landed (#31: `bvh/bvh.hpp`, serial); validation and SAH follow-up landed (#40) | §3 |
-| Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Nov 6 | [scene families](../BENCHMARKING.md#scene-families) |
+| Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Nov 6 (#41; Po uses stub S3 until it lands, and the canonical scene set waits on it) | [scene families](../BENCHMARKING.md#scene-families) |
 | Expected shading values for analytic tests | Arek | Nov 6 | [quality protocol §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
 | `Bvh` from the parallel builder | Everyone | Nov 13 | §3 |
 

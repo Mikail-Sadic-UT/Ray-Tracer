@@ -140,7 +140,9 @@ The table above lists the stand-ins the plan expects. This register lists the on
 
 | ID | Used by | Where | Stands in for | Remove when | Status |
 |---|---|---|---|---|---|
-| S3 | Po (`rt_gen`) | `src/scene/terrain_stub.hpp` | Jett's terrain height-field/grid generator | Adopt Jett's terrain hand-off, delete the stub and generator metadata marker; track in #35 | open |
+| S3 | Po (`rt_gen`) | `src/scene/terrain_stub.hpp` | Jett's terrain height-field/grid generator | Jett's terrain lands (#41). Delete the stub, its marker, and the `terrain_source: "stub-S3"` tag in `apps/rt_gen/main.cpp`; then Po generates the canonical scene set (#35) | open |
+| S4 | Po (CPU image) | `apps/scene_dump/main.cpp` (`--render-normal`) | Mikail's `Backend` interface and `rt_render --backend cpu` | `backend.hpp` and `rt_render` land (#42) and the CPU backend renders through them. Remove the preview option and marker, or keep it as an inspection tool and say so here | open |
+| S5 | Po (`rt_compare` tests) | `tests/test_compare.cpp` (`RejectsSyntheticShadowBlock`) | Corruption test 4 on a real lit image, which needs Arek's `LitShading` | `LitShading` lands (#43) and test 4 runs on the lit `known_two_spheres` image | open |
 
 `Status` is `open` while the real thing hasn't landed, and `ready to remove` once it has but the stub is still in the code. Add a row in the PR that adds the stub (next free ID, `S1`, `S2`, ...), and delete the row in the PR that removes it. The weekly meeting reads this table.
 
