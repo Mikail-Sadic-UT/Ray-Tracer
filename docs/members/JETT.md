@@ -21,7 +21,7 @@
 | What | To | When | Contract |
 |---|---|---|---|
 | `camera_ray`, `Camera` parsing and overrides | Everyone's renderers | Landed (#16, #17: `camera.hpp`, `camera_io.hpp`) | §4 |
-| `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Nov 6 | §3 |
+| `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Landed (#31: `bvh/bvh.hpp`, serial) | §3 |
 | Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Nov 6 | [scene families](../BENCHMARKING.md#scene-families) |
 | Expected shading values for analytic tests | Arek | Nov 6 | [quality protocol §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
 | `Bvh` from the parallel builder | Everyone | Nov 13 | §3 |
@@ -52,8 +52,9 @@ Standing rules:
 - Conventions: INTERFACES section 0 (names, includes, errors, Doxygen comments, CMake targets).
 - Device-callable code is header-inline (RT_HOSTDEV / RT_INLINE), with no -rdc. float only, no
   fast-math (see "General rules" at the top of INTERFACES.md for the one double exception).
-- Workflow: docs/WORKFLOW.md. Check open issues first. Commits are kernel style and signed off
-  (`git commit -s`).
+- Workflow: docs/WORKFLOW.md. Check open issues first. If you have no issue, nothing to review,
+  and are blocked, tell the user to notify the group chat (WORKFLOW.md "When you're out of
+  work"). Commits are kernel style and signed off (`git commit -s`).
 - Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
   --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
 - Assign yourself to the issue before you start and to the PR when you open it.
@@ -85,7 +86,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 |---|---|---|
 | Oct 27 | Review INTERFACES §3–4 and sign off | S |
 | Oct 30 | `camera_ray` + tests | S |
-| Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat | M |
+| Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat (landed, #31) | M |
 | Nov 6 | Terrain height field for `rt_gen` | S |
 | Nov 6 | Shading expected values for Arek's tests (hand calculations or Python) | S |
 | Nov 10 | **Decision:** if LBVH passes the validator and determinism tests, continue with it. Otherwise ship the task-parallel median builder (an accepted path, not a miss) | |
@@ -111,4 +112,4 @@ Karras 2012 (LBVH); PBRT v4 Ch. 7; Jacco Bikker, "How to build a BVH"; Wald 2007
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|
 | Oct 24–30 | | | |
-| | | | |
+| Nov 1–7 | Bounds stage, serial median builder, `validate_bvh`, and `BvhStats` in `bvh/bvh.hpp`, with builder and validator tests | #31 | — |

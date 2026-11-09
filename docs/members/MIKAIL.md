@@ -34,7 +34,7 @@
 | `vec3`, `Ray`, `AABB`, slab test | Arek (landed) | Nothing |
 | `Scene` view | Po (landed, `scene/scene.hpp`) | Nothing |
 | `Timings` | Arek (struct landed, #22) | Nothing: `DeviceScene::upload` and `Backend::prepare` take `Timings&` |
-| `Bvh` | Jett (Nov 6) | A hand-built 3-node BVH |
+| `Bvh` | Jett (median builder landed, #31) | Nothing |
 | `shade_hit` | Arek (Nov 6) | `NormalShading` |
 
 **Done means:** BVH traversal gives identical hits to brute force (same `prim`, bit-identical `t`) on random rays. GPU vs CPU passes `rt_compare` on the known scenes and `bench_100k`, on both machines. Repeated GPU runs are bit-identical.
@@ -58,8 +58,9 @@ Standing rules:
 - Conventions: INTERFACES section 0 (names, includes, errors, Doxygen comments, CMake targets).
 - Device-callable code is header-inline (RT_HOSTDEV / RT_INLINE), with no -rdc. float only, no
   fast-math (see "General rules" at the top of INTERFACES.md for the one double exception).
-- Workflow: docs/WORKFLOW.md. Check open issues first. Commits are kernel style and signed off
-  (`git commit -s`).
+- Workflow: docs/WORKFLOW.md. Check open issues first. If you have no issue, nothing to review,
+  and are blocked, tell the user to notify the group chat (WORKFLOW.md "When you're out of
+  work"). Commits are kernel style and signed off (`git commit -s`).
 - Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
   --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
 - Assign yourself to the issue before you start and to the PR when you open it.
@@ -118,3 +119,4 @@ PBRT v4 Ch. 6 (watertight test); Woop et al. 2013; Aila & Laine 2009 (GPU traver
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Clarified INTERFACES §8: `render_kernel` is reported in a per-run `diagnostics` object, outside `components` and the totals (resolves W5). Reviewed and merged Arek's `NormalShading` and robust `normalize()` PRs | #24, #28, #29 | |
+| Nov 8–14 | Reviewed and finished #30 (subnormal slab test; found a GCC 13 range-analysis miscompile, replaced the double fallback with float division, coordinate bound) and #31 (median BVH: validator signature, outward sphere bounds, tests). Fixed GCC 13 warnings and scene IO error messages and float output for Po's #11, #12 | #30, #31, #11, #12 | — |

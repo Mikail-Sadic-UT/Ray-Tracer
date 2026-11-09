@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <random>
 #include <stdexcept>
@@ -12,6 +13,7 @@
 
 #include "core/aabb.hpp"
 #include "core/error.hpp"
+#include "core/float_format.hpp"
 #include "core/math.hpp"
 #include "core/ray.hpp"
 
@@ -28,9 +30,19 @@ rt::AABB unit_box() {
     return {{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}};
 }
 
+/// Hides @p v from the optimizer, so the code under test runs at runtime instead of being
+/// constant-folded. Folding hid a GCC 13 miscompile of an earlier slab fallback (#30).
+template <class T>
+T opaque(T v) {
+    asm volatile("" : "+m"(v));
+    return v;
+}
+
 /// Runs rt::intersect_aabb over the ray's own `[tmin, tmax]` range.
 bool intersect(const rt::AABB& box, const rt::Ray& ray, float& enter) {
-    return rt::intersect_aabb(box, ray.origin, rt::precompute(ray), ray.tmin, ray.tmax, enter);
+    const rt::AABB b = opaque(box);
+    const rt::Ray r = opaque(ray);
+    return rt::intersect_aabb(b, r.origin, rt::precompute(r), r.tmin, r.tmax, enter);
 }
 
 /// Double-precision reference slab test.
@@ -128,6 +140,61 @@ TEST(Math, Vec3) {
     indexed[1] = 8.0f;
     indexed[2] = 9.0f;
     EXPECT_TRUE(equal(indexed, 7.0f, 8.0f, 9.0f)) << "vec3 mutable indexing";
+}
+
+/// Normalizes finite vectors across extreme magnitudes while preserving their direction.
+TEST(Math, NormalizeExtremeMagnitudes) {
+    const auto expect_direction = [](rt::vec3 input, rt::vec3 expected, const char* label) {
+        const rt::vec3 result = rt::normalize(input);
+        EXPECT_TRUE(std::isfinite(result.x) && std::isfinite(result.y) && std::isfinite(result.z))
+            << label;
+        EXPECT_NEAR(result.x, expected.x, 2.0e-6f) << label;
+        EXPECT_NEAR(result.y, expected.y, 2.0e-6f) << label;
+        EXPECT_NEAR(result.z, expected.z, 2.0e-6f) << label;
+        EXPECT_NEAR(rt::length(result), 1.0f, 2.0e-6f) << label;
+    };
+
+    expect_direction({1.0e20f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, "large axis vector");
+    expect_direction({1.0e-23f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, "small axis vector");
+    expect_direction({-3.0e20f, 4.0e20f, -12.0e20f}, {-3.0f / 13.0f, 4.0f / 13.0f, -12.0f / 13.0f},
+                     "large mixed-sign vector");
+    expect_direction({-3.0e-23f, 4.0e-23f, -12.0e-23f},
+                     {-3.0f / 13.0f, 4.0f / 13.0f, -12.0f / 13.0f}, "small mixed-sign vector");
+}
+
+/// Normalizes a direction made entirely of subnormal components.
+TEST(Math, NormalizeSubnormalComponents) {
+    const float denorm = std::numeric_limits<float>::denorm_min();
+    ASSERT_GT(denorm, 0.0f);
+    const rt::vec3 input{denorm, 2.0f * denorm, -3.0f * denorm};
+
+    const rt::vec3 result = rt::normalize(input);
+    const float inv_length = 1.0f / std::sqrt(14.0f);
+    EXPECT_TRUE(std::isfinite(result.x) && std::isfinite(result.y) && std::isfinite(result.z));
+    EXPECT_NEAR(result.x, inv_length, 2.0e-6f);
+    EXPECT_NEAR(result.y, 2.0f * inv_length, 2.0e-6f);
+    EXPECT_NEAR(result.z, -3.0f * inv_length, 2.0e-6f);
+    EXPECT_NEAR(rt::length(result), 1.0f, 2.0e-6f);
+}
+
+/// Checks direction across widely separated component magnitudes with a double reference.
+TEST(Math, NormalizeWidelySeparatedMagnitudes) {
+    const rt::vec3 input{1.0e20f, -1.0e16f, 3.0e19f};
+    const double scale = static_cast<double>(input.x);
+    const double sx = static_cast<double>(input.x) / scale;
+    const double sy = static_cast<double>(input.y) / scale;
+    const double sz = static_cast<double>(input.z) / scale;
+    const double scaled_length = std::sqrt(sx * sx + sy * sy + sz * sz);
+    const rt::vec3 expected{static_cast<float>(sx / scaled_length),
+                            static_cast<float>(sy / scaled_length),
+                            static_cast<float>(sz / scaled_length)};
+
+    const rt::vec3 result = rt::normalize(input);
+    EXPECT_TRUE(std::isfinite(result.x) && std::isfinite(result.y) && std::isfinite(result.z));
+    EXPECT_NEAR(result.x, expected.x, 2.0e-7f);
+    EXPECT_NEAR(result.y, expected.y, 2.0e-9f);
+    EXPECT_NEAR(result.z, expected.z, 2.0e-7f);
+    EXPECT_NEAR(rt::length(result), 1.0f, 2.0e-6f);
 }
 
 /// AABB members: empty box, grow, centroid, extent, surface area, and is_empty.
@@ -271,6 +338,169 @@ TEST(Math, DeterministicSlabBoundaries) {
         << "conservative far expansion overlaps interval just beyond geometric exit";
 }
 
+/// Nonzero directions whose reciprocal overflows still define finite, in-range intersections.
+///
+/// The double oracle keeps the direction itself and therefore distinguishes these hits from
+/// the parallel-ray arithmetic artifact produced by an infinite reciprocal.
+TEST(Math, SubnormalDirectionReciprocalOverflow) {
+    const rt::AABB tiny_box{{0.0f, 0.0f, 0.0f}, {1.0e-38f, 1.0e-38f, 1.0e-38f}};
+    for (int axis = 0; axis < 3; ++axis) {
+        for (float sign : {1.0f, -1.0f}) {
+            rt::vec3 origin{0.5e-38f, 0.5e-38f, 0.5e-38f};
+            rt::vec3 direction{0.0f, 0.0f, 0.0f};
+            direction[axis] = sign * 1.0e-39f;
+            origin[axis] = sign > 0.0f ? -1.0e-39f : 1.1e-38f;
+            const rt::Ray ray{origin, 0.0f, direction, 10.0f};
+            float float_enter = -1.0f;
+            double double_enter = -1.0;
+            const bool float_hit = intersect(tiny_box, ray, float_enter);
+            const bool double_hit = intersect_double(tiny_box, ray, double_enter);
+            EXPECT_TRUE(double_hit) << "oracle expects a real hit on axis " << axis;
+            EXPECT_TRUE(float_hit == double_hit)
+                << "subnormal hit agrees with oracle on axis " << axis << " sign " << sign;
+            if (float_hit && double_hit) {
+                EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter)))
+                    << "entry distance agrees with oracle on axis " << axis << " sign " << sign;
+            }
+        }
+    }
+
+    // Exact issue reproduction, with the other axes strictly inside their slabs.
+    const rt::AABB issue_box{{0.0f, 0.0f, 0.0f}, {1.0e-38f, 2.0f, 1.0f}};
+    const rt::Ray issue_ray{{-1.0e-39f, 0.0f, 0.5f}, 0.0f, {1.0e-39f, 1.0f, 0.0f}, 10.0f};
+    float enter = -1.0f;
+    EXPECT_TRUE(intersect(issue_box, issue_ray, enter)) << "exact issue reproduction hits";
+    EXPECT_TRUE(near(enter, 1.0f)) << "issue reproduction enters at t approximately 1";
+
+    const rt::Ray too_short{{-1.0e-39f, 0.0f, 0.5f}, 0.0f, {1.0e-39f, 1.0f, 0.0f}, 0.5f};
+    double double_enter = 0.0;
+    EXPECT_TRUE(!intersect(issue_box, too_short, enter));
+    EXPECT_TRUE(!intersect_double(issue_box, too_short, double_enter))
+        << "short t range has no geometric hit";
+
+    // Starting on the lower face remains inclusive even when the nonzero direction is tiny.
+    const rt::Ray on_face{{0.0f, 0.5f, 0.5f}, 0.0f, {1.0e-39f, 0.0f, 0.0f}, 10.0f};
+    EXPECT_TRUE(intersect(unit_box(), on_face, enter));
+    EXPECT_TRUE(enter == 0.0f) << "subnormal boundary origin enters at t_lo";
+}
+
+/// Reciprocal overflow boundary, finite reciprocals below it, and very small normal directions.
+TEST(Math, TinyDirectionAdjacentToReciprocalOverflow) {
+    const float reciprocal_limit = 1.0f / std::numeric_limits<float>::max();
+    const float directions[] = {
+        std::nextafter(reciprocal_limit, 0.0f), reciprocal_limit,
+        std::nextafter(reciprocal_limit, std::numeric_limits<float>::infinity())};
+    for (float direction : directions) {
+        ASSERT_TRUE(direction > 0.0f);
+        for (float sign : {1.0f, -1.0f}) {
+            const float origin = sign > 0.0f ? -direction : 5.0f * direction;
+            const rt::AABB box{{0.0f, 0.0f, 0.0f}, {4.0f * direction, 1.0f, 1.0f}};
+            const rt::Ray ray{{origin, 0.5f, 0.5f}, 0.0f, {sign * direction, 0.0f, 0.0f}, 10.0f};
+            float float_enter = -1.0f;
+            double double_enter = -1.0;
+            const bool float_hit = intersect(box, ray, float_enter);
+            const bool double_hit = intersect_double(box, ray, double_enter);
+            EXPECT_TRUE(double_hit) << "oracle expects hit adjacent to reciprocal threshold";
+            EXPECT_TRUE(float_hit == double_hit)
+                << "threshold-adjacent result agrees with oracle, direction " << sign * direction;
+            if (float_hit) {
+                EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter)));
+            }
+        }
+    }
+
+    // A tiny normal direction has a finite reciprocal and retains the ordinary fast path.
+    const rt::AABB normal_box{{0.0f, 0.0f, 0.0f}, {1.0e-30f, 1.0f, 1.0f}};
+    const rt::Ray normal_ray{{-1.0e-30f, 0.5f, 0.5f}, 0.0f, {1.0e-30f, 0.0f, 0.0f}, 10.0f};
+    float enter = -1.0f;
+    EXPECT_TRUE(intersect(normal_box, normal_ray, enter));
+    EXPECT_TRUE(near(enter, 1.0f)) << "small normal direction enters at t = 1";
+}
+
+/// Subnormal direction components on two axes at once, with parallel zero axes.
+TEST(Math, SubnormalDirectionsOnSeveralAxes) {
+    const rt::AABB tiny_xy{{0.0f, 0.0f, 0.0f}, {1.0e-38f, 1.0e-38f, 1.0f}};
+    float float_enter = -1.0f;
+    double double_enter = -1.0;
+
+    // Both axes divide. Their intervals overlap here.
+    const rt::Ray overlap{{-1.0e-39f, -5.0e-39f, 0.5f}, 0.0f, {1.0e-39f, 1.0e-39f, 0.0f}, 10.0f};
+    bool float_hit = intersect(tiny_xy, overlap, float_enter);
+    bool double_hit = intersect_double(tiny_xy, overlap, double_enter);
+    EXPECT_TRUE(double_hit) << "two dividing axes have overlapping intervals";
+    EXPECT_TRUE(float_hit == double_hit);
+    if (float_hit) {
+        EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter)));
+    }
+
+    // Move the y slab interval past x's exit; both dividing axes still must produce a miss.
+    const rt::Ray disjoint{{-1.0e-39f, -3.0e-38f, 0.5f}, 0.0f, {1.0e-39f, 1.0e-39f, 0.0f}, 100.0f};
+    EXPECT_TRUE(!intersect_double(tiny_xy, disjoint, double_enter));
+    EXPECT_TRUE(!intersect(tiny_xy, disjoint, float_enter)) << "two dividing axes, disjoint";
+
+    // A dividing axis next to a parallel axis keeps both signs of zero working.
+    for (float zero : {0.0f, -0.0f}) {
+        const rt::Ray boundary_parallel{
+            {-1.0e-39f, 0.0f, 0.5f}, 0.0f, {1.0e-39f, zero, 0.0f}, 10.0f};
+        EXPECT_TRUE(intersect_double(tiny_xy, boundary_parallel, double_enter));
+        EXPECT_TRUE(intersect(tiny_xy, boundary_parallel, float_enter))
+            << "parallel zero on the slab boundary is unconstrained, zero " << zero;
+
+        const float outside_y = std::nextafter(0.0f, -std::numeric_limits<float>::infinity());
+        const rt::Ray outside_parallel{
+            {-1.0e-39f, outside_y, 0.5f}, 0.0f, {1.0e-39f, zero, 0.0f}, 10.0f};
+        EXPECT_TRUE(!intersect_double(tiny_xy, outside_parallel, double_enter));
+        EXPECT_TRUE(!intersect(tiny_xy, outside_parallel, float_enter))
+            << "parallel zero outside the slab must miss, zero " << zero;
+    }
+
+    // A division that overflows means the true entry is beyond FLT_MAX: a miss, not a NaN.
+    const rt::Ray far_entry{{-1.0f, 0.5f, 0.5f}, 0.0f, {1.0e-39f, 0.0f, 0.0f}, 1.0e30f};
+    EXPECT_TRUE(!intersect(unit_box(), far_entry, float_enter)) << "entry at t ~ 1e39";
+}
+
+/// Rays with one subnormal direction component, compared against intersect_double().
+///
+/// Origins sit within a few direction lengths of the box face, the only place where a
+/// subnormal component changes the result. Fixed seed; hits and misses are both counted.
+TEST(Math, RandomSubnormalDirectionsAgainstDouble) {
+    std::mt19937 rng(379);
+    std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+    std::uniform_int_distribution<int> mantissa(1, (1 << 23) - 1);
+    int hits = 0;
+    int misses = 0;
+    for (int i = 0; i < 20000; ++i) {
+        const int axis = i % 3;
+        const float sign = (i / 3) % 2 ? -1.0f : 1.0f;
+        // Any nonzero subnormal: a random mantissa with the smallest exponent.
+        const float d = sign * std::ldexp(static_cast<float>(mantissa(rng)), -149);
+        const float width = std::abs(d) * (1.0f + 8.0f * unit(rng));
+        const float gap = std::abs(d) * 4.0f * (unit(rng) - 0.25f);  // some start inside
+        rt::AABB box{{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}};
+        box.hi[axis] = width;
+        rt::vec3 origin{unit(rng), unit(rng), unit(rng)};
+        origin[axis] = sign > 0.0f ? -gap : width + gap;
+        rt::vec3 dir{0.0f, 0.0f, 0.0f};
+        dir[axis] = d;
+        dir[(axis + 1) % 3] = unit(rng) - 0.5f;  // a normal axis constrains t as well
+        const rt::Ray ray{origin, 0.0f, dir, 1.0f + 10.0f * unit(rng)};
+
+        float float_enter = -1.0f;
+        double double_enter = -1.0;
+        const bool float_hit = intersect(box, ray, float_enter);
+        const bool double_hit = intersect_double(box, ray, double_enter);
+        // The test may report extra hits (far-bound widening) but never a false miss.
+        if (double_hit) {
+            ASSERT_TRUE(float_hit) << "false miss at sample " << i << ", direction " << d;
+            EXPECT_TRUE(near(float_enter, static_cast<float>(double_enter), 1.0e-4f))
+                << "entry at sample " << i;
+        }
+        (double_hit ? hits : misses) += 1;
+    }
+    EXPECT_GT(hits, 1000);
+    EXPECT_GT(misses, 1000);
+}
+
 /// Random boxes and rays, compared against intersect_double().
 ///
 /// Fixed seed. Directions with a zero component are redrawn. Most of these rays miss.
@@ -363,3 +593,25 @@ static_assert(sizeof(rt::vec3) == 12 && sizeof(rt::Ray) == 32 && sizeof(rt::AABB
               "math type layouts changed");
 
 }  // namespace
+
+/// shortest_decimal() prints short and always reads back as the same float bits.
+TEST(FloatFormat, ShortestDecimalRoundTrips) {
+    EXPECT_EQ(rt::shortest_decimal(0.05f), 0.05);
+    EXPECT_EQ(rt::shortest_decimal(-0.0f), 0.0);
+    EXPECT_TRUE(std::signbit(rt::shortest_decimal(-0.0f)));
+    std::mt19937 rng(2447);
+    std::uniform_int_distribution<uint32_t> bits;
+    int checked = 0;
+    for (int i = 0; i < 1000000; ++i) {
+        const uint32_t pattern = bits(rng);
+        float f;
+        std::memcpy(&f, &pattern, sizeof(f));
+        if (!std::isfinite(f)) continue;
+        const float back = static_cast<float>(rt::shortest_decimal(f));
+        uint32_t result;
+        std::memcpy(&result, &back, sizeof(back));
+        ASSERT_EQ(result, pattern) << "float bits 0x" << std::hex << pattern;
+        ++checked;
+    }
+    EXPECT_GT(checked, 990000);
+}

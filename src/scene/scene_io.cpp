@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 
 #include "camera/camera_io.hpp"
+#include "core/float_format.hpp"
 #include "scene/hash.hpp"
 #include "scene/json_helpers.hpp"
 
@@ -33,12 +34,19 @@ std::string indexed(const char* array, size_t index) {
     return std::string(array) + "[" + std::to_string(index) + "]";
 }
 
+/// Rejects a material index outside the material table, naming the JSON key `material`.
+void check_material(uint32_t id, size_t num_materials, const std::string& path) {
+    if (id >= num_materials)
+        scene_error(path + ".material", "= " + std::to_string(id) + " >= num_materials " +
+                                            std::to_string(num_materials));
+}
+
 }  // namespace
 
 void validate_scene(const SceneHost& scene, bool require_light_mask) {
     validate_counts(scene.spheres.size(), scene.triangles.size(), scene.materials.size(),
                     scene.lights.size());
-    validate_camera(scene.camera);
+    validate_camera(scene.camera);  // includes the coordinate bound, so overrides get it too
     nonnegative_vec3(scene.background, "background");
     finite_float(scene.ambient, "ambient");
     if (scene.ambient < 0.0f) scene_error("ambient", "must be nonnegative");
@@ -56,20 +64,19 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
     for (size_t i = 0; i < scene.spheres.size(); ++i) {
         const Sphere& sphere = scene.spheres[i];
         const std::string path = indexed("spheres", i);
-        finite_vec3(sphere.center, path + ".center");
+        world_vec3(sphere.center, path + ".center");
         finite_float(sphere.radius, path + ".radius");
         if (sphere.radius <= 0.0f) scene_error(path + ".radius", "must be positive");
-        if (sphere.material_id >= scene.materials.size())
-            scene_error(path + ".material_id", "must index an existing material");
+        bounded_float(sphere.radius, path + ".radius");
+        check_material(sphere.material_id, scene.materials.size(), path);
     }
     for (size_t i = 0; i < scene.triangles.size(); ++i) {
         const Triangle& triangle = scene.triangles[i];
         const std::string path = indexed("triangles", i);
-        finite_vec3(triangle.v0, path + ".v0");
-        finite_vec3(triangle.v1, path + ".v1");
-        finite_vec3(triangle.v2, path + ".v2");
-        if (triangle.material_id >= scene.materials.size())
-            scene_error(path + ".material_id", "must index an existing material");
+        world_vec3(triangle.v0, path + ".v[0]");
+        world_vec3(triangle.v1, path + ".v[1]");
+        world_vec3(triangle.v2, path + ".v[2]");
+        check_material(triangle.material_id, scene.materials.size(), path);
     }
     if (require_light_mask && scene.lights.size() > 32)
         scene_error("lights", "light-mask AOV requires at most 32 lights");
@@ -78,7 +85,7 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
         const std::string path = indexed("lights", i);
         if (light.type != LIGHT_POINT)
             scene_error(path + ".type", "core supports point lights only");
-        finite_vec3(light.pos_or_dir, path + ".position");
+        world_vec3(light.pos_or_dir, path + ".position");
         nonnegative_vec3(light.intensity, path + ".intensity");
         if (light.pad != 0.0f) scene_error(path + ".pad", "reserved field must be zero");
     }
@@ -163,24 +170,32 @@ SceneHost load_scene(const std::string& path) {
     } catch (const json::exception& error) {
         throw Error("scene_io: " + path + ": invalid JSON: " + error.what());
     } catch (const Error& error) {
-        throw Error("scene_io: " + path + ": " + error.what());
+        // Errors from parse_scene already carry "scene_io: "; add the file path after it once.
+        std::string message = error.what();
+        const std::string prefix = "scene_io: ";
+        if (message.compare(0, prefix.size(), prefix) == 0) message.erase(0, prefix.size());
+        throw Error(prefix + path + ": " + message);
     }
 }
 
 json scene_to_json(const SceneHost& scene) {
     validate_scene(scene);
-    const auto vector = [](vec3 value) { return json::array({value.x, value.y, value.z}); };
+    // Shortest round-tripping decimals keep saved scenes readable (0.05, not 0.0500000007).
+    const auto number = [](float value) { return shortest_decimal(value); };
+    const auto vector = [&](vec3 value) {
+        return json::array({number(value.x), number(value.y), number(value.z)});
+    };
     json document = {{"version", 2},
                      {"camera", camera_to_json(scene.camera)},
                      {"background", vector(scene.background)},
-                     {"ambient", scene.ambient},
+                     {"ambient", number(scene.ambient)},
                      {"materials", json::array()},
                      {"lights", json::array()},
                      {"geometry", {{"spheres", json::array()}, {"triangles", json::array()}}}};
     for (const auto& material : scene.materials) {
         document["materials"].push_back({{"albedo", vector(material.albedo)},
                                          {"ks", vector(material.ks)},
-                                         {"shininess", material.shininess},
+                                         {"shininess", number(material.shininess)},
                                          {"specular", (material.flags & MAT_SPECULAR) != 0}});
     }
     for (const auto& light : scene.lights) {
@@ -190,7 +205,7 @@ json scene_to_json(const SceneHost& scene) {
     }
     for (const auto& sphere : scene.spheres) {
         document["geometry"]["spheres"].push_back({{"center", vector(sphere.center)},
-                                                   {"radius", sphere.radius},
+                                                   {"radius", number(sphere.radius)},
                                                    {"material", sphere.material_id}});
     }
     for (const auto& triangle : scene.triangles) {

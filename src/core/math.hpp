@@ -83,12 +83,12 @@ RT_INLINE float length(vec3 a) {
     return ::sqrtf(length2(a));
 }
 
-/// Unit vector in the direction of @p a.
-/// @pre `length2(a)` is a finite, normal float: roughly `1.1e-19 < length(a) < 1.8e19`.
-/// Outside that range the result is wrong: a zero vector gives NaN, a very short vector gives
-/// inf/NaN, and a very long one (e.g. `{1e20, 0, 0}`) gives zero.
+/// Unit vector in the direction of @p a. Scaling avoids overflow and underflow in length.
+/// @pre @p a is finite and nonzero.
 RT_INLINE vec3 normalize(vec3 a) {
-    return a / length(a);
+    const float scale = ::fmaxf(::fabsf(a.x), ::fmaxf(::fabsf(a.y), ::fabsf(a.z)));
+    const vec3 scaled = a / scale;
+    return scaled / length(scaled);
 }
 
 /// Componentwise minimum (named `vmin` to avoid clashing with `std::min`).
