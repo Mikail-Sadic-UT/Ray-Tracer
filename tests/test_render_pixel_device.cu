@@ -14,20 +14,17 @@
 #include <vector>
 
 #include "gpu/cuda_check.hpp"
+#include "known_two_spheres_data.hpp"
 #include "trace/brute.hpp"
 
 namespace {
 
-// The known_two_spheres scene (scenes/known/known_two_spheres.json), built in code so this CUDA
-// file doesn't compile the JSON reader. Materials and lights are unused by NormalShading.
-const std::vector<rt::Sphere> kSpheres{{{-0.75f, 0.5f, 0.0f}, 0.5f, 0},
-                                       {{0.75f, 0.5f, 0.0f}, 0.5f, 1}};
-const std::vector<rt::Triangle> kTriangles{
-    {{-5.0f, 0.0f, -5.0f}, {-5.0f, 0.0f, 5.0f}, {5.0f, 0.0f, 5.0f}, 2},
-    {{-5.0f, 0.0f, -5.0f}, {5.0f, 0.0f, 5.0f}, {5.0f, 0.0f, -5.0f}, 2}};
-const rt::Camera kCamera{
-    {0.0f, 1.0f, 5.0f}, {0.0f, 0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, 45.0f, 640, 480};
-const rt::color kBackground{0.1f, 0.1f, 0.15f};
+// The known_two_spheres scene as plain values; test_render_pixel.cpp checks they match the JSON.
+using known_two_spheres::kAmbient;
+using known_two_spheres::kBackground;
+using known_two_spheres::kCamera;
+using known_two_spheres::kSpheres;
+using known_two_spheres::kTriangles;
 
 /// Copies @p v to a new device array. The caller frees it with cudaFree.
 template <class T>
@@ -76,7 +73,7 @@ TEST(RenderPixelDevice, KnownSceneMatchesHost) {
                             d_triangles, static_cast<uint32_t>(kTriangles.size()),
                             nullptr,     0,
                             nullptr,     0,
-                            kBackground, 0.05f};
+                            kBackground, kAmbient};
     const dim3 block(16, 16);
     const dim3 grid((w + block.x - 1) / block.x, (h + block.y - 1) / block.y);
     render_kernel<<<grid, block>>>(kCamera, d_scene, d_out);
@@ -93,7 +90,7 @@ TEST(RenderPixelDevice, KnownSceneMatchesHost) {
                             kTriangles.data(), static_cast<uint32_t>(kTriangles.size()),
                             nullptr,           0,
                             nullptr,           0,
-                            kBackground,       0.05f};
+                            kBackground,       kAmbient};
     std::vector<rt::PixelResult> host(device.size());
     for (uint32_t py = 0; py < h; ++py)
         for (uint32_t px = 0; px < w; ++px)

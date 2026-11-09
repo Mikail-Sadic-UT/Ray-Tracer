@@ -8,6 +8,7 @@
 #include <cstring>
 #include <string>
 
+#include "known_two_spheres_data.hpp"
 #include "scene/scene_io.hpp"
 #include "trace/brute.hpp"
 
@@ -44,6 +45,40 @@ constexpr uint32_t kSphere0X = 232, kSphere0Y = 239;  // center of sphere 0 (lef
 constexpr uint32_t kSphere1X = 406, kSphere1Y = 239;  // center of sphere 1 (right, blue)
 constexpr uint32_t kFloor0X = 320, kFloor0Y = 470;    // floor triangle 0, near the camera
 constexpr uint32_t kFloor1X = 440, kFloor1Y = 300;    // floor triangle 1, right of center
+
+/// The in-code scene used by the CUDA test (known_two_spheres_data.hpp) equals the JSON scene.
+TEST_F(RenderPixel, SharedFixtureMatchesJson) {
+    namespace known = known_two_spheres;
+    ASSERT_EQ(host->spheres.size(), known::kSpheres.size());
+    for (size_t i = 0; i < known::kSpheres.size(); ++i) {
+        const rt::Sphere& a = host->spheres[i];
+        const rt::Sphere& b = known::kSpheres[i];
+        EXPECT_TRUE(a.center.x == b.center.x && a.center.y == b.center.y &&
+                    a.center.z == b.center.z && a.radius == b.radius &&
+                    a.material_id == b.material_id)
+            << "sphere " << i;
+    }
+    ASSERT_EQ(host->triangles.size(), known::kTriangles.size());
+    for (size_t i = 0; i < known::kTriangles.size(); ++i) {
+        const rt::Triangle& a = host->triangles[i];
+        const rt::Triangle& b = known::kTriangles[i];
+        EXPECT_TRUE(std::memcmp(&a.v0, &b.v0, sizeof(rt::vec3)) == 0 &&
+                    std::memcmp(&a.v1, &b.v1, sizeof(rt::vec3)) == 0 &&
+                    std::memcmp(&a.v2, &b.v2, sizeof(rt::vec3)) == 0 &&
+                    a.material_id == b.material_id)
+            << "triangle " << i;
+    }
+    const rt::Camera& c = host->camera;
+    const rt::Camera& k = known::kCamera;
+    EXPECT_TRUE(std::memcmp(&c.position, &k.position, sizeof(rt::vec3)) == 0 &&
+                std::memcmp(&c.look_at, &k.look_at, sizeof(rt::vec3)) == 0 &&
+                std::memcmp(&c.up, &k.up, sizeof(rt::vec3)) == 0 && c.vfov_deg == k.vfov_deg &&
+                c.width == k.width && c.height == k.height)
+        << "camera";
+    EXPECT_TRUE(std::memcmp(&host->background, &known::kBackground, sizeof(rt::color)) == 0)
+        << "background";
+    EXPECT_EQ(host->ambient, known::kAmbient);
+}
 
 /// A miss reports the background, RT_MISS_PRIM and no lights.
 TEST_F(RenderPixel, MissPixelIsBackground) {
