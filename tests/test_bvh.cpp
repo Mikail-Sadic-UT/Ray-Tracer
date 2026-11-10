@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <limits>
 #include <random>
 #include <vector>
 
@@ -325,6 +326,107 @@ TEST(Bvh, RejectsInvalidParameters) {
     params = {};
     params.threads = 0;
     EXPECT_THROW(rt::build_bvh(scene, params, timings), rt::Error);
+}
+
+TEST(Bvh, SahCostMatchesAnalyticLeafAreasAtDifferentScales) {
+    // Two boxes of area 24 and a root of area 56: leaf SAH = 48/56 = 6/7.
+    // Large coordinates are valid scene data, but their float surface areas overflow:
+    // at scale 1e19 the root area is 56e38, above FLT_MAX (about 3.4e38).
+    for (float scale : {1.0f, 1.0e19f}) {
+        const std::vector<rt::Triangle> triangles{
+            {{0, 0, 0}, {2 * scale, 0, 2 * scale}, {0, 2 * scale, 0}, 0},
+            {{4 * scale, 0, 0}, {6 * scale, 0, 2 * scale}, {4 * scale, 2 * scale, 0}, 0}};
+        const rt::Scene scene = make_scene({}, triangles);
+        rt::BvhParams params;
+        params.max_leaf_size = 1;
+        rt::Timings timings;
+        const rt::Bvh tree = rt::build_bvh(scene, params, timings);
+        ASSERT_TRUE(rt::validate_bvh(tree, scene));
+        EXPECT_NEAR(tree.stats.sah_cost, 6.0 / 7.0, 1e-6);
+    }
+}
+
+TEST(Bvh, ZeroAreaTriangleIsRetainedWithZeroSahCost) {
+    const std::vector<rt::Triangle> triangles{{{1, 2, 3}, {1, 2, 3}, {1, 2, 3}, 0}};
+    const rt::Scene scene = make_scene({}, triangles);
+    rt::Timings timings;
+    const rt::Bvh tree = rt::build_bvh(scene, {}, timings);
+    EXPECT_TRUE(rt::validate_bvh(tree, scene));
+    ASSERT_EQ(tree.prim_refs.size(), 1u);
+    EXPECT_EQ(tree.prim_refs[0], rt::PRIM_TRIANGLE_BIT);
+    EXPECT_DOUBLE_EQ(tree.stats.sah_cost, 0.0);
+}
+
+TEST(Bvh, ValidatorRejectsNonfiniteRootLeafBounds) {
+    const std::vector<rt::Sphere> spheres{{{0, 0, 0}, 1, 0}};
+    const rt::Scene scene = make_scene(spheres, {});
+    rt::Timings timings;
+    const rt::Bvh original = rt::build_bvh(scene, {}, timings);
+    for (int axis = 0; axis < 3; ++axis) {
+        for (float value :
+             {std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(),
+              std::numeric_limits<float>::quiet_NaN()}) {
+            for (bool lower : {false, true}) {
+                rt::Bvh tree = original;
+                (lower ? tree.nodes[0].bounds.lo : tree.nodes[0].bounds.hi)[axis] = value;
+                std::string error;
+                EXPECT_FALSE(rt::validate_bvh(tree, scene, &error));
+                EXPECT_EQ(error, "bvh: node has nonfinite bounds");
+            }
+        }
+    }
+    std::string error = "previous failure";
+    EXPECT_TRUE(rt::validate_bvh(original, scene, &error));
+    EXPECT_TRUE(error.empty());
+}
+
+TEST(Bvh, ClusteredSceneIsByteIdenticalForOneEightAndSeventyTwoThreads) {
+    // The serial median builder ignores params.threads, so today this guards the
+    // contract for the task-parallel median variant (INTERFACES §3) once it lands.
+    std::vector<rt::Sphere> spheres;
+    std::vector<rt::Triangle> triangles;
+    random_primitives(2048, spheres, triangles);
+    // Compress geometry into two tight clusters without using the builder's bounds helpers.
+    for (size_t i = 0; i < spheres.size(); ++i)
+        spheres[i].center = spheres[i].center * 0.01f + rt::vec3{(i % 2) ? 20.0f : -20.0f, 0, 0};
+    for (size_t i = 0; i < triangles.size(); ++i) {
+        const rt::vec3 shift{(i % 2) ? 20.0f : -20.0f, 0, 0};
+        triangles[i].v0 = triangles[i].v0 * 0.01f + shift;
+        triangles[i].v1 = triangles[i].v1 * 0.01f + shift;
+        triangles[i].v2 = triangles[i].v2 * 0.01f + shift;
+    }
+    const rt::Scene scene = make_scene(spheres, triangles);
+    rt::Timings timings;
+    for (uint32_t leaf_size : {1u, 4u, 8u}) {
+        rt::BvhParams params;
+        params.max_leaf_size = leaf_size;
+        const rt::Bvh baseline = rt::build_bvh(scene, params, timings);
+        ASSERT_TRUE(rt::validate_bvh(baseline, scene));
+        for (int threads : {8, 72}) {
+            params.threads = threads;
+            const rt::Bvh tree = rt::build_bvh(scene, params, timings);
+            ASSERT_TRUE(rt::validate_bvh(tree, scene));
+            EXPECT_EQ(tree.prim_refs, baseline.prim_refs);
+            ASSERT_EQ(tree.nodes.size(), baseline.nodes.size());
+            EXPECT_EQ(std::memcmp(tree.nodes.data(), baseline.nodes.data(),
+                                  tree.nodes.size() * sizeof(rt::BvhNode)),
+                      0);
+            EXPECT_EQ(tree.stats.depth, baseline.stats.depth);
+            EXPECT_DOUBLE_EQ(tree.stats.sah_cost, baseline.stats.sah_cost);
+        }
+    }
+}
+
+TEST(Bvh, EmptyBuildClearsPreviousPreparationTimings) {
+    rt::Timings timings;
+    timings.bounds = timings.build = timings.layout = 123.0;
+    timings.render = 456.0;
+    const rt::Scene scene = make_scene({}, {});
+    rt::build_bvh(scene, {}, timings);
+    EXPECT_GE(timings.bounds, 0.0);
+    EXPECT_DOUBLE_EQ(timings.build, 0.0);
+    EXPECT_DOUBLE_EQ(timings.layout, 0.0);
+    EXPECT_DOUBLE_EQ(timings.render, 456.0);
 }
 
 }  // namespace

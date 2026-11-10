@@ -13,18 +13,21 @@
 
 **First three tasks:**
 1. `SceneHost` / `Scene` / `Image`, JSON reader/writer, scene hash, load validation, `scene_dump` (by Oct 30).
-2. A few hand-written `scenes/known/*.json` + PNG/PFM/`.u32img` writers + the brute-force CPU loop for the first image (by Oct 30).
-3. `rt_gen` uniform layout + `.bin`, then the CPU backend with OpenMP tiles (by Nov 6).
+2. Known scenes and image IO landed; the CPU normal preview now saves PFM/PNG/AOVs through
+   `scene_dump --render-normal` (#35). Canonical `rt_render` integration is still pending.
+3. `.bin` IO, development `rt_gen` uniform layout, and the OpenMP normal-render loop are
+   implemented (#35). Remove terrain stub S3 and integrate the real Backend before calling
+   the benchmark generator and CPU backend complete.
 
 **You hand off:**
 
 | What | To | When | Contract |
 |---|---|---|---|
 | `SceneHost`, `Scene`, `Image`, JSON IO, validation | Everyone | Oct 30 | §2 |
-| Known-case scenes (`scenes/known/`) | Everyone's tests | Oct 30 | §2 |
-| CPU backend (reference renderer) | Everyone (ground truth) | Nov 6 | §7 |
-| `rt_gen` + `.bin` + published scene set | Everyone (benchmarks) | Nov 6 | §2, [scene families](../BENCHMARKING.md#scene-families) |
-| `rt_compare` core checks | Mikail (GPU validation), Arek (goldens) | Nov 6 | [image comparison](../BENCHMARKING.md#2-image-comparison-rt_compare) |
+| Known-case scenes (`scenes/known/`) | Everyone's tests | Available: two spheres, single sphere, and degenerate triangle; each has a two-triangle floor | §2 |
+| CPU backend (reference renderer) | Everyone (ground truth) | Normal-render loop available (#35); Backend and BVH/lit integration pending | §7 |
+| `rt_gen` + `.bin` + published scene set | Everyone (benchmarks) | Binary IO and development generation available (#35); terrain S3 and canonical archive pending | §2, [scene families](../BENCHMARKING.md#scene-families) |
+| `rt_compare` core checks | Mikail (GPU validation), Arek (goldens) | CLI/core logic available (#35); final real-lit-image corruption gate pending | [image comparison](../BENCHMARKING.md#2-image-comparison-rt_compare) |
 
 **You depend on:**
 
@@ -34,10 +37,10 @@
 | `Timings` | Arek (struct landed, #22) | Nothing: `Backend::prepare` and `render` take `Timings&` (CPU backend fills `render`; it has no `download`) |
 | Camera JSON parsing and validation | Jett (Oct 30) | Nothing. Landed: `camera/camera.hpp` (`Camera`, `camera_ray`) and `camera/camera_io.hpp` (`parse_camera`, `camera_to_json`, `validate_camera`, #17) |
 | `brute_closest` / `BruteQuery` | Mikail (landed, #21) | Nothing |
-| `shade_hit` / `NormalShading` | Arek | Normal-as-color written inline, replaced when merged |
-| Terrain height field | Jett (Nov 6) | A flat two-triangle floor |
-| `Bvh` + `BvhQuery` | Jett, Mikail (Nov 6) | `BruteQuery` |
-| `Backend`, `PrepareInput`, `RenderSettings` | Mikail (Nov 6; declarations requested early in ROADMAP) | Keep scene and image IO independent until the backend header lands |
+| `shade_hit` / `NormalShading` | Arek (#43) | Real `NormalShading`/`surface_at` landed (#24). Stub S5: corruption test 4 uses synthetic shadow masks until `LitShading` lands |
+| Terrain height field | Jett (#41) | Stub S3 in `scene/terrain_stub.hpp` matches the specified formula for development; do not publish its output as the canonical scene set |
+| `Bvh` + `BvhQuery` | Jett, Mikail | Median builder/validator landed (#31); traversal pending. Use the real `BruteQuery` on small scenes |
+| `Backend`, `PrepareInput`, `RenderSettings`, `rt_render` | Mikail (#42) | Stub S4: `scene_dump --render-normal` saves CPU images through `cpu/normal_renderer.hpp` until the backend and `rt_render` land |
 
 The shared `render_pixel` entry point for the CPU loop has landed in `shade/render_pixel.hpp`
 (#33). The first image calls `render_pixel<BruteQuery, NormalShading>(cam, px, py, scene, q)`.
@@ -103,8 +106,8 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 |---|---|---|
 | Oct 27 | Review INTERFACES §2 and sign off | S |
 | Oct 30 | Scene types, JSON IO, hash, validation, `scene_dump`; known scenes; image IO; brute-force CPU image | M |
-| Nov 6 | `rt_gen` uniform + `.bin` (terrain from Jett); CPU backend; `rt_compare` core + 4 corruption tests | M |
-| Nov 6 | Generate the benchmark set once, publish it as release `scenes-v1` with `scenes/manifest.json`, and add `scripts/fetch_scenes.sh` ([details](../INTERFACES.md#generator-determinism-and-scene-distribution)) | S |
+| Nov 6 | Development `rt_gen` + `.bin`, CPU normal loop and `rt_compare` implemented (#35); real terrain, Backend/BVH/lit integration and the real lit corruption fixtures remain pending | M |
+| Nov 6 | Retrieval script implemented and tested (#35). Canonical `scenes-v1` release and manifest await real terrain and verification ([details](../INTERFACES.md#generator-determinism-and-scene-distribution)) | S |
 | Nov 18 | CPU render scaling R = 1→72; profile-driven CPU optimization | M |
 | Final | Reproducibility instructions (exact commands, hashes, modules) | M |
 | Later | E4 Embree (after G2); `clustered` layout and seed 2 (after G2, if time); [deferred `rt_compare` hardening](../BENCHMARKING.md#deferred-comparison-hardening) only if needed | |
@@ -126,4 +129,4 @@ PCG (pcg-random.org); PBRT v4 (renderer structure); PFM format notes; stb_image_
 | Week | Work done | PRs / issues | Hours |
 |---|---|---|---|
 | Oct 24–30 | Implemented shared scene types and layout checks; `SceneHost::view()`; inline JSON reader/writer, load validation, and canonical FNV-1a hashing; `scene_dump`; a known two-sphere scene; and PNG/PFM/`.u32img` image IO. Registered camera storage/IO stubs S1/S2. Verified the macOS CPU build and all 30 tests. Reviewed all 12 Markdown files under `docs/` and corrected hash compiler flags, CLI error handling, layout checks, build instructions, and dependency documentation. Vista GCC/CUDA verification and CPU-renderer integration remain pending teammate hand-offs. | Branch `po/scene`: `28c5a35`, `a2614b8`, `d66318e`, `b13ab20`, `74e3c62`; documentation-review code fixes: `e8e9737`. Build instructions, dependency notes, and this contribution log accompany the documentation update. | |
-| | | | |
+| Nov 9–15 | Implemented the deterministic tiled CPU normal renderer and saved previews; binary scene IO and relative JSON references; core `rt_compare` CLI and corruption logic tests; PCG32/uniform development generation and 95% fitted camera; verified archive retrieval; additional known scenes. Tracked terrain stand-in S3 and the pending Backend, traversal, real Lambert/shadow fixtures, canonical archive and Vista checks. Full Mac CPU build and 144 tests pass. Development 10K/100K/1M scenes load and validate; repeated 10K JSON/bin files are byte-identical. Detailed commands and limits: [PO_PROGRESS.md](../PO_PROGRESS.md). | [#35](https://github.com/Mikail-Sadic-UT/Ray-Tracer/issues/35), branch `po/cpu-scene-tools` | |

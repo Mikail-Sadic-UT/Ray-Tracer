@@ -117,7 +117,7 @@ void validate_camera(const Camera& camera) {
         camera_error("camera.height", "must be in [1, 16384]");
 
     // Double intermediates: squaring finite floats can overflow or underflow in float, and the
-    // threshold below must not depend on float rounding (CONTRACT_NOTES W2).
+    // threshold below must not depend on float rounding.
     double w[3], up[3];
     double w2 = 0.0, up2 = 0.0;
     for (int i = 0; i < 3; ++i) {

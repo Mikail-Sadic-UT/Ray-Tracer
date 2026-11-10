@@ -2,7 +2,7 @@
 
 ## Start here
 
-**You build:** the build system and CI, ray-primitive intersection and BVH traversal (GPU visibility), the backend interface, and the CUDA renderer (`DeviceScene` + megakernel). You also handle Vista: verification, batch scripts, and the node-hour log.
+**You build:** the build system and CI, ray-primitive intersection and BVH traversal (GPU visibility), the backend interface, and the CUDA renderer (`DeviceScene` + megakernel). You also handle Vista: verification, batch scripts, and the node-hour log. You also track milestones and update the [status table](../ROADMAP.md#status) weekly.
 
 **Read first, in order:**
 1. [INTERFACES §5 Intersection and traversal](../INTERFACES.md#5-intersection-and-traversal) (your contract)
@@ -24,7 +24,7 @@
 | `intersect_*`, `brute_*`, `Hit`, `BruteQuery` | Po (first CPU image), Arek (shadow tests) | Oct 30 (landed: `Hit` #20; intersection, `brute_*`, and `BruteQuery` #21) | §5, §6 |
 | `render_pixel` ([ROADMAP blocker 3](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Po (CPU loop), megakernel | Landed (#33: `shade/render_pixel.hpp`) | §6 |
 | `traverse_closest` / `traverse_any`, `BvhQuery` | Po (CPU backend), Arek | Nov 6 | §5, §6 |
-| `Backend` interface, `rt_render` CLI | Everyone | Nov 6 | §7 |
+| `Backend` interface, `rt_render` CLI | Everyone | Nov 6 (#42; Po's `scene_dump --render-normal` is stub S4 until it lands) | §7 |
 | CUDA megakernel backend | Everyone (GPU results) | Nov 13 | §7 |
 | sbatch sweep scripts | Everyone (measurements) | Nov 13 | [BENCHMARKING](../BENCHMARKING.md#sweeps) |
 
@@ -100,6 +100,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Nov 6 | `Backend` interface (`backend.hpp`), CPU/CUDA dispatch in `rt_render` | M |
 | Nov 13 | `DeviceScene` (explicit) + megakernel; sweep sbatch scripts; node-hour log | M |
 | Nov 18 | GPU profiling (`-Xptxas -v`, Nsight) | M |
+| Weekly | Status table in [ROADMAP](../ROADMAP.md#status), weekly meeting | S |
 | Later | E1 memory modes (after G2); E5 trace kernels (after G3); OptiX (stretch) | |
 
 ## Risks

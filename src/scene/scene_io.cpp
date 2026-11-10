@@ -2,12 +2,14 @@
 /// @brief Strict version 2 inline JSON reader and scene validation.
 #include "scene/scene_io.hpp"
 
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <nlohmann/json.hpp>
 
 #include "camera/camera_io.hpp"
 #include "core/float_format.hpp"
+#include "scene/binary_io.hpp"
 #include "scene/hash.hpp"
 #include "scene/json_helpers.hpp"
 
@@ -39,6 +41,16 @@ void check_material(uint32_t id, size_t num_materials, const std::string& path) 
     if (id >= num_materials)
         scene_error(path + ".material", "= " + std::to_string(id) + " >= num_materials " +
                                             std::to_string(num_materials));
+}
+
+/// Writes a complete JSON document, checking both buffered writes and close failures.
+void write_document(const std::string& path, const json& document) {
+    const std::string encoded = document.dump(2) + "\n";
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    if (!output) throw Error("scene_io: " + path + ": cannot open output file");
+    output.write(encoded.data(), static_cast<std::streamsize>(encoded.size()));
+    output.close();
+    if (!output) throw Error("scene_io: " + path + ": failed writing file");
 }
 
 }  // namespace
@@ -91,17 +103,20 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
     }
 }
 
-SceneHost parse_scene(const json& document) {
+/// Shared reader; file-based calls supply the JSON directory for relative binary paths.
+static SceneHost parse_scene_impl(const json& document, const std::filesystem::path& directory) {
     const uint32_t version = read_u32(member(document, "version", ""), "version");
     if (version != 2) scene_error("version", "expected version 2");
     const json& materials = member(document, "materials", "");
     const json& lights = member(document, "lights", "");
     const json& geometry = member(document, "geometry", "");
     if (!geometry.is_object()) scene_error("geometry", "expected an object");
-    if (geometry.contains("binary"))
-        scene_error("geometry.binary", "binary scene loading is not implemented yet");
-    const json& spheres = member(geometry, "spheres", "geometry");
-    const json& triangles = member(geometry, "triangles", "geometry");
+    const bool binary = geometry.contains("binary");
+    if (binary && (geometry.contains("spheres") || geometry.contains("triangles")))
+        scene_error("geometry", "binary and inline geometry are mutually exclusive");
+    const json empty = json::array();
+    const json& spheres = binary ? empty : member(geometry, "spheres", "geometry");
+    const json& triangles = binary ? empty : member(geometry, "triangles", "geometry");
     require_array(materials, "materials");
     require_array(lights, "lights");
     require_array(spheres, "geometry.spheres");
@@ -155,9 +170,21 @@ SceneHost parse_scene(const json& document) {
                                    read_vec3(vertices[2], path + ".v[2]"),
                                    read_u32(member(value, "material", path), path + ".material")});
     }
+    if (binary) {
+        const auto& filename = geometry.at("binary");
+        if (!filename.is_string() || filename.get_ref<const std::string&>().empty())
+            scene_error("geometry.binary", "expected a nonempty filename");
+        auto loaded = read_geometry((directory / filename.get<std::string>()).string());
+        scene.spheres = std::move(loaded.spheres);
+        scene.triangles = std::move(loaded.triangles);
+    }
     validate_scene(scene);
     scene.hash = scene_hash(scene.view());
     return scene;
+}
+
+SceneHost parse_scene(const json& document) {
+    return parse_scene_impl(document, ".");
 }
 
 SceneHost load_scene(const std::string& path) {
@@ -166,7 +193,7 @@ SceneHost load_scene(const std::string& path) {
     try {
         const json document = json::parse(input);
         if (input.bad()) throw Error("failed reading file");
-        return parse_scene(document);
+        return parse_scene_impl(document, std::filesystem::path(path).parent_path());
     } catch (const json::exception& error) {
         throw Error("scene_io: " + path + ": invalid JSON: " + error.what());
     } catch (const Error& error) {
@@ -218,12 +245,29 @@ json scene_to_json(const SceneHost& scene) {
 
 void save_scene(const std::string& path, const SceneHost& scene) {
     // Validate and encode before opening the destination, preserving it on validation errors.
-    const std::string encoded = scene_to_json(scene).dump(2) + "\n";
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
-    if (!output) throw Error("scene_io: " + path + ": cannot open output file");
-    output.write(encoded.data(), static_cast<std::streamsize>(encoded.size()));
-    output.close();
-    if (!output) throw Error("scene_io: " + path + ": failed writing file");
+    write_document(path, scene_to_json(scene));
+}
+
+void save_binary_scene(const std::string& path, const SceneHost& scene, const json& generator) {
+    validate_scene(scene);
+    const std::filesystem::path json_path(path);
+    if (json_path.extension() != ".json")
+        scene_error(path, "binary scene metadata destination must end in .json");
+    if (!generator.is_object()) scene_error("generator", "expected an object");
+    auto binary_path = json_path;
+    binary_path.replace_extension(".bin");
+    // Encode only the small metadata tables rather than constructing JSON for all geometry.
+    SceneHost metadata;
+    metadata.camera = scene.camera;
+    metadata.background = scene.background;
+    metadata.ambient = scene.ambient;
+    metadata.materials = scene.materials;
+    metadata.lights = scene.lights;
+    auto document = scene_to_json(metadata);
+    document["geometry"] = {{"binary", binary_path.filename().string()}};
+    if (!generator.empty()) document["generator"] = generator;
+    write_geometry(binary_path.string(), scene);
+    write_document(path, document);
 }
 
 }  // namespace rt

@@ -2,7 +2,7 @@
 
 ## Start here
 
-**You build:** the scene preparation stage, which turns a scene into a BVH (median builder, then a parallel builder), plus the camera and the terrain part of the generator. You also track milestones.
+**You build:** the scene preparation stage, which turns a scene into a BVH (median builder, then a parallel builder), plus the camera and the terrain part of the generator.
 
 **Read first, in order:**
 1. [INTERFACES §3 BVH layout and build pipeline](../INTERFACES.md#3-bvh-layout-and-build-pipeline) (your contract)
@@ -21,8 +21,8 @@
 | What | To | When | Contract |
 |---|---|---|---|
 | `camera_ray`, `Camera` parsing and overrides | Everyone's renderers | Landed (#16, #17: `camera.hpp`, `camera_io.hpp`) | §4 |
-| `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Landed (#31: `bvh/bvh.hpp`, serial) | §3 |
-| Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Nov 6 | [scene families](../BENCHMARKING.md#scene-families) |
+| `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Landed (#31: `bvh/bvh.hpp`, serial); validation and SAH follow-up landed (#40) | §3 |
+| Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Nov 6 (#41; Po uses stub S3 until it lands, and the canonical scene set waits on it) | [scene families](../BENCHMARKING.md#scene-families) |
 | Expected shading values for analytic tests | Arek | Nov 6 | [quality protocol §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
 | `Bvh` from the parallel builder | Everyone | Draft on `jett/lbvh` (#37); not ready for integration | §3 |
 
@@ -86,13 +86,12 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 |---|---|---|
 | Oct 27 | Review INTERFACES §3–4 and sign off | S |
 | Oct 30 | `camera_ray` + tests | S |
-| Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat (landed, #31) | M |
+| Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat (landed, #31); large-scene SAH and acceptance-coverage follow-up (landed, #40) | M |
 | Nov 6 | Terrain height field for `rt_gen` | S |
 | Nov 6 | Shading expected values for Arek's tests (hand calculations or Python) | S |
 | Nov 10 | **Decision:** if LBVH passes the validator and determinism tests, continue with it. Otherwise ship the task-parallel median builder (an accepted path, not a miss) | |
 | Nov 13 | Parallel builder (LBVH preferred), layout conversion, depth fallback: draft in progress (#37), acceptance pending | L |
 | Nov 18 | Preparation scaling, B = 1→72, per stage | M |
-| Weekly | Status table in [ROADMAP](../ROADMAP.md#status), weekly meeting | S |
 | Later | E3 binned SAH (after G2), E6 `obj2bin` + Blender (after G3), backup for E4 Embree | |
 
 ## Risks
@@ -131,4 +130,4 @@ Karras 2012 (LBVH); PBRT v4 Ch. 7; Jacco Bikker, "How to build a BVH"; Wald 2007
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Bounds stage, serial median builder, `validate_bvh`, and `BvhStats` in `bvh/bvh.hpp`, with builder and validator tests | #31 | — |
-| Nov 8–14 | Preserved the LBVH draft, added Morton sorting, hierarchy tasks, layout conversion and initial determinism cases; merged current `dev` and retained upstream validator fixes. Contract compliance and CPU/CUDA runtime verification remain pending. | #37; branch `jett/lbvh` | — |
+| Nov 8–14 | Hardened median validation and SAH (#40); preserved LBVH draft, Morton sorting, hierarchy tasks, layout conversion and initial determinism cases. Reference CUDA build and 141 tests verified by reviewer on merged dev; review revisions pending. | #37, #38, #39, #40 | — |

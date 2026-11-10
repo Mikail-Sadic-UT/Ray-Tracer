@@ -2,7 +2,7 @@
 
 **Re-baselined Oct 24.** As of this date the repository contains planning docs only, with no code merged. The original September dates no longer describe an executable plan. If work exists outside this repo, merge it and update [Status](#status) before using these dates.
 
-Owners, gates, tasks, and risks are below. Per-person views are in [members/](members/). Jett updates the status table weekly.
+Owners, gates, tasks, and risks are below. Per-person views are in [members/](members/). Mikail updates the status table weekly.
 
 ## Scope
 
@@ -85,8 +85,8 @@ The **GPU smoke image** (~Nov 3) can be shown at check-in 2 as evidence that the
 
 | Member | Core | Extensions |
 |---|---|---|
-| Jett (M1) | Camera; median builder + validator; parallel builder (LBVH preferred, task-parallel median fallback) + layout conversion + depth fallback; **terrain generation** (height field); preparation scaling; shading expected values (independent check); milestones | E3 SAH, E6 `obj2bin`, E4 backup |
-| Mikail (M2) | Skeleton, CMake, CI, Vista; intersection + traversal; **GPU smoke image**; `DeviceScene` + megakernel; sweep scripts; GPU profiling; node-hour log | E1 memory modes, E5 trace kernels |
+| Jett (M1) | Camera; median builder + validator; parallel builder (LBVH preferred, task-parallel median fallback) + layout conversion + depth fallback; **terrain generation** (height field); preparation scaling; shading expected values (independent check) | E3 SAH, E6 `obj2bin`, E4 backup |
+| Mikail (M2) | Skeleton, CMake, CI, Vista; intersection + traversal; **GPU smoke image**; `DeviceScene` + megakernel; sweep scripts; GPU profiling; node-hour log; milestones and the [status table](#status) | E1 memory modes, E5 trace kernels |
 | Arek (M3) | Math library; Lambert shading + shadow rays; harness (T_app / T_br / T_frame); double-precision intersection oracle; **golden-image CI integration** (render known scenes, compare, commit goldens); plots | E2 Blinn-Phong, E5 queues/shade/accumulate |
 | Po (M4) | `SceneHost` + `scene_io` + validation + hash; sphere placement + `.bin` for `rt_gen`; image IO; CPU backend (1 and N threads); `rt_compare` + core corruption tests; CPU render scaling; final reproducibility | E4 Embree |
 
@@ -140,6 +140,9 @@ The table above lists the stand-ins the plan expects. This register lists the on
 
 | ID | Used by | Where | Stands in for | Remove when | Status |
 |---|---|---|---|---|---|
+| S3 | Po (`rt_gen`) | `src/scene/terrain_stub.hpp` | Jett's terrain height-field/grid generator | Jett's terrain lands (#41). Delete the stub, its marker, and the `terrain_source: "stub-S3"` tag in `apps/rt_gen/main.cpp`; then Po generates the canonical scene set (#35) | open |
+| S4 | Po (CPU image) | `apps/scene_dump/main.cpp` (`--render-normal`) | Mikail's `Backend` interface and `rt_render --backend cpu` | `backend.hpp` and `rt_render` land (#42) and the CPU backend renders through them. Remove the preview option and marker, or keep it as an inspection tool and say so here | open |
+| S5 | Po (`rt_compare` tests) | `tests/test_compare.cpp` (`RejectsSyntheticShadowBlock`) | Corruption test 4 on a real lit image, which needs Arek's `LitShading` | `LitShading` lands (#43) and test 4 runs on the lit `known_two_spheres` image | open |
 
 `Status` is `open` while the real thing hasn't landed, and `ready to remove` once it has but the stub is still in the code. Add a row in the PR that adds the stub (next free ID, `S1`, `S2`, ...), and delete the row in the PR that removes it. The weekly meeting reads this table.
 
@@ -341,16 +344,24 @@ From the proposal; adopted at Nov 13 if G2 fails:
 
 ## Status
 
-Updated by Jett weekly.
+Updated by Mikail weekly.
 
-| Item | Status (Nov 3) | Notes |
+| Item | Status (Nov 9) | Notes |
 |---|---|---|
 | Check-in 2 date | Nov 12 | Postponed from Oct 26–30; gates unchanged |
-| INTERFACES v1.0 | Proposed | Sign-off Oct 27 |
+| G0 (Oct 30) | Met except sign-off | CPU CI, CUDA builds on the laptop and Vista, `hello_cuda` on a GH node (C1). Brute-force normal-shaded CPU image of `known_two_spheres` saved by `scene_dump --render-normal` (#36, stub S4). INTERFACES v1.0 is still marked Proposed |
+| G1 (Nov 6) | **Not met** | Landed: median builder and validator (#31, #40), multicore CPU loop bit-identical to 1 thread (#36), `rt_gen` uniform + `.bin` + hash (#36, terrain stub S3), `rt_compare` core checks (#36). Missing: Lambert + shadows (C4, #43), traversal and BVH = brute force (C5), harness T_br/T_frame on CPU (C9), CPU backend through `Backend` (C7, #42), fixed benchmark scenes (needs terrain, #41) |
+| G2 (Nov 13) | At risk | Needs C10 megakernel, C11 parallel builder, and first Vista timings. Not met by Nov 13 means [reduced scope](#reduced-scope-fallback) |
+| INTERFACES v1.0 | Proposed | Sign-off was due Oct 27. Open interface proposal #4 (Arek) |
 | C1 | Done (Oct 28) | CMake, CI (first GitHub run green), `.clang-format`, PR template, `hello_cuda`. Verified on the laptop (WSL2, GCC 13.3, CUDA 13.3) and on a Vista GH200 node (GCC 13.2, CUDA 13.3, `ctest` 4/4, `hello_cuda`). Branch protection set: `main` needs a PR with 1 approval; `main` and `dev` block force-push and deletion; the admin can bypass. Making the `cpu` CI job a required check is deferred ([WORKFLOW.md](WORKFLOW.md#deferred-process)) |
-| C2 | Partly done | Merged on `dev`: math library and `AABB` slab tests (#1, #13), scene types, IO, validation, hash, image IO and `scene_dump` (#9), `bvh_types.hpp` (#18), `Timings` (#22), subnormal slab fix and 1e18 coordinate bound (#30) |
-| C3 | Partly done | Camera and camera IO merged (#16, #17). `Hit` merged (#20). Intersection, brute-force queries, and `BruteQuery` merged (#21). `NormalShading` and `surface_at` merged (#24). `render_pixel` merged (#33). Brute-force CPU image not started |
+| C2 | Partly done | Merged on `dev`: math library and `AABB` slab tests (#1, #13), scene types, IO, validation, hash, image IO and `scene_dump` (#9), `bvh_types.hpp` (#18), `Timings` (#22), subnormal slab fix and 1e18 coordinate bound (#30), robust `normalize()` (#29). Remaining: INTERFACES sign-off |
+| C3 | Mostly done | Camera and camera IO (#16, #17), `Hit`, intersection and `BruteQuery` (#20, #21), `NormalShading` (#24) and `render_pixel` (#33) landed. First CPU image saved through `scene_dump --render-normal` (#36), verified on WSL. Remaining: `rt_render --backend cpu --bvh none --shade normal` (#42) |
 | C3G (GPU smoke) | Partly done | `render_pixel<BruteQuery, NormalShading>` runs in a CUDA test kernel on `known_two_spheres` and matches the CPU image (0 `prim_id` differences on the laptop, #33). `DeviceScene`, the kernel in `src/gpu/`, and `rt_render --backend cuda` not started |
-| C11 builder decision | Pending (Nov 9) | Draft LBVH on `jett/lbvh` (#37): Morton sort, hierarchy tasks, layout conversion and initial tests. Parallel Karras/refit, parallel layout, depth-32 subtree recovery and runtime verification remain outstanding. Nov 10 decision is not yet satisfied |
-| C5 | Partly done | Median builder and validator merged (#31). Traversal and BVH-vs-brute-force test not started |
-| C4, C6–C10, C12–C14 | Not started | |
+| C4 | Not started | `shade_hit`, shadow rays and `LitShading` (Arek, #43). Blocks lit images, goldens and corruption test 4 (stub S5) |
+| C5 | Partly done | Median builder and validator merged (#31, #40). Traversal (`BvhQuery`) and the BVH-vs-brute-force test not started (Mikail) |
+| C6 | Partly done | `.bin` IO and development `uniform` generation merged (#36): exact counts, canonical hashes, fitted camera, archive fetch script. Waiting on Jett's terrain (#41, stub S3) before generating and publishing `scenes-v1`. Vista check pending |
+| C7 | Partly done | Deterministic 16×16 OpenMP normal-render loop merged (#36), 1 vs 32 threads byte-identical. Waiting on `Backend` + `rt_render` (#42), traversal and lit shading |
+| C8 | Partly done | `rt_compare` core checks merged (#36), with corruption tests 1–3 on the real normal image and test 4 on synthetic masks (stub S5). Not started: double-precision oracle and golden tests (Arek), shading expected values (Jett) |
+| C9 | Not started | `Timings` struct landed (#22); timers, results writer and `--mode app\|prepared` not started (Arek) |
+| C11 builder decision | Due Nov 10 | LBVH draft (#38) is valid and byte-identical at 1/8/72 threads on 10K–1M test scenes (review on #38). Before relying on it: fix the depth fallback, which rebuilds the whole tree too early, and add tests above the 1,024-primitive task threshold. Fallback: task-parallel median |
+| C10, C12–C14 | Not started | |

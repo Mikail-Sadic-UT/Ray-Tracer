@@ -197,16 +197,23 @@ void emit_lbvh(const std::vector<Prim>& prims, const std::vector<uint32_t>& orde
 double sah_cost(const Bvh& bvh) {
     if (bvh.nodes.empty()) return 0.0;
 
-    const float root_area = bvh.nodes[0].bounds.surface_area();
-    if (!(root_area > 0.0f) || !std::isfinite(root_area)) return 0.0;
+    // Host-only diagnostic: scene coordinates can make a float area overflow even
+    // though the normalized cost is finite. Promote before subtracting/multiplying.
+    const auto area = [](const AABB& bounds) {
+        const double x = static_cast<double>(bounds.hi.x) - bounds.lo.x;
+        const double y = static_cast<double>(bounds.hi.y) - bounds.lo.y;
+        const double z = static_cast<double>(bounds.hi.z) - bounds.lo.z;
+        return 2.0 * (x * y + y * z + z * x);
+    };
+    const double root_area = area(bvh.nodes[0].bounds);
+    if (!(root_area > 0.0) || !std::isfinite(root_area)) return 0.0;
 
     // The diagnostic is the usual normalized leaf SAH: each primitive in a leaf pays
     // the leaf surface-area probability relative to the root.
     double cost = 0.0;
     for (const BvhNode& node : bvh.nodes) {
         if (node.count != 0) {
-            cost += static_cast<double>(node.count) *
-                    static_cast<double>(node.bounds.surface_area()) / root_area;
+            cost += static_cast<double>(node.count) * area(node.bounds) / root_area;
         }
     }
     return cost;
@@ -371,6 +378,7 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
 }
 
 bool validate_bvh(const Bvh& bvh, const Scene& scene, std::string* error) {
+    if (error) error->clear();
     const uint32_t max_leaf_size = bvh.stats.max_leaf_size;
     if (max_leaf_size == 0) return fail(error, "bvh: max_leaf_size must be positive");
     const uint32_t primitive_count = scene.num_spheres + scene.num_triangles;
@@ -391,6 +399,10 @@ bool validate_bvh(const Bvh& bvh, const Scene& scene, std::string* error) {
         if (visited[index]) return fail(error, "bvh: node is referenced more than once");
         visited[index] = true;
         const BvhNode& node = bvh.nodes[index];
+        for (int axis = 0; axis < 3; ++axis) {
+            if (!std::isfinite(node.bounds.lo[axis]) || !std::isfinite(node.bounds.hi[axis]))
+                return fail(error, "bvh: node has nonfinite bounds");
+        }
         if (node.bounds.is_empty()) return fail(error, "bvh: node has an empty bounds");
         box = node.bounds;
         if (node.count != 0) {
