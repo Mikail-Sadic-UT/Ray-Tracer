@@ -119,8 +119,12 @@ Reviewer evidence for the prior draft merged with #40: Ubuntu 24.04, GCC 13.3,
 CUDA 13.3, 32 cores; warning-free CUDA build, 141/141 tests, and scratch 10K–1M
 uniform/clustered/terrain scenes valid and byte-identical at B=1/8/72, no fallbacks.
 This supports continuing LBVH, conditional on fixing depth recovery first.
-The new revision still needs CI and CUDA re-verification. Local CMake Tools exposes
-no configured targets; editing/formatting used native Windows and WSL clang-format.
+Revision f158199 passed GCC 13 CPU compilation and all tests in CI, including the
+new recovery/task regressions. Its format-only failure was due to clang-format
+14/18 differences in the wrapped OpenMP pragma; the condition is now named so the
+directive fits on one line. Final CI and revised CUDA verification remain pending.
+Local CMake Tools exposes no configured targets; editing/formatting used native
+Windows and WSL clang-format 14.
 Terrain and independent analytic shading values can be prepared before their
 integration into Po's generator and Arek's shading path; they are not blocked tasks.
 
