@@ -158,7 +158,9 @@ rt_render --scene s.json --backend cpu|cuda|embree|optix --bvh none|median|lbvh|
           --shade lit|normal --aov primid,lightmask --out img.png --pfm img.pfm --results r.json
 ```
 
-`--bvh none` uses brute force (testing only). Camera overrides (Jett) are set in C3: `--cam-pos`, `--cam-look`, `--cam-vfov`.
+`--bvh none` uses brute force (testing only). Camera overrides (Jett) are set in C3: `--cam-pos`, `--cam-look`, `--cam-vfov`. `--max-leaf-size` (default 4) sets `BvhParams::max_leaf_size`.
+
+Implemented so far (#42): `--scene`, `--backend cpu`, `--bvh`, `--max-leaf-size`, `--build-threads`, `--render-threads`, `--width`, `--height`, the camera overrides, `--shade` (`normal` only until `LitShading`, #43), `--aov`, `--pfm`, `--out`. Defaults: `--backend cpu --bvh median --shade lit`, 1 thread each. `--mode`, `--runs` and `--results` come with the harness (C9). `--pipeline` and the `--mem` options come with the CUDA backend (C10, E1). Until then `rt_render` runs one preparation and one frame, and prints its timing components to stderr.
 
 | App | Owner | Purpose |
 |---|---|---|
