@@ -329,8 +329,9 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
     const auto bounds_start = std::chrono::steady_clock::now();
     const uint32_t primitive_count = scene.num_spheres + scene.num_triangles;
     std::vector<Prim> prims(primitive_count);
-#pragma omp parallel for num_threads(params.threads) schedule( \
-    static) if (params.method == BvhMethod::LBVH && primitive_count >= 4096 && params.threads > 1)
+    const bool parallel_bounds =
+        params.method == BvhMethod::LBVH && primitive_count >= 4096 && params.threads > 1;
+#pragma omp parallel for num_threads(params.threads) schedule(static) if (parallel_bounds)
     for (int64_t i = 0; i < static_cast<int64_t>(primitive_count); ++i) {
         const uint32_t index = static_cast<uint32_t>(i);
         if (index < scene.num_spheres) {
