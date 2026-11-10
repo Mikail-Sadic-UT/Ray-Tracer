@@ -2,12 +2,15 @@
 /// @brief Bounds and deterministic median-builder checks.
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstring>
 #include <limits>
+#include <numeric>
 #include <random>
 #include <vector>
 
 #include "bvh/bvh.hpp"
+#include "bvh/lbvh_internal.hpp"
 #include "core/error.hpp"
 
 namespace {
@@ -427,6 +430,121 @@ TEST(Bvh, EmptyBuildClearsPreviousPreparationTimings) {
     EXPECT_DOUBLE_EQ(timings.build, 0.0);
     EXPECT_DOUBLE_EQ(timings.layout, 0.0);
     EXPECT_DOUBLE_EQ(timings.render, 456.0);
+}
+
+TEST(Bvh, LbvhTaskSizedScenesAreDeterministicWithoutFallbacks) {
+    for (bool clustered : {false, true}) {
+        std::vector<rt::Sphere> spheres;
+        std::vector<rt::Triangle> triangles;
+        random_primitives(4096, spheres, triangles);
+        if (clustered) {
+            for (size_t i = 0; i < spheres.size(); ++i)
+                spheres[i].center =
+                    spheres[i].center * 0.001f + rt::vec3{(i % 2) ? 20.0f : -20.0f, 0, 0};
+            for (size_t i = 0; i < triangles.size(); ++i) {
+                const rt::vec3 shift{(i % 2) ? 20.0f : -20.0f, 0, 0};
+                triangles[i].v0 = triangles[i].v0 * 0.001f + shift;
+                triangles[i].v1 = triangles[i].v1 * 0.001f + shift;
+                triangles[i].v2 = triangles[i].v2 * 0.001f + shift;
+            }
+        }
+        const rt::Scene scene = make_scene(spheres, triangles);
+        rt::BvhParams params;
+        params.method = rt::BvhMethod::LBVH;
+        params.max_leaf_size = 1;
+        rt::Timings timings;
+        const rt::Bvh baseline = rt::build_bvh(scene, params, timings);
+        ASSERT_TRUE(rt::validate_bvh(baseline, scene));
+        ASSERT_EQ(baseline.stats.fallbacks, 0u);
+        for (int threads : {8, 72}) {
+            params.threads = threads;
+            for (int repeat = 0; repeat < 2; ++repeat) {
+                const rt::Bvh tree = rt::build_bvh(scene, params, timings);
+                ASSERT_TRUE(rt::validate_bvh(tree, scene));
+                EXPECT_EQ(tree.stats.fallbacks, 0u);
+                EXPECT_EQ(tree.prim_refs, baseline.prim_refs);
+                ASSERT_EQ(tree.nodes.size(), baseline.nodes.size());
+                EXPECT_EQ(std::memcmp(tree.nodes.data(), baseline.nodes.data(),
+                                      tree.nodes.size() * sizeof(rt::BvhNode)),
+                          0);
+            }
+        }
+    }
+}
+
+TEST(Bvh, LbvhMortonChainDeeperThan32DoesNotFallback) {
+    std::vector<rt::Sphere> spheres(512, rt::Sphere{{0, 0, 0}, 0.00001f, 0});
+    // Nested Morton bit prefixes followed by a large equal-code group: the full
+    // tree exceeds depth 32 but fits the 64-entry traversal stack.
+    for (int bit = 0; bit < 30; ++bit)
+        spheres[static_cast<size_t>(bit)].center[bit % 3] = static_cast<float>(1u << (bit / 3));
+    const rt::Scene scene = make_scene(spheres, {});
+    rt::BvhParams params;
+    params.method = rt::BvhMethod::LBVH;
+    params.max_leaf_size = 1;
+    rt::Timings timings;
+    const rt::Bvh tree = rt::build_bvh(scene, params, timings);
+    EXPECT_TRUE(rt::validate_bvh(tree, scene));
+    EXPECT_GT(tree.stats.depth, 32u);
+    EXPECT_LE(tree.stats.depth, 64u);
+    EXPECT_EQ(tree.stats.fallbacks, 0u);
+}
+
+TEST(Bvh, LbvhRecoveryPreservesDepth64AndRepairsOnlyDepth32Subtree) {
+    // 30-bit Morton/index hierarchies cannot reach depth >64 at practical input
+    // sizes. Inject full binary chains into the actual internal recovery pass.
+    for (uint32_t depth : {64u, 65u}) {
+        const uint32_t count = depth + 1;
+        std::vector<rt::detail::BuildPrim> prims(count);
+        std::vector<uint32_t> order(count);
+        std::iota(order.begin(), order.end(), 0u);
+        std::vector<rt::detail::LbvhNode> nodes(2 * count - 1);
+        for (uint32_t i = 0; i < count; ++i) {
+            const float x = static_cast<float>(count - i);
+            prims[i] = {i, {{x, 0, 0}, {x + 0.5f, 1, 1}}, {x + 0.25f, 0.5f, 0.5f}};
+            if (i < depth) {
+                auto& node = nodes[2 * i];
+                node.first = i;
+                node.last = count - 1;
+                node.left = 2 * i + 1;
+                node.right = 2 * i + 2;
+                node.bounds = {{0, 0, 0}, {static_cast<float>(count + 1), 1, 1}};
+                auto& leaf = nodes[2 * i + 1];
+                leaf.first = leaf.last = i;
+                leaf.leaf = true;
+                leaf.bounds = prims[i].bounds;
+            }
+        }
+        nodes.back().first = nodes.back().last = count - 1;
+        nodes.back().leaf = true;
+        nodes.back().bounds = prims.back().bounds;
+        const auto original = nodes;
+        const uint32_t fallbacks = rt::detail::recover_lbvh_depth(prims, order, nodes);
+        EXPECT_EQ(fallbacks, depth == 64 ? 0u : 1u);
+        EXPECT_LE(nodes[0].height, 64u);
+        // Every ancestor keeps its topology and primitive range, and each outside
+        // sibling leaf is untouched; only the depth-32 range may be permuted.
+        for (uint32_t i = 0; i < 32; ++i) {
+            EXPECT_EQ(nodes[2 * i].left, original[2 * i].left);
+            EXPECT_EQ(nodes[2 * i].right, original[2 * i].right);
+            EXPECT_EQ(nodes[2 * i].first, original[2 * i].first);
+            EXPECT_EQ(nodes[2 * i].last, original[2 * i].last);
+            EXPECT_EQ(nodes[2 * i + 1].first, i);
+            EXPECT_EQ(order[i], i);
+        }
+        if (depth == 64) {
+            for (uint32_t i = 0; i < count; ++i) EXPECT_EQ(order[i], i);
+        } else {
+            EXPECT_LE(nodes[64].height, 6u);
+            EXPECT_EQ(nodes[64].first, 32u);
+            EXPECT_EQ(nodes[64].last, count - 1);
+            // Median partitioning is spatial rather than retaining this reversed
+            // canonical order; coverage still consists of exactly the same refs.
+            auto sorted = order;
+            std::sort(sorted.begin(), sorted.end());
+            for (uint32_t i = 0; i < count; ++i) EXPECT_EQ(sorted[i], i);
+        }
+    }
 }
 
 }  // namespace

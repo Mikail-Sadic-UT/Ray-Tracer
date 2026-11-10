@@ -10,25 +10,14 @@
 #include <limits>
 #include <numeric>
 
+#include "bvh/lbvh_internal.hpp"
 #include "core/error.hpp"
 
 namespace rt {
 namespace {
 
-struct Prim {
-    PrimRef ref;
-    AABB bounds;
-    vec3 centroid;
-};
-
-struct LbvhNode {
-    AABB bounds{};
-    uint32_t left = 0;
-    uint32_t right = 0;
-    uint32_t first = 0;
-    uint32_t last = 0;
-    bool leaf = false;
-};
+using Prim = detail::BuildPrim;
+using detail::LbvhNode;
 
 AABB empty_box() {
     const float inf = std::numeric_limits<float>::infinity();
@@ -165,10 +154,62 @@ uint32_t collapsed_node_count(const std::vector<LbvhNode>& nodes, uint32_t index
            collapsed_node_count(nodes, node.right, max_leaf_size);
 }
 
-uint32_t tree_height(const std::vector<LbvhNode>& nodes, uint32_t index) {
-    const LbvhNode& node = nodes[index];
-    if (node.leaf) return 1;
-    return 1 + std::max(tree_height(nodes, node.left), tree_height(nodes, node.right));
+uint32_t update_height(std::vector<LbvhNode>& nodes, uint32_t index) {
+    LbvhNode& node = nodes[index];
+    node.height =
+        node.leaf ? 0
+                  : 1 + std::max(update_height(nodes, node.left), update_height(nodes, node.right));
+    return node.height;
+}
+
+/// Reuses the recovered subtree's exact slot range; no outside node is relocated.
+void rebuild_median_subtree(const std::vector<Prim>& prims, std::vector<uint32_t>& order,
+                            std::vector<LbvhNode>& nodes, uint32_t index, uint32_t first,
+                            uint32_t last) {
+    LbvhNode& node = nodes[index];
+    node = {};
+    node.first = first;
+    node.last = last;
+    node.bounds = empty_box();
+    AABB centroids = empty_box();
+    for (uint32_t i = first; i <= last; ++i) {
+        node.bounds.grow(prims[order[i]].bounds);
+        centroids.grow(prims[order[i]].centroid);
+    }
+    if (first == last) {
+        node.leaf = true;
+        return;
+    }
+    const vec3 extent = centroids.extent();
+    int axis = extent.y > extent.x ? 1 : 0;
+    if (extent.z > extent[axis]) axis = 2;
+    const uint32_t middle = first + (last - first + 1) / 2;
+    std::nth_element(order.begin() + first, order.begin() + middle, order.begin() + last + 1,
+                     [&](uint32_t a, uint32_t b) {
+                         const float ca = prims[a].centroid[axis];
+                         const float cb = prims[b].centroid[axis];
+                         return ca < cb || (ca == cb && prims[a].ref < prims[b].ref);
+                     });
+    node.left = index + 1;
+    node.right = index + 2 * (middle - first);
+    rebuild_median_subtree(prims, order, nodes, node.left, first, middle - 1);
+    rebuild_median_subtree(prims, order, nodes, node.right, middle, last);
+    node.height = 1 + std::max(nodes[node.left].height, nodes[node.right].height);
+}
+
+uint32_t recover_subtrees(const std::vector<Prim>& prims, std::vector<uint32_t>& order,
+                          std::vector<LbvhNode>& nodes, uint32_t index, uint32_t depth) {
+    LbvhNode& node = nodes[index];
+    if (node.leaf) return 0;
+    if (depth == RT_FALLBACK_DEPTH) {
+        if (node.height <= RT_MAX_BVH_DEPTH - RT_FALLBACK_DEPTH) return 0;
+        rebuild_median_subtree(prims, order, nodes, index, node.first, node.last);
+        return 1;
+    }
+    const uint32_t count = recover_subtrees(prims, order, nodes, node.left, depth + 1) +
+                           recover_subtrees(prims, order, nodes, node.right, depth + 1);
+    node.height = 1 + std::max(nodes[node.left].height, nodes[node.right].height);
+    return count;
 }
 
 void emit_lbvh(const std::vector<Prim>& prims, const std::vector<uint32_t>& order,
@@ -268,6 +309,13 @@ bool fail(std::string* error, const std::string& message) {
 
 }  // namespace
 
+uint32_t detail::recover_lbvh_depth(const std::vector<BuildPrim>& prims,
+                                    std::vector<uint32_t>& order, std::vector<LbvhNode>& nodes) {
+    if (nodes.empty()) return 0;
+    update_height(nodes, 0);
+    return recover_subtrees(prims, order, nodes, 0, 0);
+}
+
 Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
     if (params.method != BvhMethod::Median && params.method != BvhMethod::LBVH)
         throw Error("bvh: only Median and LBVH are implemented");
@@ -281,7 +329,8 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
     const auto bounds_start = std::chrono::steady_clock::now();
     const uint32_t primitive_count = scene.num_spheres + scene.num_triangles;
     std::vector<Prim> prims(primitive_count);
-#pragma omp parallel for num_threads(params.threads) schedule(static)
+#pragma omp parallel for num_threads(params.threads) schedule( \
+    static) if (params.method == BvhMethod::LBVH && primitive_count >= 4096 && params.threads > 1)
     for (int64_t i = 0; i < static_cast<int64_t>(primitive_count); ++i) {
         const uint32_t index = static_cast<uint32_t>(i);
         if (index < scene.num_spheres) {
@@ -326,28 +375,8 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
         const auto build_end = std::chrono::steady_clock::now();
         timings.build = std::chrono::duration<double, std::milli>(build_end - build_start).count();
 
-        // A pathological Morton hierarchy is recovered with the already validated median
-        // builder before layout, keeping the fixed traversal stack safe.
-        if (tree_height(temp, 0) > RT_FALLBACK_DEPTH) {
-            const auto layout_start = std::chrono::steady_clock::now();
-            std::vector<uint32_t> median_order(prims.size());
-            std::iota(median_order.begin(), median_order.end(), 0u);
-            result.nodes.push_back({empty_box(), 0, 0});
-            BvhParams median_params = params;
-            median_params.method = BvhMethod::Median;
-            Builder builder{prims, median_params, result};
-            builder.build(median_order, 0, 0, static_cast<uint32_t>(median_order.size()), 0);
-            result.stats.nodes = static_cast<uint32_t>(result.nodes.size());
-            result.stats.depth = builder.max_depth;
-            result.stats.fallbacks = 1;
-            result.stats.sah_cost = sah_cost(result);
-            const auto layout_end = std::chrono::steady_clock::now();
-            timings.layout =
-                std::chrono::duration<double, std::milli>(layout_end - layout_start).count();
-            return result;
-        }
-
         const auto layout_start = std::chrono::steady_clock::now();
+        result.stats.fallbacks = detail::recover_lbvh_depth(prims, order, temp);
         const uint32_t output_count = collapsed_node_count(temp, 0, params.max_leaf_size);
         result.nodes.resize(output_count);
         uint32_t next_output = 1;
