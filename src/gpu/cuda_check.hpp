@@ -29,3 +29,24 @@ namespace rt::detail {
             ::rt::detail::cuda_fail(rt_cuda_err_, #expr, __FILE__, __LINE__); \
         }                                                                     \
     } while (0)
+
+namespace rt {
+
+/// True if at least one CUDA device is visible.
+///
+/// Returns false only when the runtime reports `cudaErrorNoDevice` (no GPU, or
+/// `CUDA_VISIBLE_DEVICES` is empty). Any other failure, such as a driver too old for the
+/// toolkit, throws rt::Error, so a broken setup on a machine with a GPU is not mistaken for a
+/// missing GPU.
+inline bool cuda_device_available() {
+    int devices = 0;
+    const cudaError_t err = cudaGetDeviceCount(&devices);
+    if (err == cudaErrorNoDevice) {
+        (void)cudaGetLastError();  // clear the error so later runtime calls are unaffected
+        return false;
+    }
+    RT_CUDA_CHECK(err);
+    return devices > 0;
+}
+
+}  // namespace rt
