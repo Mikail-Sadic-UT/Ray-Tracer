@@ -190,9 +190,9 @@ mkdir -p build/previews build/generated
 ```
 
 These commands check correctness and demonstrate image output; they do not establish benchmark timings. Generation
-uses the benchmark height field in `scene/terrain.hpp`; stub S3 has been removed (#41).
-Verification and canonical scene publication remain pending (#35). Python 3 is required for `scripts/fetch_scenes.sh` and
-the archive/CLI integration tests. See [Po's hand-off notes](PO_PROGRESS.md) for validation,
+uses the benchmark height field in `scene/terrain.hpp` (#41). Canonical scene publication
+remains pending (#35). Python 3 is required for `scripts/fetch_scenes.sh` and the
+archive/CLI integration tests. See [Po's hand-off notes](PO_PROGRESS.md) for validation,
 retrieval commands, environment overrides and remaining dependencies. No gate is established
 by these tools alone; reference-platform and integrated-renderer checks are still required.
 

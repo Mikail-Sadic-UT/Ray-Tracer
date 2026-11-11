@@ -43,9 +43,9 @@ BruteQuery and ordinary synthetic unit-test inputs remain useful production/test
 - **Terrain / Jett #41:** `scene/terrain.hpp` now supplies the benchmark height field and
   upward-wound triangle grid. `rt_gen` uses it for terrain and sphere heights; S3 and its
   marker/register/metadata have been removed. Regression tests cover analytic samples,
-  topology, materials, invalid inputs and seed independence; build/test verification is
-  pending because local CMake Tools has no configured targets. Po can generate and verify
-  the canonical archive after verification (#35).
+  topology, materials, invalid inputs and seed independence. Generated `.bin` files are
+  byte-identical to the S3 output, so scene hashes are unchanged. Po can now generate and
+  publish the canonical archive (#35).
 - **Canonical publication:** no `scenes-v1` release or canonical manifest has been published
   by this work. The retrieval script is tested, but no real remote archive was available.
 - **Vista:** GCC/CUDA, GPU agreement and CPU scaling/profile measurements remain unverified

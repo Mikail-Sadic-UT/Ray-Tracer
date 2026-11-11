@@ -87,7 +87,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Oct 27 | Review INTERFACES §3–4 and sign off | S |
 | Oct 30 | `camera_ray` + tests | S |
 | Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat (landed, #31); large-scene SAH and acceptance-coverage follow-up (landed, #40) | M |
-| Nov 6 | Terrain height field and upward-wound grid integrated into `rt_gen` (#41); regression tests added, build/test verification pending | S |
+| Nov 6 | Terrain height field and upward-wound grid integrated into `rt_gen` (landed, #41) | S |
 | Nov 6 | Shading expected values for Arek's tests (hand calculations or Python) | S |
 | Nov 10 | **Decision:** if LBVH passes the validator and determinism tests, continue with it. Otherwise ship the task-parallel median builder (an accepted path, not a miss) | |
 | Nov 13 | Parallel builder (LBVH preferred), layout conversion, depth fallback | L |
@@ -112,14 +112,4 @@ Karras 2012 (LBVH); PBRT v4 Ch. 7; Jacco Bikker, "How to build a BVH"; Wald 2007
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Bounds stage, serial median builder, `validate_bvh`, and `BvhStats` in `bvh/bvh.hpp`, with builder and validator tests | #31 | — |
-| Nov 8–14 | Hardened nonfinite-bound validation and large-scale SAH diagnostics; added independent analytic SAH, degenerate geometry, clustered thread-count determinism and timing-reset tests | #39, #40 | — |
-
-### Nov 11 terrain hand-off (#41)
-
-Implemented the benchmark height field and upward-wound grid in scene/terrain.hpp,
-integrated terrain and sphere heights into rt_gen, and removed S3 and its metadata.
-Added analytic, topology, material, input-validation and seed-independence tests.
-Formatting, stub bookkeeping and diff checks pass. Local CMake Tools exposes no
-configured targets; build and CTest calls failed, so CPU verification is pending.
-Native Windows / WSL Ubuntu 22.04, GCC 11.4, no CUDA; reference CPU/CUDA checks pending.
-Po owns canonical scene generation and publication (#35).
+| Nov 8–14 | Hardened nonfinite-bound validation and large-scale SAH diagnostics; added independent analytic SAH, degenerate geometry, clustered thread-count determinism and timing-reset tests. Terrain height field and upward-wound grid in `scene/terrain.hpp`, used by `rt_gen` for terrain and sphere heights; removed stub S3, with analytic, topology, material, input-validation and seed-independence tests | #39, #40, #41, #57 | — |
