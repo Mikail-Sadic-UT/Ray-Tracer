@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "machine": {
+    "host": "fixture-host",
+    "cpu_model": "Fixture CPU",
+    "cpu_cores": 8,
+    "gpu_name": "",
+    "gpu_uuid": "",
+    "driver": "",
+    "cuda_runtime": "",
+    "nvcc": "",
+    "gcc": "13.3.0",
+    "os": "Ubuntu 24.04"
+  },
+  "build": {
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "dirty": false,
+    "cmake_flags": "CMAKE_BUILD_TYPE=Release"
+  },
+  "scene": {
+    "json": "scenes/known/known_two_spheres.json",
+    "hash": "0xcbed9151089614c9",
+    "generator_command": "",
+    "num_spheres": 2,
+    "num_triangles": 2,
+    "num_primitives": 4,
+    "num_lights": 1
+  },
+  "config": {
+    "backend": "cpu",
+    "pipeline": "none",
+    "bvh": "median",
+    "max_leaf_size": 4,
+    "build_threads": 1,
+    "render_threads": 1,
+    "width": 64,
+    "height": 48,
+    "aovs": [],
+    "camera": {
+      "position": [
+        0.0,
+        1.0,
+        5.0
+      ],
+      "look_at": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "vfov_deg": 45.0,
+      "overridden": []
+    },
+    "query": "bvh",
+    "shade": "lit",
+    "counters": false,
+    "mem": {
+      "mode": "explicit",
+      "advice": "none",
+      "prefetch": false,
+      "realloc_per_prepare": true,
+      "geometry_reused": false,
+      "fresh_pages": null
+    }
+  },
+  "bvh_stats": {
+    "nodes": 7,
+    "leaves": 4,
+    "depth": 3,
+    "fallbacks": 0,
+    "sah_cost": 12.5
+  },
+  "image": {
+    "path": "",
+    "rgb_hash": "0x0123456789abcdef"
+  },
+  "app": {
+    "total_ms": 30.0,
+    "components": {
+      "args": 0.5,
+      "load": 3.25,
+      "cuda_init": 0.0,
+      "bounds": 1.0,
+      "build": 2.0,
+      "layout": 0.5,
+      "convert": 0.0,
+      "alloc": 0.0,
+      "upload": 0.0,
+      "render": 20.0,
+      "download": 0.0
+    },
+    "unattributed_ms": 2.75
+  }
+}
