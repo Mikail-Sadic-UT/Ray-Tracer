@@ -221,6 +221,8 @@ rt_add_gtest(test_scene SOURCES test_scene.cpp LIBS rt_scene)   # LIBS: your mod
 
 `rt_add_gtest` links `rt_core` and `GTest::gtest_main` and registers the cases with `ctest`. Wrap CUDA-only tests in `if(RT_ENABLE_CUDA)`. After adding a new `.cmake` file, rebuild or re-run `cmake` and it is picked up.
 
+Start every test case that launches a kernel or allocates device memory with `RT_SKIP_WITHOUT_CUDA_DEVICE();` from `tests/cuda_test_util.hpp`. On a machine with the CUDA toolkit but no GPU, or with `CUDA_VISIBLE_DEVICES=` empty, `ctest` then reports those cases as skipped and exits 0. It skips only on `cudaErrorNoDevice`; any other CUDA error, such as a driver too old for the toolkit, still fails the test.
+
 ### Golden images
 
 Goldens are compared with the normal `rt_compare` tolerances, not exact equality, so they work on any x86 machine with GCC 13. Regenerate them deliberately in a PR that says why, never to make a failing test pass.

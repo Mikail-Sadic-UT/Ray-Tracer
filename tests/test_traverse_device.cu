@@ -1,7 +1,8 @@
 /// @file test_traverse_device.cu
 /// @brief Runs BVH traversal in CUDA kernels: BvhQuery against BruteQuery, and the overflow flag.
 ///
-/// Built only when RT_ENABLE_CUDA is on, and needs a GPU: a missing device fails the tests.
+/// Built only when RT_ENABLE_CUDA is on. Cases that need a GPU skip when no CUDA device is
+/// visible (RT_SKIP_WITHOUT_CUDA_DEVICE); host-only fixture checks always run.
 // traverse.hpp comes first, so this file also checks that it compiles as CUDA on its own.
 #include "trace/traverse.hpp"
 // Other headers follow.
@@ -15,6 +16,7 @@
 
 #include "bench/timings.hpp"
 #include "bvh/bvh.hpp"
+#include "cuda_test_util.hpp"
 #include "gpu/cuda_check.hpp"
 #include "trace/brute.hpp"
 
@@ -92,6 +94,7 @@ rt::vec3 uniform_vec(std::mt19937& rng, float h) {
 /// In a kernel, BVH traversal returns exactly the brute-force hit (same prim, bit-identical t,
 /// u, v) on a random scene with duplicated primitives, for several leaf sizes.
 TEST(TraverseDevice, MatchesBruteForceOnDevice) {
+    RT_SKIP_WITHOUT_CUDA_DEVICE();
     std::mt19937 rng(301);
     std::vector<rt::Sphere> spheres;
     std::vector<rt::Triangle> tris;
@@ -181,6 +184,7 @@ __global__ void overflow_kernel(rt::Ray r, rt::Scene s, rt::BvhView bvh, uint32_
 /// A chain one level deeper than RT_MAX_BVH_DEPTH sets the device-global overflow flag
 /// (atomicOr) and stops the ray; a chain at the limit does not.
 TEST(TraverseDevice, OverflowSetsFlag) {
+    RT_SKIP_WITHOUT_CUDA_DEVICE();
     const rt::AABB box{{-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}};
     const std::vector<rt::Sphere> spheres{{{0.0f, 0.0f, 0.0f}, 1.0f, 0}};
     const std::vector<rt::PrimRef> refs{0u};

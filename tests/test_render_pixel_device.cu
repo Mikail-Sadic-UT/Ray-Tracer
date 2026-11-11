@@ -2,8 +2,9 @@
 /// @brief Runs render_pixel<BruteQuery, NormalShading> in a CUDA kernel, one thread per pixel,
 /// and compares the image with the host.
 ///
-/// Built only when RT_ENABLE_CUDA is on, and needs a GPU: a missing device fails the test. This
-/// is the correctness half of the GPU smoke image (ROADMAP C3G), without a backend or file IO.
+/// Built only when RT_ENABLE_CUDA is on, and skipped when no CUDA device is visible
+/// (RT_SKIP_WITHOUT_CUDA_DEVICE). This is the correctness half of the GPU smoke image (ROADMAP
+/// C3G), without a backend or file IO.
 // render_pixel.hpp comes first, so this file also checks that it compiles as CUDA on its own.
 #include "shade/render_pixel.hpp"
 // Other headers follow.
@@ -13,6 +14,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "cuda_test_util.hpp"
 #include "gpu/cuda_check.hpp"
 #include "known_two_spheres_data.hpp"
 #include "trace/brute.hpp"
@@ -62,6 +64,7 @@ bool interior(const std::vector<rt::PixelResult>& img, uint32_t w, uint32_t h, u
 /// The device image matches the host: same prim_id away from silhouettes and edges, and the
 /// same color within FMA-contraction tolerance wherever prim_id matches.
 TEST(RenderPixelDevice, KnownSceneMatchesHost) {
+    RT_SKIP_WITHOUT_CUDA_DEVICE();
     const uint32_t w = kCamera.width;
     const uint32_t h = kCamera.height;
     rt::Sphere* d_spheres = to_device(kSpheres);
