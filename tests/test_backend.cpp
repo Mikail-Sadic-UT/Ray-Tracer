@@ -11,7 +11,6 @@
 
 #include "bvh/bvh.hpp"
 #include "core/error.hpp"
-#include "cpu/normal_renderer.hpp"
 #include "scene/generator.hpp"
 #include "scene/scene_io.hpp"
 #include "shade/render_pixel.hpp"
@@ -96,18 +95,6 @@ TEST(CpuBackend, NameAndNeedsBvh) {
     rt::CpuBackend b;
     EXPECT_STREQ(b.name(), "cpu");
     EXPECT_TRUE(b.needs_bvh());
-}
-
-/// Brute force and the BVH through the backend both reproduce render_normal byte for byte, so
-/// rt_render --backend cpu replaces scene_dump --render-normal (stub S4) exactly.
-TEST(CpuBackend, MatchesRenderNormal) {
-    const rt::SceneHost s = known_scene();
-    rt::Image reference;
-    rt::Timings t;
-    rt::render_normal(s, reference, {1, true, true}, t);
-    const rt::Bvh bvh = median_bvh(s, 1);
-    expect_identical(render(s, nullptr, 1), reference);
-    expect_identical(render(s, &bvh, 3), reference);
 }
 
 /// On a generated scene, BVH and brute-force images are byte-identical for every leaf size and

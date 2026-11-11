@@ -7,7 +7,7 @@
 #include <string>
 
 #include "core/error.hpp"
-#include "cpu/normal_renderer.hpp"
+#include "cpu/cpu_backend.hpp"
 #include "scene/scene_io.hpp"
 #include "shade/render_pixel.hpp"
 #include "trace/brute.hpp"
@@ -15,6 +15,20 @@
 namespace {
 rt::SceneHost known_scene(const char* name = "known_two_spheres") {
     return rt::load_scene(std::string(RT_TEST_SCENES_DIR) + "/" + name + ".json");
+}
+
+/// Exercise the production backend with brute force, including output reuse.
+void render(const rt::SceneHost& scene, rt::Image& out, int threads, uint32_t aovs,
+            rt::Timings& timings) {
+    rt::CpuBackend backend;
+    backend.prepare({&scene,
+                     nullptr,
+                     {scene.camera.width, scene.camera.height, aovs, rt::ShadeMode::Normal},
+                     1,
+                     threads,
+                     {}},
+                    timings);
+    backend.render(scene.camera, out, timings);
 }
 }  // namespace
 
@@ -25,9 +39,9 @@ TEST(CpuNormal, MatchesEveryPixelAndAllThreads) {
     scene.camera.height = 49;
     rt::Image one, many;
     rt::Timings timings;
-    rt::render_normal(scene, one, {1, true, true}, timings);
+    render(scene, one, 1, rt::AOV_PRIM_ID | rt::AOV_LIGHT_MASK, timings);
     EXPECT_GE(timings.render, 0);
-    rt::render_normal(scene, many, {4, true, true}, timings);
+    render(scene, many, 4, rt::AOV_PRIM_ID | rt::AOV_LIGHT_MASK, timings);
     ASSERT_EQ(one.rgb.size(), many.rgb.size());
     EXPECT_EQ(std::memcmp(one.rgb.data(), many.rgb.data(), one.rgb.size() * sizeof(float)), 0);
     EXPECT_EQ(one.prim_id, many.prim_id);
@@ -53,18 +67,18 @@ TEST(CpuNormal, KnownPixelsAndOutputReuse) {
     auto scene = known_scene();
     rt::Image image;
     rt::Timings timings;
-    rt::render_normal(scene, image, {2, true, true}, timings);
+    render(scene, image, 2, rt::AOV_PRIM_ID | rt::AOV_LIGHT_MASK, timings);
     EXPECT_EQ(image.prim_id[10 * 640 + 320], rt::RT_MISS_PRIM);
     EXPECT_EQ(image.prim_id[239 * 640 + 232], 0u);
     EXPECT_EQ(image.prim_id[239 * 640 + 406], 1u);
     EXPECT_EQ(image.prim_id[470 * 640 + 320], rt::PRIM_TRIANGLE_BIT);
     scene.camera.width = 1;
     scene.camera.height = 1;
-    rt::render_normal(scene, image, {}, timings);
+    render(scene, image, 1, 0, timings);
     EXPECT_EQ(image.rgb.size(), 3u);
     EXPECT_TRUE(image.prim_id.empty());
     EXPECT_TRUE(image.light_mask.empty());
-    EXPECT_THROW(rt::render_normal(scene, image, {0, false, false}, timings), rt::Error);
+    EXPECT_THROW(render(scene, image, 0, 0, timings), rt::Error);
 }
 
 /// The degenerate-triangle scene is the two-sphere scene plus a zero-area triangle. A
@@ -81,8 +95,8 @@ TEST(CpuNormal, ZeroAreaTriangleIsNeverHit) {
 
     rt::Image expected, image;
     rt::Timings timings;
-    rt::render_normal(base, expected, {4, true, false}, timings);
-    rt::render_normal(degenerate, image, {4, true, false}, timings);
+    render(base, expected, 4, rt::AOV_PRIM_ID, timings);
+    render(degenerate, image, 4, rt::AOV_PRIM_ID, timings);
     ASSERT_EQ(image.rgb.size(), expected.rgb.size());
     EXPECT_EQ(std::memcmp(image.rgb.data(), expected.rgb.data(), image.rgb.size() * sizeof(float)),
               0);
@@ -96,7 +110,7 @@ TEST(CpuNormal, SingleSphereSceneRenders) {
     ASSERT_EQ(scene.spheres.size(), 1u);
     rt::Image image;
     rt::Timings timings;
-    rt::render_normal(scene, image, {4, true, false}, timings);
+    render(scene, image, 4, rt::AOV_PRIM_ID, timings);
     bool sphere = false, floor = false;
     for (const uint32_t id : image.prim_id) {
         sphere = sphere || id == 0u;
