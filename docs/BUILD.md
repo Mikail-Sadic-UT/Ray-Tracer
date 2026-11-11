@@ -177,19 +177,19 @@ Scene IO supports version 2 inline JSON and binary geometry. Binary paths resolv
 the JSON file; loading checks the binary header/content hash and validates the combined scene.
 `--verify` reports those checks. It does not by itself check a manifest's SHA-256 values.
 
-The CPU normal renderer and comparison tools can be exercised before the full Backend and
-`rt_render` integration land:
+The CPU backend and comparison tools can be exercised through `rt_render`:
 
 ```bash
 mkdir -p build/previews build/generated
-./build/apps/scene_dump/scene_dump scenes/known/known_two_spheres.json \
-  --render-normal build/previews/known.pfm --png build/previews/known.png --render-threads 4
+./build/apps/rt_render/rt_render --scene scenes/known/known_two_spheres.json \
+  --backend cpu --bvh median --shade lit --render-threads 4 \
+  --pfm build/previews/known.pfm --out build/previews/known.png --aov primid,lightmask
 ./build/apps/rt_compare/rt_compare build/previews/known.pfm build/previews/known.pfm
 ./build/apps/rt_gen/rt_gen --layout uniform --primitives 10000 --seed 1 \
   --out build/generated/dev_uniform_10000
 ```
 
-Normal previews are for correctness and demonstrations, not benchmark timings. Generation
+These commands check correctness and demonstrate image output; they do not establish benchmark timings. Generation
 currently uses registered terrain stub S3 and marks outputs as development scenes; the
 canonical release remains pending. Python 3 is required for `scripts/fetch_scenes.sh` and
 the archive/CLI integration tests. See [Po's hand-off notes](PO_PROGRESS.md) for validation,
