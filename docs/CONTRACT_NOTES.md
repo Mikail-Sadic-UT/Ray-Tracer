@@ -58,7 +58,7 @@ No current impact: every rule in §5 is met, and these are the readings the rest
 **If triggered:** copy the definition into §7 as a clarification (normal single review), and add `--mem`, `--mem-advice` and `--prefetch` to `rt_render` with the E1 work.
 ### W10: shape of the results file
 
-§8 gives an example object and a few rules. `rt_bench` (`bench/results.hpp`, #50) fills the gaps like this, and `validate_results` enforces it:
+§8 gives an example object and a few rules. `rt_bench` (`bench/results.hpp`, #51) fills the gaps like this, and `validate_results` enforces it:
 
 - Only the sections a process measured are written: `app` in app mode, `build_and_render` and `frame` in prepared mode. `bvh_stats` is omitted when no BVH was built.
 - Every component of a run's quantity is written, with 0 for stages the backend does not use (a CPU run has `convert`, `alloc`, `upload` and `download` as 0). `render_kernel` appears only in `diagnostics`, and only when positive, so CPU runs have an empty `diagnostics`.
