@@ -26,6 +26,18 @@ struct CheckedBvhQuery {
     bool any(const Ray& r) const { return traverse_any(r, s, bvh, overflow); }
 };
 
+/// Runs the tile loop with the Shading policy that @p mode selects. prepare() has already
+/// rejected any other mode.
+template <class Query>
+void render_shaded(const Camera& cam, const Scene& s, const Query& q, ShadeMode mode, Image& out,
+                   int threads) {
+    if (mode == ShadeMode::Lit) {
+        cpu::render_tiles(cam, s, q, LitShading{}, out, threads);
+    } else {
+        cpu::render_tiles(cam, s, q, NormalShading{}, out, threads);
+    }
+}
+
 }  // namespace
 
 void CpuBackend::prepare(const PrepareInput& in, Timings& /*t*/) {
@@ -42,12 +54,9 @@ void CpuBackend::prepare(const PrepareInput& in, Timings& /*t*/) {
         throw Error("cpu: the lightmask AOV supports at most 32 lights, scene has " +
                     std::to_string(in.scene->lights.size()));
     }
-    if (rs.shade == ShadeMode::Lit) {
-        throw Error(
-            "cpu: --shade lit needs LitShading, which has not landed yet (#43); use --shade "
-            "normal");
+    if (rs.shade != ShadeMode::Lit && rs.shade != ShadeMode::Normal) {
+        throw Error("cpu: unknown shade mode " + std::to_string(static_cast<uint32_t>(rs.shade)));
     }
-    if (rs.shade != ShadeMode::Normal) throw Error("cpu: unknown shade mode");
     if (in.bvh != nullptr) {
         const size_t prims = in.scene->spheres.size() + in.scene->triangles.size();
         if (in.bvh->prim_refs.size() != prims || in.bvh->nodes.empty() != (prims == 0)) {
@@ -78,14 +87,11 @@ void CpuBackend::render(const Camera& cam, Image& out, Timings& t) {
                       (settings_.aovs & AOV_LIGHT_MASK) != 0);
     uint32_t overflow = 0;
     const auto begin = std::chrono::steady_clock::now();
-    // Only NormalShading exists so far; prepare() rejects Lit. When LitShading lands (#43),
-    // dispatch on settings_.shade here.
     if (use_bvh_) {
-        const CheckedBvhQuery q{scene_, bvh_, &overflow};
-        cpu::render_tiles(cam, scene_, q, NormalShading{}, out, threads_);
+        render_shaded(cam, scene_, CheckedBvhQuery{scene_, bvh_, &overflow}, settings_.shade, out,
+                      threads_);
     } else {
-        const BruteQuery q{scene_};
-        cpu::render_tiles(cam, scene_, q, NormalShading{}, out, threads_);
+        render_shaded(cam, scene_, BruteQuery{scene_}, settings_.shade, out, threads_);
     }
     t.render =
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
