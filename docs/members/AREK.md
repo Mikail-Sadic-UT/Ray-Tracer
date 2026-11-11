@@ -36,7 +36,7 @@
 | `Hit`, `brute_any` | Mikail (landed: `Hit` #20, `brute_any` #21) | Nothing |
 | `Scene` view | Po (landed, `scene/scene.hpp`) | Nothing |
 | Expected shading values | Jett (Nov 6) | Your own hand checks, replaced by Jett's independent numbers |
-| `rt_compare` | Po (landed, #36: `image/compare.hpp`, `apps/rt_compare`) | Nothing. `LitShading` landed (#49); corruption test 4 can now run on the real lit image (stub S5 ready to remove, Po's file) |
+| `rt_compare` | Po (landed, #36: `image/compare.hpp`, `apps/rt_compare`) | Nothing. `LitShading` landed (#49); corruption test 4 runs on the real lit image (stub S5 removed, #55) |
 
 **Done means:**
 - Lambert value at a sphere's pole, 1/d² falloff, shadow boundary location, and no acne all match Jett's expected values (relative 1e-5).
