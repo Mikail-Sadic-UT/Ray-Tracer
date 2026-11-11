@@ -160,7 +160,7 @@ rt_render --scene s.json --backend cpu|cuda|embree|optix --bvh none|median|lbvh|
 
 `--bvh none` uses brute force (testing only). Camera overrides (Jett) are set in C3: `--cam-pos`, `--cam-look`, `--cam-vfov`. `--max-leaf-size` (default 4) sets `BvhParams::max_leaf_size`.
 
-Implemented so far (#47): `--scene`, `--backend cpu`, `--bvh`, `--max-leaf-size`, `--build-threads`, `--render-threads`, `--width`, `--height`, the camera overrides, `--shade lit|normal` (lit since #53), `--aov`, `--pfm`, `--out`. Defaults: `--backend cpu --bvh median --shade lit`, 1 thread each. `--mode`, `--runs` and `--results` come with the harness (C9). `--pipeline` and the `--mem` options come with the CUDA backend (C10, E1). Until then `rt_render` runs one preparation and one frame, and prints its timing components to stderr.
+Implemented so far (#47): `--scene`, `--backend cpu`, `--bvh`, `--max-leaf-size`, `--build-threads`, `--render-threads`, `--width`, `--height`, the camera overrides, `--shade lit|normal` (lit since #53), `--aov`, `--pfm`, `--out`, and `--mode app|prepared`, `--runs`, `--results` (#56). Defaults: `--backend cpu --bvh median --shade lit --mode app --runs 5`, 1 thread each. `--mode app` runs one pass and records T_app; `--mode prepared` records T_br and T_frame (1 warm-up, then `--runs` runs each); `--runs` is rejected in app mode. Images and the results file are written after timing. `--pipeline` and the `--mem` options come with the CUDA backend (C10, E1).
 
 | App | Owner | Purpose |
 |---|---|---|
