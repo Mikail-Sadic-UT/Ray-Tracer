@@ -23,7 +23,7 @@
 | Building repo + CI | Everyone | Oct 30 | [BUILD.md](../BUILD.md) |
 | `intersect_*`, `brute_*`, `Hit`, `BruteQuery` | Po (first CPU image), Arek (shadow tests) | Oct 30 (landed: `Hit` #20; intersection, `brute_*`, and `BruteQuery` #21) | §5, §6 |
 | `render_pixel` ([ROADMAP blocker 3](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Po (CPU loop), megakernel | Landed (#33: `shade/render_pixel.hpp`) | §6 |
-| `traverse_closest` / `traverse_any`, `BvhQuery` | Po (CPU backend), Arek | Nov 6 (landed: `trace/traverse.hpp`, #26) | §5, §6 |
+| `traverse_closest` / `traverse_any`, `BvhQuery` | Po (CPU backend), Arek | Nov 6 (landed: `trace/traverse.hpp`, #46) | §5, §6 |
 | `Backend` interface, `rt_render` CLI | Everyone | Nov 6 (landed, #42: `backend.hpp`, `CpuBackend`, `rt_render --backend cpu`; S4 ready to remove) | §7 |
 | CUDA megakernel backend | Everyone (GPU results) | Nov 13 | §7 |
 | sbatch sweep scripts | Everyone (measurements) | Nov 13 | [BENCHMARKING](../BENCHMARKING.md#sweeps) |
@@ -96,7 +96,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Oct 30 | Intersection + brute force | M |
 | Oct 30 | `render_pixel` in `shade/render_pixel.hpp`, with host and device tests (landed, #33) | S |
 | ~Nov 3 | GPU smoke image | S |
-| Nov 6 | Traversal (`BvhQuery`) (landed, #26: byte-identical to brute force on host and device) | M |
+| Nov 6 | Traversal (`BvhQuery`) (landed, #46: byte-identical to brute force on host and device) | M |
 | Nov 6 | `Backend` interface (`backend.hpp`), CPU/CUDA dispatch in `rt_render` (CPU landed, #42; CUDA comes with C10) | M |
 | Nov 13 | `DeviceScene` (explicit) + megakernel; sweep sbatch scripts; node-hour log | M |
 | Nov 18 | GPU profiling (`-Xptxas -v`, Nsight) | M |
