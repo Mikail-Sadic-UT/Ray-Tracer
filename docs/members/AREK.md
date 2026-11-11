@@ -25,7 +25,7 @@
 | `vec3`, `Ray`, `AABB`, `intersect_aabb` | Everyone | Oct 27 | §1 |
 | `shade_hit`, `LitShading`, `NormalShading`, `PixelResult` | Po (CPU backend), Mikail (megakernel) | Nov 6 (`NormalShading`, `PixelResult` landed, #24; `shade_hit` and `LitShading` tracked in #43, which unblocks Po's stub S5) | §6 |
 | `Timings` struct (names only, `bench/timings.hpp`; [ROADMAP blocker 6](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Jett, Mikail, Po (`build_bvh`, `DeviceScene::upload`, `Backend::prepare` take `Timings&`) | Landed (#22) | §8 |
-| Timers, results writer | Everyone | Nov 6 | §8 |
+| Timers, results writer | Everyone | Nov 6 (landed, #50: `rt_bench` with `WallTimer`, `ScopedTimer`, `summarize`, `measure_build_and_render`, `measure_frame`, `make_app_record`, `collect_machine_info`, `to_json`, `write_results` and `validate_results`; `rt_render` wires `--mode`, `--runs` and `--results` against it) | §8 |
 | Double-precision intersection oracle | Mikail (independent check) | Nov 6 | [quality §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
 | Golden-image tests (render known scene, `rt_compare` vs committed golden) | CI | ~Nov 6 | [BUILD golden images](../BUILD.md#golden-images) |
 
@@ -97,7 +97,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Oct 27 | Math library + slab tests merged; review INTERFACES §1, §6, §8 and sign off | M |
 | Oct 30 | `NormalShading` (for first images) and `PixelResult`, in `shade/shading.hpp` (landed, #24) | S |
 | Nov 6 | `surface_at` (landed, #24), `offset_ray_origin`, `light_sample`, `shade_hit` with analytic tests (and add the `LitShading` default to `render_pixel`, W7); double-precision oracle; harness on CPU; golden tests | M |
-| Nov 13 | Harness on GPU (`cuda_init`, `cudaEvent` stages); T_app process script | S |
+| Nov 13 | Harness on GPU (`cuda_init`, `cudaEvent` stages) (`bench/gpu_timer.hpp` landed, #50; its device tests have not run on a GPU yet); T_app process script | S |
 | Nov 18 | Target ratios and breakdown plots | M |
 | Later | E2 Blinn-Phong + directional lights (after G2); E5 wavefront queues/shade/accumulate (after G3); OptiX pairing (stretch) | |
 
@@ -119,4 +119,4 @@ Ray Tracing Gems I Ch. 6 (self-intersection offset); PBRT v4 (floating-point err
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Implemented scale-first `normalize()` for finite, nonzero vectors; added regression tests for extreme, subnormal, and widely separated magnitudes. `NormalShading`, `surface_at`, `SurfacePoint` and `PixelResult` in `shade/shading.hpp`, with tests | #2, #23, #24 | — |
-| Nov 8–14 | Slab test for subnormal ray directions (#3): reproduction, overflow analysis, and tests against the double reference. Final fix divides on subnormal axes in `float`, with a scene coordinate bound (§1, §2) | #3, #30 | — |
+| Nov 8–14 | Slab test for subnormal ray directions (#3): reproduction, overflow analysis, and tests against the double reference. Final fix divides on subnormal axes in `float`, with a scene coordinate bound (§1, §2). Benchmark harness library `rt_bench` (C9): run statistics, wall-clock timers, T_br and T_frame run loops with an untimed reset, machine and build identity, results schema v2 writer and validator, CUDA event and stage timers. Recorded the schema gaps as CONTRACT_NOTES W10 and W11 | #3, #30, #50 | — |

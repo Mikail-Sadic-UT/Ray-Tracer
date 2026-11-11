@@ -18,6 +18,8 @@ These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 | W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | E2 (Blinn-Phong) starts | Po, Arek |
 | W6 | §5 Frozen rules, triangle test | The row cites PBRT v4 Sec. 6.5.3 but doesn't say which parts apply. `intersect_triangle` departs from PBRT in three ways (below); the open interval and `t_hi` rules require the last two | C4 shadow tests, or the next edit of §5 | Mikail, Arek |
 | W7 | §6 Pixel result | `render_pixel` has no default for `Shading`, but §6 gives it `LitShading`. `LitShading` doesn't exist yet, so the default can't compile; every caller names `NormalShading` | `shade_hit` and `LitShading` land (C4) | Arek |
+| W10 | §8 Results file | The example JSON and the prose leave the shape of a results file open in several places; `rt_bench` made the choices listed below | A second reader of the file (plot scripts, Mikail's sweep scripts) depends on them, or the next edit of §8 | Arek, Mikail |
+| W11 | §8 `scene` | `scene.json` and `scene.generator_command` have no source: `SceneHost` keeps neither the JSON path nor the generator metadata that `rt_gen` writes | `rt_render --results` lands | Mikail, Po |
 
 ### W1: `Light::pad` default initializer
 
@@ -50,3 +52,23 @@ No current impact: every rule in §5 is met, and these are the readings the rest
 §6 declares `template <class Query, class Shading = LitShading> render_pixel(...)`. `shade/render_pixel.hpp` (#33) declares it without the default because `LitShading` (Lambert and shadows, ROADMAP C4) isn't written, and a default naming an undeclared type doesn't compile. Callers write `render_pixel<BruteQuery, NormalShading>(...)` or pass the policy as an argument. The signature is otherwise as written.
 
 **If triggered:** the PR that adds `LitShading` also adds `class Shading = LitShading` to `render_pixel`, and deletes this entry.
+
+### W10: shape of the results file
+
+§8 gives an example object and a few rules. `rt_bench` (`bench/results.hpp`, #50) fills the gaps like this, and `validate_results` enforces it:
+
+- Only the sections a process measured are written: `app` in app mode, `build_and_render` and `frame` in prepared mode. `bvh_stats` is omitted when no BVH was built.
+- Every component of a run's quantity is written, with 0 for stages the backend does not use (a CPU run has `convert`, `alloc`, `upload` and `download` as 0). `render_kernel` appears only in `diagnostics`, and only when positive, so CPU runs have an empty `diagnostics`.
+- The example's `frame` runs have no `unattributed_ms` and `frame` has no `median_run_index`. Both are written, since BENCHMARKING asks for `unattributed` everywhere and the plots use the median run.
+- For an even number of runs the median is the mean of the two middle totals and `median_run_index` is the lower-middle run. `spread` is 0 when the median is 0.
+- `image.rgb_hash` is FNV-1a 64 over the little-endian bits of the linear RGB floats (`hash_rgb`). `machine.driver` is the NVIDIA driver version from `nvidia-smi`, or the CUDA driver API version if that is missing.
+
+**If triggered:** copy these rules into §8 and the example as a clarification (normal single review, Mikail reads). Changing a key or a rule is a format change: bump `schema_version` and follow [Interface changes](INTERFACES.md#interface-changes).
+
+### W11: where `scene.json` and `scene.generator_command` come from
+
+§8 records the scene JSON path and the exact `rt_gen` command, but `load_scene` returns a `SceneHost` that holds neither: the path is only known to `rt_render`, and the `generator` object that `rt_gen` writes (its `command` field) is dropped on load (`scene_io.hpp`). `rt_bench` takes both as plain strings in `SceneInfo`.
+
+`rt_render` can pass its `--scene` argument as the path and read `generator.command` with a second small JSON parse of the same file, so no type has to change.
+
+**If triggered:** if two callers need the command, add `std::string generator_command` to `SceneHost` or a `load_scene_info` helper in `scene_io`. That is a type change in Po's code and §2: interface PR, Po and Mikail approve.
