@@ -52,7 +52,7 @@ with tempfile.TemporaryDirectory(prefix='rt-cli-') as directory:
     run(command)
     assert before == hashes()
     metadata = json.loads(prefix.with_suffix('.json').read_text())['generator']
-    assert metadata['terrain_source'] == 'stub-S3'
+    assert 'terrain_source' not in metadata
     assert metadata['num_spheres'] + metadata['num_triangles'] == 17
     assert metadata['command'] == f'rt_gen --layout uniform --primitives 17 --seed 42 --out {prefix}'
     # The same arguments through a different invocation path and working directory must
