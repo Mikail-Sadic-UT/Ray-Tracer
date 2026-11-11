@@ -141,6 +141,40 @@ RT_INLINE bool light_sample(const SurfacePoint& sp, vec3 /*wo*/, const Scene& s,
     return true;
 }
 
+/// Shades a primary hit with Lambert lighting and hard shadows (INTERFACES section 6).
+///
+/// A miss returns the background color, `RT_MISS_PRIM` and a zero mask. A hit starts from
+/// `albedo * ambient`, then adds each light in index order whose shadow ray is unoccluded
+/// according to `q.any`, setting bit `i` of `light_mask` for it (lights `i < 32`). The order is
+/// fixed so every backend sums the same floats in the same sequence.
+/// @tparam Query Provides `bool any(const Ray&) const`.
+/// @pre `h` is a miss or identifies a primitive of `s`.
+template <class Query>
+RT_INLINE PixelResult shade_hit(const Ray& r, const Hit& h, const Scene& s, const Query& q) {
+    if (h.prim == RT_MISS_PRIM) return {s.background, RT_MISS_PRIM, 0u};
+    const SurfacePoint sp = surface_at(r, h, s);
+    const vec3 wo = -r.dir;
+    color rgb = s.materials[sp.material_id].albedo * s.ambient;
+    uint32_t mask = 0u;
+    for (uint32_t i = 0; i < s.num_lights; ++i) {
+        color contrib;
+        Ray shadow_ray;
+        if (light_sample(sp, wo, s, i, contrib, shadow_ray) && !q.any(shadow_ray)) {
+            rgb += contrib;
+            if (i < 32u) mask |= (1u << i);
+        }
+    }
+    return {rgb, h.prim, mask};
+}
+
+/// Lambert shading with point lights and hard shadows; the default policy for `render_pixel`.
+struct LitShading {
+    template <class Q>
+    RT_INLINE PixelResult operator()(const Ray& r, const Hit& h, const Scene& s, const Q& q) const {
+        return shade_hit(r, h, s, q);
+    }
+};
+
 /// Visualizes face-forwarded geometric normals without querying lights or tracing shadows.
 struct NormalShading {
     template <class Q>
