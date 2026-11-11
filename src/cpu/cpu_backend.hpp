@@ -12,8 +12,10 @@ namespace rt {
 /// `render_pixel` per pixel. Output is bit-identical for every render thread count.
 ///
 /// The query is chosen in prepare(): `BvhQuery` semantics when PrepareInput::bvh is set,
-/// `BruteQuery` otherwise (`--bvh none`). Traversal reports stack overflow through a flag that
-/// render() turns into an Error (INTERFACES §5; see CONTRACT_NOTES W8).
+/// `BruteQuery` otherwise (`--bvh none`). The Shading policy follows RenderSettings::shade:
+/// `LitShading` (Lambert and shadow rays through the same query) or `NormalShading`. Traversal
+/// reports stack overflow through a flag that render() turns into an Error (INTERFACES §5; see
+/// CONTRACT_NOTES W8).
 ///
 /// CPU preparation does no timed work: the BVH is built by the caller, and the image is host
 /// memory resized in render(). render() fills Timings::render only; there is no download.
@@ -24,8 +26,7 @@ class CpuBackend final : public Backend {
     /// Stores views of the scene and BVH and the render settings.
     /// @throws Error if the scene is null, the thread count or resolution is not positive, the
     ///         AOV flags are unknown, a light-mask AOV is requested with more than 32 lights,
-    ///         the BVH doesn't cover the scene's primitives, or `shade` is Lit (LitShading has
-    ///         not landed, #43).
+    ///         the BVH doesn't cover the scene's primitives, or `shade` is not a known mode.
     void prepare(const PrepareInput& in, Timings& t) override;
 
     /// Renders @p cam into @p out (resized to the prepared resolution; unrequested AOVs are

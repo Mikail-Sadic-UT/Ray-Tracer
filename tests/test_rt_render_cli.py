@@ -60,9 +60,24 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
     assert (root / 'small.primid.u32img').exists()
     assert not (root / 'small.lightmask.u32img').exists()
 
+    # Lit shading is the default. BVH and brute force agree byte for byte, rt_compare passes,
+    # and the lit image differs from the normal one.
+    lit = ['--aov', 'primid,lightmask']
+    run([args.render, '--scene', args.scene, *lit, '--pfm', str(root / 'lit_default.pfm')])
+    run([args.render, '--scene', args.scene, '--shade', 'lit', '--bvh', 'none', *lit,
+         '--pfm', str(root / 'lit_none.pfm')])
+    run([args.render, '--scene', args.scene, '--shade', 'lit', '--bvh', 'median', '--render-threads', '4',
+         *lit, '--pfm', str(root / 'lit_median.pfm'), '--out', str(root / 'lit.png')])
+    same_files(root / 'lit_default.pfm', root / 'lit_none.pfm')
+    same_files(root / 'lit_none.pfm', root / 'lit_median.pfm')
+    compared = run([args.compare, str(root / 'lit_none.pfm'), str(root / 'lit_median.pfm')],
+                   clean_stdout=False)
+    assert 'FAIL' not in compared.stdout, compared.stdout
+    assert (root / 'lit_none.pfm').read_bytes() != (root / 'dump.pfm').read_bytes()
+    assert (root / 'lit.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+
     # Errors exit non-zero with a message on stderr.
     failures = {
-        'LitShading': ['--shade', 'lit'],
         'cuda backend': ['--backend', 'cuda', '--shade', 'normal'],
         'only Median': ['--bvh', 'lbvh', '--shade', 'normal'],
         'vfov_deg': ['--shade', 'normal', '--cam-vfov', '180'],
