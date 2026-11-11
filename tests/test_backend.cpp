@@ -14,6 +14,8 @@
 #include "cpu/normal_renderer.hpp"
 #include "scene/generator.hpp"
 #include "scene/scene_io.hpp"
+#include "shade/render_pixel.hpp"
+#include "trace/brute.hpp"
 #include "trace/hit.hpp"
 
 namespace {
@@ -49,10 +51,11 @@ rt::PrepareInput input(const rt::SceneHost& s, const rt::Bvh* bvh, int threads =
 
 /// Renders one frame of @p s through a fresh CpuBackend.
 rt::Image render(const rt::SceneHost& s, const rt::Bvh* bvh, int threads,
-                 uint32_t aovs = rt::AOV_PRIM_ID | rt::AOV_LIGHT_MASK) {
+                 uint32_t aovs = rt::AOV_PRIM_ID | rt::AOV_LIGHT_MASK,
+                 rt::ShadeMode shade = rt::ShadeMode::Normal) {
     rt::CpuBackend b;
     rt::Timings t;
-    b.prepare(input(s, bvh, threads, aovs), t);
+    b.prepare(input(s, bvh, threads, aovs, shade), t);
     rt::Image img;
     b.render(s.camera, img, t);
     EXPECT_GE(t.render, 0.0);
@@ -71,6 +74,14 @@ void expect_identical(const rt::Image& a, const rt::Image& b) {
 }
 
 /// Expects @p f to throw rt::Error whose message contains @p text.
+/// Counts hit pixels with no contributing light (in shadow from every light).
+size_t shadowed_hits(const rt::Image& img) {
+    size_t n = 0;
+    for (size_t i = 0; i < img.prim_id.size(); ++i)
+        n += img.prim_id[i] != rt::RT_MISS_PRIM && img.light_mask[i] == 0;
+    return n;
+}
+
 template <class F>
 void expect_error(F f, const std::string& text) {
     try {
@@ -112,6 +123,56 @@ TEST(CpuBackend, BvhEqualsBruteForceForAnyThreadCount) {
         for (int threads : {1, 5, 16}) {
             SCOPED_TRACE("leaf " + std::to_string(leaf) + " threads " + std::to_string(threads));
             expect_identical(render(s, &bvh, threads), brute);
+        }
+    }
+}
+
+/// `--shade lit` gives exactly what render_pixel<BruteQuery, LitShading> gives for every pixel,
+/// and the known scene has both lit and fully shadowed hits, so shadow rays are exercised.
+TEST(CpuBackend, LitMatchesRenderPixel) {
+    const rt::SceneHost s = known_scene();
+    const rt::Bvh bvh = median_bvh(s, 1);
+    const rt::Image brute =
+        render(s, nullptr, 1, rt::AOV_PRIM_ID | rt::AOV_LIGHT_MASK, rt::ShadeMode::Lit);
+    const rt::Scene view = s.view();
+    const rt::BruteQuery q{view};
+    size_t lit = 0;
+    for (uint32_t y = 0; y < s.camera.height; ++y) {
+        for (uint32_t x = 0; x < s.camera.width; ++x) {
+            const rt::PixelResult p =
+                rt::render_pixel<rt::BruteQuery, rt::LitShading>(s.camera, x, y, view, q);
+            const size_t i = size_t(y) * s.camera.width + x;
+            ASSERT_EQ(brute.rgb[3 * i], p.rgb.x);
+            ASSERT_EQ(brute.rgb[3 * i + 1], p.rgb.y);
+            ASSERT_EQ(brute.rgb[3 * i + 2], p.rgb.z);
+            ASSERT_EQ(brute.prim_id[i], p.prim_id);
+            ASSERT_EQ(brute.light_mask[i], p.light_mask);
+            lit += p.light_mask != 0;
+        }
+    }
+    EXPECT_GT(lit, 0u);
+    EXPECT_GT(shadowed_hits(brute), 0u);
+    expect_identical(render(s, &bvh, 3, rt::AOV_PRIM_ID | rt::AOV_LIGHT_MASK, rt::ShadeMode::Lit),
+                     brute);
+    // Lit and normal shading are different images of the same hits.
+    const rt::Image normal = render(s, nullptr, 1);
+    EXPECT_EQ(normal.prim_id, brute.prim_id);
+    EXPECT_NE(std::memcmp(normal.rgb.data(), brute.rgb.data(), normal.rgb.size() * sizeof(float)),
+              0);
+}
+
+/// Lit images, including every shadow ray, are byte-identical between the BVH and brute force
+/// for every leaf size and thread count.
+TEST(CpuBackend, LitBvhEqualsBruteForceForAnyThreadCount) {
+    const rt::SceneHost s = generated_scene(3000, 96, 64);
+    const uint32_t aovs = rt::AOV_PRIM_ID | rt::AOV_LIGHT_MASK;
+    const rt::Image brute = render(s, nullptr, 1, aovs, rt::ShadeMode::Lit);
+    EXPECT_GT(shadowed_hits(brute), 0u);
+    for (uint32_t leaf : {1u, 4u}) {
+        const rt::Bvh bvh = median_bvh(s, leaf);
+        for (int threads : {1, 5, 16}) {
+            SCOPED_TRACE("leaf " + std::to_string(leaf) + " threads " + std::to_string(threads));
+            expect_identical(render(s, &bvh, threads, aovs, rt::ShadeMode::Lit), brute);
         }
     }
 }
@@ -190,8 +251,8 @@ TEST(CpuBackend, RejectsInvalidInput) {
     expect_error([&] { b.prepare(in, t); }, "width and height");
     in = input(s, nullptr, 1, 1u << 5);
     expect_error([&] { b.prepare(in, t); }, "unknown AOV");
-    in = input(s, nullptr, 1, rt::AOV_PRIM_ID, rt::ShadeMode::Lit);
-    expect_error([&] { b.prepare(in, t); }, "LitShading");
+    in = input(s, nullptr, 1, rt::AOV_PRIM_ID, static_cast<rt::ShadeMode>(7));
+    expect_error([&] { b.prepare(in, t); }, "unknown shade mode");
 
     rt::SceneHost many_lights = s;
     many_lights.lights.assign(33, s.lights.empty() ? rt::Light{} : s.lights[0]);
