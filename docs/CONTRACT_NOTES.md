@@ -17,6 +17,8 @@ These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 | W1 | §2 `Light` | `pad = 0.0f` makes `Light` non-trivial | A kernel stages lights in shared memory | Po, Mikail |
 | W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | E2 (Blinn-Phong) starts | Po, Arek |
 | W6 | §5 Frozen rules, triangle test | The row cites PBRT v4 Sec. 6.5.3 but doesn't say which parts apply. `intersect_triangle` departs from PBRT in three ways (below); the open interval and `t_hi` rules require the last two | C4 shadow tests, or the next edit of §5 | Mikail, Arek |
+| W8 | §5 Stack overflow, §6 `BvhQuery` | §5 requires an overflow flag that the backend checks after `render`, but no signature carries it. `traverse_*` take it as an extra defaulted `uint32_t* overflow = nullptr`; `BvhQuery` has no member for it, so traversal through the query stops silently on overflow. `CpuBackend` uses a private query that passes the flag | The megakernel needs the flag (C10), or a second backend copies the private query | Mikail, Po |
+| W9 | §7 `MemConfig` | §7 names `MemConfig mem; // mode, advice, prefetch` but never defines it. `backend.hpp` defines `MemMode`, `MemAdvice` and `bool prefetch` from the ARCHITECTURE `--mem`, `--mem-advice` and `--prefetch` values, all defaulting to explicit / none / off | E1 memory modes start, or the next edit of §7 | Mikail |
 
 ### W1: `Light::pad` default initializer
 
@@ -43,3 +45,12 @@ No current impact. The megakernel reads lights from global memory, uploads copy 
 No current impact: every rule in §5 is met, and these are the readings the rest of §5 forces.
 
 **If triggered:** if C4 shadow tests show self-shadowing acne on large or distant triangles, fix it in `offset_ray_origin` or the shadow-ray setup, not by reinstating `deltaT` in the primitive test. Either way, add one sentence to the §5 triangle row naming these departures. That is a clarification: normal single review, heads-up to Arek.
+
+### W8: where the traversal overflow flag lives
+§5 "Stack overflow" says the CPU sets an overflow flag in release builds, the GPU sets a device-global flag with `atomicOr`, and the backend checks it after `render` and fails the run. It doesn't say how the flag reaches the traversal. §5 gives `traverse_closest` / `traverse_any` three parameters, and §6 gives `BvhQuery` only `Scene s; BvhView bvh;`.
+`trace/traverse.hpp` adds a trailing `uint32_t* overflow = nullptr` to both functions, so every call written against §5 still compiles. A non-null flag is set with `atomicOr` on the device and a relaxed atomic OR on the host, so all threads can share one. Debug host builds `assert` first. `BvhQuery` matches §6 and passes no flag, so through the query an overflowing ray stops and returns the best hit so far without any report.
+`CpuBackend` (#47) keeps a private `CheckedBvhQuery` with the same two calls plus the flag pointer, shared by all render threads, and `render` throws `rt::Error` when it is set. So the CPU path meets §5 without changing §6. No other impact: a BVH that passes `validate_bvh` (depth <= 64) never overflows.
+**If triggered:** add `uint32_t* overflow` to `BvhQuery` (null allowed) and forward it, and add the optional parameter to the §5 signatures. That changes a type and two signatures, so it is an interface PR; Po (CPU backend) and Mikail approve. The backend owns the flag: one host `uint32_t` per `render` on the CPU, and one device word allocated in `prepare` on the GPU.
+### W9: `MemConfig` fields
+§7 gives `PrepareInput` a `MemConfig mem` member described only as "mode, advice, prefetch (CUDA only)". `backend.hpp` (#47) defines it from the ARCHITECTURE CLI values: `MemMode { Explicit, Managed, System, SystemReuse }`, `MemAdvice { None, PreferredGpu, ReadMostly }`, and `bool prefetch`. The defaults are explicit, none, and off. `rt_render` doesn't parse `--mem` yet: only `explicit` (Core) exists, and the CUDA backend hasn't landed.
+**If triggered:** copy the definition into §7 as a clarification (normal single review), and add `--mem`, `--mem-advice` and `--prefetch` to `rt_render` with the E1 work.
