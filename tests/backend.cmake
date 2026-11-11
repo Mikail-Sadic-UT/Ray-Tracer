@@ -6,5 +6,5 @@ target_compile_definitions(test_backend PRIVATE
 # rt_render_cli: end-to-end rt_render runs, BVH and threads compared with brute force.
 add_test(NAME rt_render_cli COMMAND python3 "${PROJECT_SOURCE_DIR}/tests/test_rt_render_cli.py"
   --render $<TARGET_FILE:rt_render>
-  --compare $<TARGET_FILE:rt_compare>
+  --compare $<TARGET_FILE:rt_compare> --generator $<TARGET_FILE:rt_gen>
   --scene "${PROJECT_SOURCE_DIR}/scenes/known/known_two_spheres.json")
