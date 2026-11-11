@@ -22,10 +22,6 @@ namespace rt {
 /// `shade(ray, hit, scene, q)` (NormalShading, LitShading). The CPU backend calls this per
 /// pixel; the CUDA megakernel calls it once per thread.
 ///
-/// @note INTERFACES §6 defaults `Shading` to `LitShading`. That default is added together with
-/// `LitShading` (`shade_hit`, ROADMAP C4). Until then, name the policy
-/// (`render_pixel<BruteQuery, NormalShading>(...)`) or pass it as @p shade so it is deduced.
-///
 /// @param cam   Camera; `px < cam.width` and `py < cam.height`.
 /// @param px    Pixel column.
 /// @param py    Pixel row, with row zero at the top.
@@ -33,7 +29,7 @@ namespace rt {
 /// @param q     Tracing query over the same scene.
 /// @param shade Shading policy.
 /// @return The pixel's linear color, `prim_id` and `light_mask`.
-template <class Query, class Shading>
+template <class Query, class Shading = LitShading>
 RT_INLINE PixelResult render_pixel(const Camera& cam, uint32_t px, uint32_t py, const Scene& s,
                                    const Query& q, Shading shade = {}) {
     const Ray r = camera_ray(cam, px, py);

@@ -9,4 +9,7 @@ target_compile_definitions(test_render_pixel PRIVATE
 if(RT_ENABLE_CUDA)
   # test_render_pixel_device: render_pixel in a CUDA kernel, compared with the host image.
   rt_add_gtest(test_render_pixel_device SOURCES test_render_pixel_device.cu LIBS CUDA::cudart)
+
+  # test_shade_device: LitShading through render_pixel in a CUDA kernel, compared with the host.
+  rt_add_gtest(test_shade_device SOURCES test_shade_device.cu LIBS CUDA::cudart)
 endif()
