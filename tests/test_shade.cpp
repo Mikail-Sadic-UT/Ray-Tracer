@@ -3,6 +3,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <utility>
+#include <vector>
 
 #include "shade/shading.hpp"
 
@@ -161,6 +163,100 @@ TEST(OffsetRayOrigin, OffsetsPastRoundingOfPlaneEquation) {
         const rt::vec3 o = rt::offset_ray_origin({123.456f, y, -78.9f}, up);
         EXPECT_NE(o.y, y);
     }
+}
+
+/// A scene with one white-ish material and the given point lights, for light_sample tests.
+struct LightRig {
+    rt::Material material{{0.5f, 0.25f, 1.0f}, {}, 1.0f, 0u};
+    std::vector<rt::Light> lights;
+
+    explicit LightRig(std::vector<rt::Light> l) : lights(std::move(l)) {}
+
+    rt::Scene scene() const {
+        return {nullptr,   0u,  nullptr,       0u,
+                &material, 1u,  lights.data(), static_cast<uint32_t>(lights.size()),
+                {},        0.0f};
+    }
+};
+
+rt::Light point_light(rt::vec3 pos, rt::color intensity) {
+    return {rt::LIGHT_POINT, pos, intensity};
+}
+
+/// A light straight above the surface gives albedo * I / d2 and a shadow ray to the light.
+TEST(LightSample, OverheadLightContributionAndShadowRay) {
+    const LightRig rig({point_light({0.0f, 2.0f, 0.0f}, {8.0f, 8.0f, 8.0f})});
+    const rt::SurfacePoint sp{{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0u};
+    rt::color c{};
+    rt::Ray ray{};
+    ASSERT_TRUE(rt::light_sample(sp, {0.0f, 1.0f, 0.0f}, rig.scene(), 0u, c, ray));
+    EXPECT_FLOAT_EQ(c.x, 0.5f * 8.0f / 4.0f);
+    EXPECT_FLOAT_EQ(c.y, 0.25f * 8.0f / 4.0f);
+    EXPECT_FLOAT_EQ(c.z, 1.0f * 8.0f / 4.0f);
+    EXPECT_EQ(ray.tmin, 0.0f);
+    // Near zero the offset is exactly 2^-16 along the normal, so the shadow ray starts there and
+    // runs 2 - 2^-16 to the light.
+    EXPECT_FLOAT_EQ(ray.origin.y, 1.0f / 65536.0f);
+    EXPECT_FLOAT_EQ(rt::length(ray.origin - sp.p), 1.0f / 65536.0f);
+    EXPECT_FLOAT_EQ(ray.tmax, 2.0f - 1.0f / 65536.0f);
+    EXPECT_FLOAT_EQ(rt::length(ray.dir), 1.0f);
+    EXPECT_FLOAT_EQ(ray.dir.y, 1.0f);
+}
+
+/// Contribution follows the cosine and 1/d2: a light at 45 degrees and distance sqrt(2).
+TEST(LightSample, CosineAndInverseSquareFalloff) {
+    const LightRig rig({point_light({1.0f, 1.0f, 0.0f}, {4.0f, 4.0f, 4.0f})});
+    const rt::SurfacePoint sp{{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0u};
+    rt::color c{};
+    rt::Ray ray{};
+    ASSERT_TRUE(rt::light_sample(sp, {0.0f, 1.0f, 0.0f}, rig.scene(), 0u, c, ray));
+    const float cosine = 1.0f / std::sqrt(2.0f);
+    EXPECT_FLOAT_EQ(c.x, 0.5f * cosine * 4.0f / 2.0f);
+}
+
+/// Doubling the distance quarters the contribution.
+TEST(LightSample, InverseSquareLaw) {
+    const rt::SurfacePoint sp{{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0u};
+    const LightRig near_rig({point_light({0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f})});
+    const LightRig far_rig({point_light({0.0f, 2.0f, 0.0f}, {1.0f, 1.0f, 1.0f})});
+    rt::color a{}, b{};
+    rt::Ray ray{};
+    ASSERT_TRUE(rt::light_sample(sp, {}, near_rig.scene(), 0u, a, ray));
+    ASSERT_TRUE(rt::light_sample(sp, {}, far_rig.scene(), 0u, b, ray));
+    EXPECT_FLOAT_EQ(b.x / a.x, 0.25f);
+}
+
+/// A light behind the surface, or exactly edge-on, adds nothing and leaves outputs untouched.
+TEST(LightSample, BackFacingAndEdgeOnLightsAreRejected) {
+    const rt::SurfacePoint sp{{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0u};
+    for (rt::vec3 pos : {rt::vec3{0.0f, -2.0f, 0.0f}, rt::vec3{3.0f, 0.0f, 0.0f}}) {
+        const LightRig rig({point_light(pos, {1.0f, 1.0f, 1.0f})});
+        rt::color c{7.0f, 7.0f, 7.0f};
+        rt::Ray ray{{9.0f, 9.0f, 9.0f}, 9.0f, {9.0f, 9.0f, 9.0f}, 9.0f};
+        EXPECT_FALSE(rt::light_sample(sp, {}, rig.scene(), 0u, c, ray));
+        EXPECT_EQ(c.x, 7.0f);
+        EXPECT_EQ(ray.tmax, 9.0f);
+    }
+}
+
+/// A light at the surface point, or a squared distance that is not a normal float, is rejected.
+TEST(LightSample, CoincidentOrDegenerateDistanceIsRejected) {
+    const rt::SurfacePoint sp{{1.0f, 2.0f, 3.0f}, {0.0f, 1.0f, 0.0f}, 0u};
+    for (rt::vec3 pos : {rt::vec3{1.0f, 2.0f, 3.0f}, rt::vec3{1.0f, 2.0f + 1e-21f, 3.0f}}) {
+        const LightRig rig({point_light(pos, {1.0f, 1.0f, 1.0f})});
+        rt::color c{};
+        rt::Ray ray{};
+        EXPECT_FALSE(rt::light_sample(sp, {}, rig.scene(), 0u, c, ray));
+    }
+}
+
+/// Core shading ignores directional lights.
+TEST(LightSample, DirectionalLightIsNotCoreShaded) {
+    const LightRig rig({{rt::LIGHT_DIRECTIONAL, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}}});
+    const rt::SurfacePoint sp{{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0u};
+    rt::color c{};
+    rt::Ray ray{};
+    EXPECT_FALSE(rt::light_sample(sp, {}, rig.scene(), 0u, c, ray));
 }
 
 }  // namespace

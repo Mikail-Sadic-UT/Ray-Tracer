@@ -2,6 +2,7 @@
 /// @brief Shared surface data and normal visualization shading.
 #pragma once
 
+#include <cfloat>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
@@ -103,6 +104,41 @@ RT_INLINE vec3 offset_ray_origin(vec3 p, vec3 ng) {
         out[a] = ::fabsf(c) < kOrigin ? c + kFloatScale * n : moved;
     }
     return out;
+}
+
+/// Evaluates light @p i at surface point @p sp and builds its shadow ray (INTERFACES section 6,
+/// "Shadow-ray construction").
+///
+/// Lighting terms use the unit direction `l` and squared distance `d2` from `sp.p`; the shadow
+/// ray starts at the offset origin. Core shading supports point lights only, so any other
+/// light type contributes nothing.
+/// @param sp          Surface point, with a unit normal that faces the viewer.
+/// @param wo          Unit direction to the viewer (reserved for specular shading).
+/// @param s           Scene view.
+/// @param i           Light index, below `s.num_lights`.
+/// @param[out] contrib      `albedo * max(0, dot(ng, l)) * intensity / d2`; set only on success.
+/// @param[out] shadow_ray   Ray from the offset origin to the light, `tmin = 0`; set only on
+///                          success.
+/// @return False when the light adds nothing and needs no shadow ray: it coincides with the
+///         point (`d2` zero or not normal), is behind the surface, or is not a point light.
+RT_INLINE bool light_sample(const SurfacePoint& sp, vec3 /*wo*/, const Scene& s, uint32_t i,
+                            color& contrib, Ray& shadow_ray) {
+    const Light& light = s.lights[i];
+    if (light.type != LIGHT_POINT) return false;
+    const vec3 to_light = light.pos_or_dir - sp.p;
+    const float d2 = dot(to_light, to_light);
+    if (!(d2 >= FLT_MIN && d2 <= FLT_MAX)) return false;
+    const vec3 l = to_light / ::sqrtf(d2);
+    const float cos_theta = dot(sp.ng, l);
+    if (cos_theta <= 0.0f) return false;
+    const vec3 origin = offset_ray_origin(sp.p, sp.ng);
+    const vec3 to_light_from_origin = light.pos_or_dir - origin;
+    const float o2 = dot(to_light_from_origin, to_light_from_origin);
+    if (!(o2 >= FLT_MIN && o2 <= FLT_MAX)) return false;
+    const Material& material = s.materials[sp.material_id];
+    contrib = material.albedo * cos_theta * light.intensity / d2;
+    shadow_ray = {origin, 0.0f, to_light_from_origin / ::sqrtf(o2), ::sqrtf(o2)};
+    return true;
 }
 
 /// Visualizes face-forwarded geometric normals without querying lights or tracing shadows.
