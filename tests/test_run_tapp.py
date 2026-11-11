@@ -5,6 +5,7 @@ Everything runs on fixture data with fixed numbers, so nothing here depends on w
 import argparse
 import copy
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -23,6 +24,7 @@ import results_schema as rs  # noqa: E402
 import run_tapp  # noqa: E402
 
 SCRIPT = SCRIPTS / 'run_tapp.py'
+FAKE = Path(__file__).resolve().parent / 'fake_rt_render.py'
 OTHER_COMPONENTS = 0.5 + 3.25 + 1.0 + 2.0 + 0.5  # args, load, bounds, build, layout in the fixture
 
 
@@ -217,6 +219,120 @@ class CommandLine(unittest.TestCase):
 
     def test_usage_error_exits_2(self):
         self.assertEqual(self.run_cli().returncode, 2)
+
+
+class RunsFreshProcesses(unittest.TestCase):
+    """run_tapp.py --rt-render, against tests/fake_rt_render.py (rt_render is not wired yet)."""
+
+    TOTALS = '30,32,29,31,33'
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        self.state = self.root / 'state'
+        self.state.mkdir()
+        self.out = self.root / 'out'
+
+    def run_cli(self, *extra, fault='', totals=TOTALS, options=()):
+        env = dict(os.environ, FAKE_TAPP_STATE=str(self.state), FAKE_TAPP_DATA=str(DATA),
+                   FAKE_TAPP_TOTALS=totals, FAKE_TAPP_FAULT=fault)
+        command = [sys.executable, str(SCRIPT), '--rt-render', str(FAKE), '--out-dir',
+                   str(self.out), *options, '--', *extra]
+        return subprocess.run(command, capture_output=True, text=True, env=env)
+
+    def calls(self):
+        return [json.loads(p.read_text())
+                for p in sorted(self.state.glob('argv_*.json'),
+                                key=lambda p: int(p.stem.split('_')[1]))]
+
+    def test_runs_five_fresh_processes_and_reports_the_median(self):
+        result = self.run_cli('--scene', 'known.json', '--backend', 'cpu')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.calls()
+        self.assertEqual(len(calls), 5)
+        self.assertEqual(len({c['pid'] for c in calls}), 5, 'every sample is its own process')
+        self.assertIn('median 31.000 ms', result.stdout)
+        self.assertEqual(len(list(self.out.glob('tapp_*.json'))), 5)
+
+    def test_each_process_gets_app_mode_its_own_file_and_the_passed_arguments(self):
+        self.run_cli('--scene', 'known.json', '--backend', 'cpu')
+        for i, call in enumerate(self.calls()):
+            argv = call['argv']
+            self.assertEqual(argv[:4], ['--mode', 'app', '--results', str(self.out / f'tapp_{i}.json')])
+            self.assertEqual(argv[4:], ['--scene', 'known.json', '--backend', 'cpu'])
+
+    def test_processes_option_sets_the_count(self):
+        result = self.run_cli(options=('--processes', '3'), totals='10,20,30')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.calls()), 3)
+        self.assertIn('median 20.000 ms', result.stdout)
+        self.assertIn('3 processes given', result.stdout)
+
+    def test_non_zero_exit_stops_and_reports_the_status(self):
+        result = self.run_cli(fault='exit')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('process 1 exited with status 3', result.stderr)
+        self.assertIn('scene failed to load', result.stderr)
+        self.assertEqual(len(self.calls()), 1, 'stops at the first failure')
+
+    def test_stdout_output_is_rejected(self):
+        result = self.run_cli(fault='stdout')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('wrote to stdout', result.stderr)
+
+    def test_missing_results_file_is_reported(self):
+        result = self.run_cli(fault='nofile')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('wrote no results file', result.stderr)
+
+    def test_stale_results_file_is_not_mistaken_for_a_new_one(self):
+        self.out.mkdir()
+        stale = self.out / 'tapp_0.json'
+        stale.write_text((DATA / 'app_valid.json').read_text())
+        result = self.run_cli(fault='nofile')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('wrote no results file', result.stderr)
+        self.assertFalse(stale.exists())
+
+    def test_invalid_results_file_names_the_field(self):
+        result = self.run_cli(fault='invalid')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('schema_version: expected 2', result.stderr)
+
+    def test_runs_that_differ_are_not_combined(self):
+        result = self.run_cli(fault='drift')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('tapp_2.json: scene differs', result.stderr)
+
+    def test_options_the_script_owns_are_rejected_before_anything_runs(self):
+        for owned in (['--mode', 'prepared'], ['--mode=prepared'], ['--results', 'x.json'],
+                      ['--runs', '5']):
+            with self.subTest(owned):
+                result = self.run_cli(*owned)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn('is set by run_tapp.py', result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_missing_executable(self):
+        command = [sys.executable, str(SCRIPT), '--rt-render', str(self.root / 'absent'),
+                   '--out-dir', str(self.out)]
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('cannot run', result.stderr)
+
+    def test_usage_errors_exit_2(self):
+        base = [sys.executable, str(SCRIPT)]
+        cases = [
+            ['--rt-render', str(FAKE)],  # no --out-dir
+            ['--rt-render', str(FAKE), '--out-dir', str(self.out), '--processes', '0'],
+            ['--from', str(DATA / 'app_valid.json'), '--rt-render', str(FAKE)],
+            ['--from', str(DATA / 'app_valid.json'), '--out-dir', str(self.out)],
+            ['--from', str(DATA / 'app_valid.json'), '--', '--scene', 'x.json'],
+        ]
+        for argv in cases:
+            with self.subTest(argv):
+                self.assertEqual(subprocess.run(base + argv, capture_output=True).returncode, 2)
 
 
 if __name__ == '__main__':

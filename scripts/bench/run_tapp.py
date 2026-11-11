@@ -8,11 +8,18 @@ the same run, and prints the median, min, max and spread of `app.total_ms`.
 
     run_tapp.py --from tapp_0.json tapp_1.json tapp_2.json tapp_3.json tapp_4.json
 
+or run the processes itself. Everything after `--` goes to rt_render; the script adds
+`--mode app --results <file>` for each process:
+
+    run_tapp.py --rt-render build/apps/rt_render/rt_render --out-dir tapp-results \
+        -- --scene scenes/known/known_two_spheres.json --backend cpu --bvh median
+
 Exit status: 0 on success, 1 for an invalid, mismatched or missing input, 2 for a usage error.
 """
 import argparse
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -147,6 +154,54 @@ def format_report(summary):
     return '\n'.join(lines)
 
 
+# Options the script sets itself for every process. Passing them through would make the files
+# something other than five app-mode measurements.
+OWNED_OPTIONS = ('--mode', '--results', '--runs')
+
+
+def check_passthrough(extra):
+    """Raises TappError if `extra` (the rt_render arguments after `--`) sets an option we own."""
+    for argument in extra:
+        for option in OWNED_OPTIONS:
+            if argument == option or argument.startswith(option + '='):
+                raise TappError(f'{option} is set by run_tapp.py; remove it from the rt_render '
+                                'arguments')
+
+
+def run_processes(rt_render, out_dir, processes, extra, log=sys.stderr):
+    """Runs `rt_render --mode app` in `processes` fresh processes, one after another.
+
+    Each process writes its own results file, `tapp_<i>.json` in `out_dir`. A stale file of that
+    name is removed first, so a process that fails to write one cannot be mistaken for it.
+    Returns the list of result paths. Raises TappError if a process exits non-zero, prints to
+    stdout (INTERFACES section 0: progress goes to stderr, results to files), or leaves no file.
+    """
+    check_passthrough(extra)
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for i in range(processes):
+        path = out_dir / f'tapp_{i}.json'
+        path.unlink(missing_ok=True)
+        command = [str(rt_render), '--mode', 'app', '--results', str(path), *extra]
+        print(f'process {i + 1}/{processes}: {" ".join(command)}', file=log)
+        try:
+            result = subprocess.run(command, capture_output=True, text=True)
+        except OSError as error:
+            raise TappError(f'cannot run {rt_render}: {error.strerror}') from error
+        if result.returncode != 0:
+            tail = result.stderr.strip().splitlines()[-3:]
+            raise TappError(f'process {i + 1} exited with status {result.returncode}'
+                            + (': ' + ' | '.join(tail) if tail else ''))
+        if result.stdout:
+            raise TappError(f'process {i + 1} wrote to stdout; rt_render must report on stderr '
+                            f'and in files: {result.stdout.strip()[:80]!r}')
+        if not path.is_file():
+            raise TappError(f'process {i + 1} exited 0 but wrote no results file at {path}')
+        paths.append(str(path))
+    return paths
+
+
 def load_all(paths):
     docs = []
     for path in paths:
@@ -160,17 +215,40 @@ def load_all(paths):
 def build_parser():
     parser = argparse.ArgumentParser(
         description='Report the median T_app, with spread, from rt_render results files.')
-    parser.add_argument('--from', dest='sources', nargs='+', metavar='RESULTS.json', required=True,
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument('--from', dest='sources', nargs='+', metavar='RESULTS.json',
                         help='results files written by rt_render --mode app, one per process')
+    source.add_argument('--rt-render', metavar='BIN',
+                        help='run this rt_render in fresh processes; its arguments follow `--`')
+    parser.add_argument('--processes', type=int, default=DEFAULT_PROCESSES, metavar='N',
+                        help=f'with --rt-render: number of processes (default {DEFAULT_PROCESSES})')
+    parser.add_argument('--out-dir', metavar='DIR',
+                        help='with --rt-render: where the results files go (required)')
     parser.add_argument('--summary', metavar='FILE', help='also write the summary as JSON')
     return parser
 
 
 def main(argv=None):
-    args = build_parser().parse_args(argv)
+    argv = sys.argv[1:] if argv is None else list(argv)
+    extra = []
+    if '--' in argv:
+        split = argv.index('--')
+        argv, extra = argv[:split], argv[split + 1:]
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.sources:
+        if extra or args.out_dir or args.processes != DEFAULT_PROCESSES:
+            parser.error('--from cannot be combined with --out-dir, --processes or rt_render '
+                         'arguments')
+    else:
+        if not args.out_dir:
+            parser.error('--rt-render needs --out-dir')
+        if args.processes < 1:
+            parser.error('--processes must be at least 1')
     try:
-        docs = load_all(args.sources)
-        summary = aggregate(docs, [str(p) for p in args.sources])
+        paths = args.sources or run_processes(args.rt_render, args.out_dir, args.processes, extra)
+        docs = load_all(paths)
+        summary = aggregate(docs, [str(p) for p in paths])
     except TappError as error:
         print(f'error: {error}', file=sys.stderr)
         return 1
