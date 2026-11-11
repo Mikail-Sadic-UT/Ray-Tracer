@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Stand-in for `rt_render --mode app --results FILE`, for tests/test_run_tapp.py.
 
-rt_render's --mode and --results are not wired yet (ROADMAP C9), so this writes the results file
-a real app-mode run would, from the fixture app_valid.json. It is a test double, not a model of
-rt_render's timing.
+Writes the results file a real app-mode run would, from the fixture app_valid.json, and can
+fail in the ways run_tapp.py must catch. The tests use it instead of the real rt_render so they
+need no build and no scene, and their totals are fixed numbers. It is a test double, not a model
+of rt_render's timing.
 
 Environment:
   FAKE_TAPP_STATE   directory that records one argv_<i>.json per call (call counter and arguments)

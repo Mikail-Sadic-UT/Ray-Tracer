@@ -244,7 +244,7 @@ class CommandLine(unittest.TestCase):
 
 
 class RunsFreshProcesses(unittest.TestCase):
-    """run_tapp.py --rt-render, against tests/fake_rt_render.py (rt_render is not wired yet)."""
+    """run_tapp.py --rt-render, against tests/fake_rt_render.py, a stand-in for rt_render."""
 
     TOTALS = '30,32,29,31,33'
 
