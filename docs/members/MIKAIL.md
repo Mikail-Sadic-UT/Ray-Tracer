@@ -24,7 +24,7 @@
 | `intersect_*`, `brute_*`, `Hit`, `BruteQuery` | Po (first CPU image), Arek (shadow tests) | Oct 30 (landed: `Hit` #20; intersection, `brute_*`, and `BruteQuery` #21) | §5, §6 |
 | `render_pixel` ([ROADMAP blocker 3](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Po (CPU loop), megakernel | Landed (#33: `shade/render_pixel.hpp`) | §6 |
 | `traverse_closest` / `traverse_any`, `BvhQuery` | Po (CPU backend), Arek | Nov 6 (landed: `trace/traverse.hpp`, #46) | §5, §6 |
-| `Backend` interface, `rt_render` CLI | Everyone | Nov 6 (landed, #47: `backend.hpp`, `CpuBackend`, `rt_render --backend cpu`; S4 ready to remove) | §7 |
+| `Backend` interface, `rt_render` CLI | Everyone | Nov 6 (landed, #47: `backend.hpp`, `CpuBackend`, `rt_render --backend cpu`; S4 removed, #55) | §7 |
 | CUDA megakernel backend | Everyone (GPU results) | Nov 13 | §7 |
 | sbatch sweep scripts | Everyone (measurements) | Nov 13 | [BENCHMARKING](../BENCHMARKING.md#sweeps) |
 
