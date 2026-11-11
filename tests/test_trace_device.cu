@@ -1,7 +1,8 @@
 /// @file test_trace_device.cu
 /// @brief Runs the trace functions in CUDA kernels and compares the results with the host.
 ///
-/// Built only when RT_ENABLE_CUDA is on, and needs a GPU: a missing device fails the tests.
+/// Built only when RT_ENABLE_CUDA is on. Cases that need a GPU skip when no CUDA device is
+/// visible (RT_SKIP_WITHOUT_CUDA_DEVICE); host-only fixture checks always run.
 // brute.hpp comes first, so this file also checks that it compiles as CUDA on its own.
 #include "trace/brute.hpp"
 // Other headers follow.
@@ -12,6 +13,7 @@
 #include <vector>
 
 #include "camera/camera.hpp"
+#include "cuda_test_util.hpp"
 #include "gpu/cuda_check.hpp"
 
 namespace {
@@ -171,6 +173,7 @@ void expect_hit(const rt::Hit& d, const rt::Hit& h) {
 
 /// intersect_*, brute_*, and BruteQuery give the same answers in a kernel as on the host.
 TEST(TraceDevice, MatchesHost) {
+    RT_SKIP_WITHOUT_CUDA_DEVICE();
     const int n = static_cast<int>(kRays.size());
     rt::Sphere* d_spheres = to_device(kSpheres);
     rt::Triangle* d_triangles = to_device(kTriangles);
@@ -319,6 +322,7 @@ TEST(TraceDevice, CameraPixelsClearOfEdges) {
 
 /// camera_ray gives the same ray in a kernel as on the host.
 TEST(TraceDevice, CameraRayMatchesHost) {
+    RT_SKIP_WITHOUT_CUDA_DEVICE();
     const CamDeviceResult d = run_camera_kernel();
     for (size_t i = 0; i < kCamPixels.size(); ++i) {
         SCOPED_TRACE("pixel " + std::to_string(i));
@@ -335,6 +339,7 @@ TEST(TraceDevice, CameraRayMatchesHost) {
 
 /// brute_closest on device-generated camera rays hits the same primitive as on the host.
 TEST(TraceDevice, CameraRayClosestMatchesHost) {
+    RT_SKIP_WITHOUT_CUDA_DEVICE();
     const CamDeviceResult d = run_camera_kernel();
     const rt::Scene s = cam_scene(kCamSpheres.data(), kCamTriangles.data());
     for (size_t i = 0; i < kCamPixels.size(); ++i) {

@@ -23,7 +23,7 @@
 | What | To | When | Contract |
 |---|---|---|---|
 | `vec3`, `Ray`, `AABB`, `intersect_aabb` | Everyone | Oct 27 | §1 |
-| `shade_hit`, `LitShading`, `NormalShading`, `PixelResult` | Po (CPU backend), Mikail (megakernel) | Nov 6 (`NormalShading`, `PixelResult` landed, #24; `shade_hit` and `LitShading` tracked in #43, which unblocks Po's stub S5) | §6 |
+| `shade_hit`, `LitShading`, `NormalShading`, `PixelResult` | Po (CPU backend), Mikail (megakernel) | Nov 6 (`NormalShading`, `PixelResult` landed, #24; `offset_ray_origin`, `light_sample`, `shade_hit`, `LitShading` and the `render_pixel` default landed, #49, with the default being a one-line edit to Mikail's `shade/render_pixel.hpp` that he approved in the group chat on Nov 11; Po's stub S5 is ready to remove) | §6 |
 | `Timings` struct (names only, `bench/timings.hpp`; [ROADMAP blocker 6](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Jett, Mikail, Po (`build_bvh`, `DeviceScene::upload`, `Backend::prepare` take `Timings&`) | Landed (#22) | §8 |
 | Timers, results writer | Everyone | Nov 6 (landed, #50: `rt_bench` with `WallTimer`, `ScopedTimer`, `summarize`, `measure_build_and_render`, `measure_frame`, `make_app_record`, `collect_machine_info`, `to_json`, `write_results` and `validate_results`; `rt_render` wires `--mode`, `--runs` and `--results` against it) | §8 |
 | Double-precision intersection oracle | Mikail (independent check) | Nov 6 | [quality §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
@@ -36,7 +36,7 @@
 | `Hit`, `brute_any` | Mikail (landed: `Hit` #20, `brute_any` #21) | Nothing |
 | `Scene` view | Po (landed, `scene/scene.hpp`) | Nothing |
 | Expected shading values | Jett (Nov 6) | Your own hand checks, replaced by Jett's independent numbers |
-| `rt_compare` | Po (landed, #36: `image/compare.hpp`, `apps/rt_compare`) | Nothing. Corruption test 4 still uses synthetic masks (stub S5) until `LitShading` lands (#43) |
+| `rt_compare` | Po (landed, #36: `image/compare.hpp`, `apps/rt_compare`) | Nothing. `LitShading` landed (#49); corruption test 4 can now run on the real lit image (stub S5 ready to remove, Po's file) |
 
 **Done means:**
 - Lambert value at a sphere's pole, 1/d² falloff, shadow boundary location, and no acne all match Jett's expected values (relative 1e-5).
@@ -96,7 +96,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 |---|---|---|
 | Oct 27 | Math library + slab tests merged; review INTERFACES §1, §6, §8 and sign off | M |
 | Oct 30 | `NormalShading` (for first images) and `PixelResult`, in `shade/shading.hpp` (landed, #24) | S |
-| Nov 6 | `surface_at` (landed, #24), `offset_ray_origin`, `light_sample`, `shade_hit` with analytic tests (and add the `LitShading` default to `render_pixel`, W7); double-precision oracle; harness on CPU; golden tests | M |
+| Nov 6 | `surface_at` (landed, #24), `offset_ray_origin`, `light_sample`, `shade_hit` with analytic tests, and the `LitShading` default for `render_pixel` (landed, #49; an edit to Mikail's `shade/render_pixel.hpp`, approved by him on Nov 11, in its own commit; tests use my own hand-derived values until Jett's independent ones exist); double-precision oracle; harness on CPU; golden tests | M |
 | Nov 13 | Harness on GPU (`cuda_init`, `cudaEvent` stages) (`bench/gpu_timer.hpp` landed, #50; its device tests have not run on a GPU yet); T_app process script | S |
 | Nov 18 | Target ratios and breakdown plots | M |
 | Later | E2 Blinn-Phong + directional lights (after G2); E5 wavefront queues/shade/accumulate (after G3); OptiX pairing (stretch) | |
@@ -119,4 +119,4 @@ Ray Tracing Gems I Ch. 6 (self-intersection offset); PBRT v4 (floating-point err
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Implemented scale-first `normalize()` for finite, nonzero vectors; added regression tests for extreme, subnormal, and widely separated magnitudes. `NormalShading`, `surface_at`, `SurfacePoint` and `PixelResult` in `shade/shading.hpp`, with tests | #2, #23, #24 | — |
-| Nov 8–14 | Slab test for subnormal ray directions (#3): reproduction, overflow analysis, and tests against the double reference. Final fix divides on subnormal axes in `float`, with a scene coordinate bound (§1, §2). Benchmark harness library `rt_bench` (C9): run statistics, wall-clock timers, T_br and T_frame run loops with an untimed reset, machine and build identity, results schema v2 writer and validator, CUDA event and stage timers. Recorded the schema gaps as CONTRACT_NOTES W10 and W11 | #3, #30, #50 | — |
+| Nov 8–14 | Slab test for subnormal ray directions (#3): reproduction, overflow analysis, and tests against the double reference. Final fix divides on subnormal axes in `float`, with a scene coordinate bound (§1, §2). Lambert shading: `offset_ray_origin`, `light_sample`, `shade_hit`, `LitShading`, the `render_pixel` default (W7: a default template argument in Mikail's `shade/render_pixel.hpp`, approved by him in the group chat on Nov 11 and kept in its own commit); analytic tests (sphere pole, floor cosine and 1/d², shadow edge at x = √2, no acne on a 2000-wide plane, no shadow ray for a back-facing light, light order and mask); a CUDA test that compiles `LitShading` as device code (device run not done: no GPU here, needs a GPU or Vista) Benchmark harness library `rt_bench` (C9): run statistics, wall-clock timers, T_br and T_frame run loops with an untimed reset, machine and build identity, results schema v2 writer and validator, CUDA event and stage timers. Recorded the schema gaps as CONTRACT_NOTES W10 and W11 | #3, #30, #43, #49, #50, #51 | — |

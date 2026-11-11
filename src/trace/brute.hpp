@@ -1,7 +1,7 @@
 /// @file brute.hpp
 /// @brief Brute-force closest-hit and any-hit loops and the BruteQuery tracing query.
 ///
-/// These follow the same acceptance rule as BVH traversal (INTERFACES §5), so the two return
+/// These run the same per-primitive step as BVH traversal (trace/accept.hpp), so the two return
 /// identical hits. They serve as the test oracle and as the `--bvh none` query.
 #pragma once
 
@@ -9,20 +9,10 @@
 
 #include "core/ray.hpp"
 #include "scene/scene.hpp"
+#include "trace/accept.hpp"
 #include "trace/hit.hpp"
-#include "trace/intersect.hpp"
 
 namespace rt {
-namespace detail {
-
-/// Closest-hit acceptance rule (INTERFACES §5): candidate `(t, p)` replaces @p best iff
-/// `r.tmin < t < r.tmax` and (no hit yet, or `t < best.t`, or `t == best.t && p < best.prim`).
-RT_INLINE bool accept(const Ray& r, bool found, const Hit& best, float t, PrimRef p) {
-    if (!(t > r.tmin && t < r.tmax)) return false;
-    return !found || t < best.t || (t == best.t && p < best.prim);
-}
-
-}  // namespace detail
 
 /// Closest hit over every sphere and triangle; test oracle for BVH traversal.
 /// @return The accepted hit, or `{r.tmax, RT_MISS_PRIM, 0, 0}` on a miss. Equal distances
@@ -32,21 +22,9 @@ RT_INLINE bool accept(const Ray& r, bool found, const Hit& best, float t, PrimRe
 RT_INLINE Hit brute_closest(const Ray& r, const Scene& s) {
     Hit best{r.tmax, RT_MISS_PRIM, 0.0f, 0.0f};
     bool found = false;
-    for (uint32_t i = 0; i < s.num_spheres; ++i) {
-        float t;
-        if (intersect_sphere(r, s.spheres[i], best.t, t) && detail::accept(r, found, best, t, i)) {
-            best = Hit{t, i, 0.0f, 0.0f};
-            found = true;
-        }
-    }
+    for (uint32_t i = 0; i < s.num_spheres; ++i) detail::closest_prim(r, s, i, best, found);
     for (uint32_t i = 0; i < s.num_triangles; ++i) {
-        float t, u, v;
-        const PrimRef p = PRIM_TRIANGLE_BIT | i;
-        if (intersect_triangle(r, s.triangles[i], best.t, t, u, v) &&
-            detail::accept(r, found, best, t, p)) {
-            best = Hit{t, p, u, v};
-            found = true;
-        }
+        detail::closest_prim(r, s, PRIM_TRIANGLE_BIT | i, best, found);
     }
     return best;
 }
@@ -55,12 +33,10 @@ RT_INLINE Hit brute_closest(const Ray& r, const Scene& s) {
 /// @pre Same as brute_closest.
 RT_INLINE bool brute_any(const Ray& r, const Scene& s) {
     for (uint32_t i = 0; i < s.num_spheres; ++i) {
-        float t;
-        if (intersect_sphere(r, s.spheres[i], r.tmax, t) && t < r.tmax) return true;
+        if (detail::any_prim(r, s, i)) return true;
     }
     for (uint32_t i = 0; i < s.num_triangles; ++i) {
-        float t, u, v;
-        if (intersect_triangle(r, s.triangles[i], r.tmax, t, u, v) && t < r.tmax) return true;
+        if (detail::any_prim(r, s, PRIM_TRIANGLE_BIT | i)) return true;
     }
     return false;
 }
