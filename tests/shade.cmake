@@ -1,5 +1,7 @@
 # test_shade: shared shading policies (Arek).
 rt_add_gtest(test_shade SOURCES test_shade.cpp)
+# test_shade_independent: Lambert checks against literals from tests/oracle/shading_expected.py.
+rt_add_gtest(test_shade_independent SOURCES test_shade_independent.cpp)
 
 # test_render_pixel: render_pixel with BruteQuery and NormalShading on the known scene.
 rt_add_gtest(test_render_pixel SOURCES test_render_pixel.cpp LIBS rt_scene)

@@ -88,7 +88,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Oct 30 | `camera_ray` + tests | S |
 | Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat (landed, #31); large-scene SAH and acceptance-coverage follow-up (landed, #40) | M |
 | Nov 6 | Terrain height field and upward-wound grid integrated into `rt_gen` (landed, #41) | S |
-| Nov 6 | Shading expected values for Arek's tests (hand calculations or Python) | S |
+| Nov 6 | Shading expected values for Arek's tests (hand calculations or Python). Covered by Mikail's independent check: `tests/oracle/shading_expected.py` and `tests/test_shade_independent.cpp`; Jett may still review it | S |
 | Nov 10 | **Decision:** if LBVH passes the validator and determinism tests, continue with it. Otherwise ship the task-parallel median builder (an accepted path, not a miss) | |
 | Nov 13 | Parallel builder (LBVH preferred), layout conversion, depth fallback | L |
 | Nov 18 | Preparation scaling, B = 1→72, per stage | M |

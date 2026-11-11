@@ -96,7 +96,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 |---|---|---|
 | Oct 27 | Math library + slab tests merged; review INTERFACES §1, §6, §8 and sign off | M |
 | Oct 30 | `NormalShading` (for first images) and `PixelResult`, in `shade/shading.hpp` (landed, #24) | S |
-| Nov 6 | `surface_at` (landed, #24), `offset_ray_origin`, `light_sample`, `shade_hit` with analytic tests, and the `LitShading` default for `render_pixel` (landed, #49; an edit to Mikail's `shade/render_pixel.hpp`, approved by him on Nov 11, in its own commit; tests use my own hand-derived values until Jett's independent ones exist); double-precision oracle; harness on CPU; golden tests | M |
+| Nov 6 | `surface_at` (landed, #24), `offset_ray_origin`, `light_sample`, `shade_hit` with analytic tests, and the `LitShading` default for `render_pixel` (landed, #49; an edit to Mikail's `shade/render_pixel.hpp`, approved by him on Nov 11, in its own commit; tests use my own hand-derived values; Mikail's independent Python values in `tests/oracle/shading_expected.py` agree and back `tests/test_shade_independent.cpp`); double-precision oracle; harness on CPU; golden tests | M |
 | Nov 13 | Harness on GPU (`cuda_init`, `cudaEvent` stages) (`bench/gpu_timer.hpp` landed, #51; device tests pass on the RTX 4070 laptop, Vista not yet checked); T_app process script (`scripts/bench/run_tapp.py`, #52, #54: landed and tested end to end against `rt_render` from #56, CPU backend on a non-reference VM; Vista and GPU runs still to do) | S |
 | Nov 18 | Target ratios and breakdown plots | M |
 | Later | E2 Blinn-Phong + directional lights (after G2); E5 wavefront queues/shade/accumulate (after G3); OptiX pairing (stretch) | |
