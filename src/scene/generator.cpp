@@ -10,7 +10,7 @@
 #include "scene/hash.hpp"
 #include "scene/pcg32.hpp"
 #include "scene/scene_io.hpp"
-#include "scene/terrain_stub.hpp"
+#include "scene/terrain.hpp"
 
 namespace rt {
 
@@ -85,7 +85,7 @@ SceneHost generate_uniform(const UniformSettings& settings) {
                               {0.7f, 0.7f, 0.7f}, {0.3f, 0.3f, 0.3f}};
     SceneHost scene;
     for (const auto& albedo : palette) scene.materials.push_back({albedo, {0, 0, 0}, 1, 0});
-    scene.triangles = detail::terrain_grid_stub(grid, side, spheres);
+    scene.triangles = terrain_grid(grid, side, spheres);
     scene.spheres.reserve(spheres);
     Pcg32 random(settings.seed);
     for (uint32_t i = 0; i < spheres; ++i) {
@@ -93,7 +93,7 @@ SceneHost generate_uniform(const UniformSettings& settings) {
         const float z = side * (random.uniform() - 0.5f);
         const float radius =
             std::clamp(std::exp(std::log(0.1f) + random.uniform() * std::log(10.0f)), 0.1f, 1.0f);
-        const float y = detail::terrain_height_stub(x, z) + radius + random.uniform();
+        const float y = terrain_height(x, z) + radius + random.uniform();
         scene.spheres.push_back({{x, y, z}, radius, i % 8});
     }
     const float intensity = 0.5f * side * side;

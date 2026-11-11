@@ -1,5 +1,5 @@
 /// @file main.cpp
-/// @brief Repeatable uniform scene generator using registered terrain stand-in S3.
+/// @brief Repeatable uniform scene generator with benchmark height-field terrain.
 #include <CLI/CLI.hpp>
 #include <exception>
 #include <filesystem>
@@ -25,7 +25,7 @@ std::string quote(const std::string& value) {
 
 int main(int argc, char** argv) {
     try {
-        CLI::App app{"Generate development scenes (terrain stub S3; not a release archive)"};
+        CLI::App app{"Generate uniform benchmark scenes with height-field terrain"};
         rt::UniformSettings settings;
         std::string layout = "uniform", output;
         app.add_option("--layout", layout, "Sphere layout")->check(CLI::IsMember({"uniform"}));
@@ -45,11 +45,10 @@ int main(int argc, char** argv) {
                                          {"layout", layout},
                                          {"seed", settings.seed},
                                          {"num_spheres", scene.spheres.size()},
-                                         {"num_triangles", scene.triangles.size()},
-                                         {"terrain_source", "stub-S3"}};
+                                         {"num_triangles", scene.triangles.size()}};
         rt::save_binary_scene(path.string(), scene, metadata);
         std::cerr << "Generated " << settings.primitives << " primitives at " << path.string()
-                  << "; terrain stub S3: development output, not scenes-v1.\n";
+                  << '\n';
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << '\n';
