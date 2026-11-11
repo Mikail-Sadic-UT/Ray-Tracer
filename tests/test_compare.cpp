@@ -1,13 +1,14 @@
 /// @file test_compare.cpp
-/// @brief Core corruption checks on the known normal image and synthetic shadow inputs.
+/// @brief Core corruption checks on a real lit image of the known two-sphere scene.
 #include <gtest/gtest.h>
 
 #include <limits>
 
 #include "core/error.hpp"
-#include "cpu/normal_renderer.hpp"
+#include "cpu/cpu_backend.hpp"
 #include "image/compare.hpp"
 #include "scene/scene_io.hpp"
+#include "trace/hit.hpp"
 
 namespace {
 class Compare : public testing::Test {
@@ -16,7 +17,16 @@ class Compare : public testing::Test {
         const auto scene =
             rt::load_scene(std::string(RT_TEST_SCENES_DIR) + "/known_two_spheres.json");
         rt::Timings timings;
-        rt::render_normal(scene, reference, {2, true, true}, timings);
+        rt::CpuBackend backend;
+        backend.prepare({&scene,
+                         nullptr,
+                         {scene.camera.width, scene.camera.height,
+                          rt::AOV_PRIM_ID | rt::AOV_LIGHT_MASK, rt::ShadeMode::Lit},
+                         1,
+                         2,
+                         {}},
+                        timings);
+        backend.render(scene.camera, reference, timings);
     }
     static rt::Image reference;
 };
@@ -64,23 +74,50 @@ TEST_F(Compare, RejectsInteriorColorBlock) {
     EXPECT_EQ(rt::compare_images(reference, changed).shading_mismatches, 100u);
 }
 
-// STUB(S5, po): remove when LitShading lands and corruption test 4 uses a real lit image (#43).
-/// Synthetic masks model a uniformly lit floor region until real Lambert reference images exist.
-TEST_F(Compare, RejectsSyntheticShadowBlock) {
-    auto lit = reference;
-    for (size_t i = 0; i < lit.prim_id.size(); ++i)
-        if ((lit.prim_id[i] & 0x80000000u) && lit.prim_id[i] != 0xffffffffu) lit.light_mask[i] = 1;
-    for (uint32_t y = 390; y < 430; ++y)
-        for (uint32_t x = 290; x < 330; ++x)
-            ASSERT_EQ(lit.light_mask[static_cast<size_t>(y) * lit.width + x], 1u);
-    auto changed = lit;
-    for (uint32_t y = 400; y < 420; ++y)
-        for (uint32_t x = 300; x < 320; ++x) {
-            const size_t i = static_cast<size_t>(y) * lit.width + x;
-            changed.light_mask[i] = 0;
-            for (size_t c = 0; c < 3; ++c) changed.rgb[i * 3 + c] = 0.035f;
+/// A false 20x20 shadow inside a lit floor region cannot be explained by shadow edges.
+TEST_F(Compare, RejectsShadowBlockOnLitFloor) {
+    bool found = false;
+    uint32_t block_x = 0, block_y = 0;
+    size_t shadowed_floor = 0;
+    for (size_t i = 0; i < reference.prim_id.size(); ++i)
+        if (reference.prim_id[i] != rt::RT_MISS_PRIM &&
+            (reference.prim_id[i] & rt::PRIM_TRIANGLE_BIT) && reference.light_mask[i] == 0)
+            ++shadowed_floor;
+    ASSERT_GT(shadowed_floor, 0u);  // Real occlusion is present in the reference.
+    // Include a one-pixel margin: every corrupted mask must be unexplained in its 3x3
+    // reference neighborhood. Search rather than assuming a particular shadow location.
+    for (uint32_t y = 1; y + 20 < reference.height && !found; ++y) {
+        for (uint32_t x = 1; x + 20 < reference.width && !found; ++x) {
+            bool lit_floor = true;
+            for (uint32_t yy = y - 1; yy <= y + 20 && lit_floor; ++yy)
+                for (uint32_t xx = x - 1; xx <= x + 20; ++xx) {
+                    const size_t i = static_cast<size_t>(yy) * reference.width + xx;
+                    if (reference.prim_id[i] == rt::RT_MISS_PRIM ||
+                        !(reference.prim_id[i] & rt::PRIM_TRIANGLE_BIT) ||
+                        reference.light_mask[i] != 1u) {
+                        lit_floor = false;
+                        break;
+                    }
+                }
+            if (lit_floor) {
+                block_x = x;
+                block_y = y;
+                found = true;
+            }
         }
-    EXPECT_EQ(rt::compare_images(lit, changed).unexplained_shadows, 400u);
+    }
+    ASSERT_TRUE(found) << "known scene needs a 22x22 lit floor region";
+    auto changed = reference;
+    for (uint32_t y = block_y; y < block_y + 20; ++y)
+        for (uint32_t x = block_x; x < block_x + 20; ++x) {
+            const size_t i = static_cast<size_t>(y) * reference.width + x;
+            changed.light_mask[i] = 0;
+            for (size_t c = 0; c < 3; ++c) changed.rgb[i * 3 + c] = 0.0f;
+        }
+    const auto result = rt::compare_images(reference, changed);
+    EXPECT_EQ(result.unexplained_shadows, 400u);
+    EXPECT_EQ(result.unexplained_hits, 0u);
+    EXPECT_FALSE(result.passed());
 }
 
 /// Plausible local swaps need both hit explanations and must remain within the pixel budget.

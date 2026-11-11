@@ -1,5 +1,5 @@
 /// @file tile_loop.hpp
-/// @brief Deterministic tiled CPU pixel loop shared by render_normal and CpuBackend.
+/// @brief Deterministic tiled CPU pixel loop used by CpuBackend.
 ///
 /// Host-only, internal to rt_cpu.
 #pragma once

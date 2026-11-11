@@ -6,7 +6,6 @@ import tempfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--render', required=True)
-parser.add_argument('--dump', required=True)
 parser.add_argument('--compare', required=True)
 parser.add_argument('--scene', required=True)
 args = parser.parse_args()
@@ -39,16 +38,16 @@ def same_files(a, b):
 
 with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
     root = Path(directory)
-    # Reference: Po's normal preview (stub S4). rt_render must reproduce it byte for byte.
-    run([args.dump, args.scene, '--render-normal', str(root / 'dump.pfm')], clean_stdout=False)
+    # Brute-force reference; the C++ CPU tests also check each pixel against render_pixel.
+    render(root / 'reference.pfm', '--bvh', 'none', '--render-threads', '1')
     render(root / 'median_r1.pfm', '--bvh', 'median', '--render-threads', '1')
     render(root / 'median_r4.pfm', '--bvh', 'median', '--render-threads', '4', '--build-threads', '2',
            '--out', str(root / 'median_r4.png'))
     render(root / 'none_r3.pfm', '--bvh', 'none', '--render-threads', '3')
     for other in ('median_r1', 'median_r4', 'none_r3'):
-        same_files(root / 'dump.pfm', root / f'{other}.pfm')
+        same_files(root / 'reference.pfm', root / f'{other}.pfm')
     assert (root / 'median_r4.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
-    compared = run([args.compare, str(root / 'dump.pfm'), str(root / 'median_r4.pfm')],
+    compared = run([args.compare, str(root / 'reference.pfm'), str(root / 'median_r4.pfm')],
                    clean_stdout=False)
     assert 'FAIL' not in compared.stdout, compared.stdout
 
@@ -73,7 +72,7 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
     compared = run([args.compare, str(root / 'lit_none.pfm'), str(root / 'lit_median.pfm')],
                    clean_stdout=False)
     assert 'FAIL' not in compared.stdout, compared.stdout
-    assert (root / 'lit_none.pfm').read_bytes() != (root / 'dump.pfm').read_bytes()
+    assert (root / 'lit_none.pfm').read_bytes() != (root / 'reference.pfm').read_bytes()
     assert (root / 'lit.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
 
     # Errors exit non-zero with a message on stderr.
