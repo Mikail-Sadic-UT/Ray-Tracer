@@ -13,6 +13,10 @@ target_compile_definitions(test_results_fixtures PRIVATE
 add_test(NAME results_schema_py COMMAND python3 "${PROJECT_SOURCE_DIR}/tests/test_results_schema.py"
   --scripts "${PROJECT_SOURCE_DIR}/scripts/bench" --data "${PROJECT_SOURCE_DIR}/tests/data/bench")
 
+# run_tapp: T_app aggregation in scripts/bench/run_tapp.py, on fixture results files.
+add_test(NAME run_tapp_py COMMAND python3 "${PROJECT_SOURCE_DIR}/tests/test_run_tapp.py"
+  --scripts "${PROJECT_SOURCE_DIR}/scripts/bench" --data "${PROJECT_SOURCE_DIR}/tests/data/bench")
+
 if(RT_ENABLE_CUDA)
   # test_gpu_timer: CUDA event and stage timers. Skips the kernel tests without a device.
   rt_add_gtest(test_gpu_timer SOURCES test_gpu_timer.cu LIBS rt_bench CUDA::cudart)
