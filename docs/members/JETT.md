@@ -22,7 +22,7 @@
 |---|---|---|---|
 | `camera_ray`, `Camera` parsing and overrides | Everyone's renderers | Landed (#16, #17: `camera.hpp`, `camera_io.hpp`) | §4 |
 | `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Landed (#31: `bvh/bvh.hpp`, serial); validation and SAH follow-up landed (#40) | §3 |
-| Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Nov 6 (#41; Po uses stub S3 until it lands, and the canonical scene set waits on it) | [scene families](../BENCHMARKING.md#scene-families) |
+| Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Implemented (#41, `scene/terrain.hpp`); integrated into `rt_gen`, S3 removed. Canonical scene publication remains with Po (#35) | [scene families](../BENCHMARKING.md#scene-families) |
 | Expected shading values for analytic tests | Arek | Nov 6 | [quality protocol §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
 | `Bvh` from the parallel builder | Everyone | Nov 13 | §3 |
 
@@ -87,7 +87,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Oct 27 | Review INTERFACES §3–4 and sign off | S |
 | Oct 30 | `camera_ray` + tests | S |
 | Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat (landed, #31); large-scene SAH and acceptance-coverage follow-up (landed, #40) | M |
-| Nov 6 | Terrain height field for `rt_gen` | S |
+| Nov 6 | Terrain height field and upward-wound grid integrated into `rt_gen` (landed, #41) | S |
 | Nov 6 | Shading expected values for Arek's tests (hand calculations or Python) | S |
 | Nov 10 | **Decision:** if LBVH passes the validator and determinism tests, continue with it. Otherwise ship the task-parallel median builder (an accepted path, not a miss) | |
 | Nov 13 | Parallel builder (LBVH preferred), layout conversion, depth fallback | L |
@@ -112,4 +112,4 @@ Karras 2012 (LBVH); PBRT v4 Ch. 7; Jacco Bikker, "How to build a BVH"; Wald 2007
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Bounds stage, serial median builder, `validate_bvh`, and `BvhStats` in `bvh/bvh.hpp`, with builder and validator tests | #31 | — |
-| Nov 8–14 | Hardened nonfinite-bound validation and large-scale SAH diagnostics; added independent analytic SAH, degenerate geometry, clustered thread-count determinism and timing-reset tests | #39, #40 | — |
+| Nov 8–14 | Hardened nonfinite-bound validation and large-scale SAH diagnostics; added independent analytic SAH, degenerate geometry, clustered thread-count determinism and timing-reset tests. Terrain height field and upward-wound grid in `scene/terrain.hpp`, used by `rt_gen` for terrain and sphere heights; removed stub S3, with analytic, topology, material, input-validation and seed-independence tests | #39, #40, #41, #57 | — |

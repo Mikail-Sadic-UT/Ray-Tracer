@@ -16,8 +16,8 @@
 2. Known scenes and image IO landed. Use `rt_render --backend cpu --shade lit|normal`
    for PFM/PNG/AOV output; the temporary preview S4 and duplicate normal renderer are removed.
 3. `.bin` IO, development `rt_gen` uniform layout, and the OpenMP normal-render loop are
-   implemented (#35). Backend/BVH/lit integration is available (#47, #53). Remove terrain
-   stub S3 before publishing the canonical benchmark scenes; Vista verification remains pending.
+   implemented (#35). Backend/BVH/lit integration is available (#47, #53). Terrain is
+   integrated (#41); canonical archive publication and Vista verification remain pending.
 
 **You hand off:**
 
@@ -26,7 +26,7 @@
 | `SceneHost`, `Scene`, `Image`, JSON IO, validation | Everyone | Oct 30 | §2 |
 | Known-case scenes (`scenes/known/`) | Everyone's tests | Available: two spheres, single sphere, and degenerate triangle; each has a two-triangle floor | §2 |
 | CPU backend (reference renderer) | Everyone (ground truth) | Backend with brute force/BVH and normal/lit shading available (#47, #53); temporary S4 removed | §7 |
-| `rt_gen` + `.bin` + published scene set | Everyone (benchmarks) | Binary IO and development generation available (#35); terrain S3 and canonical archive pending | §2, [scene families](../BENCHMARKING.md#scene-families) |
+| `rt_gen` + `.bin` + published scene set | Everyone (benchmarks) | Binary IO and development generation available (#35); terrain integrated (#41); canonical archive pending | §2, [scene families](../BENCHMARKING.md#scene-families) |
 | `rt_compare` core checks | Mikail (GPU validation), Arek (goldens) | CLI/core logic available (#35); four corruption cases now use a real lit image; S5 removed | [image comparison](../BENCHMARKING.md#2-image-comparison-rt_compare) |
 
 **You depend on:**
@@ -38,7 +38,7 @@
 | Camera JSON parsing and validation | Jett (Oct 30) | Nothing. Landed: `camera/camera.hpp` (`Camera`, `camera_ray`) and `camera/camera_io.hpp` (`parse_camera`, `camera_to_json`, `validate_camera`, #17) |
 | `brute_closest` / `BruteQuery` | Mikail (landed, #21) | Nothing |
 | `shade_hit` / `LitShading` | Arek (landed, #49) | Nothing. Real lit image supplies corruption fixtures, including shadow test 4; S5 removed |
-| Terrain height field | Jett (#41) | Stub S3 in `scene/terrain_stub.hpp` matches the specified formula for development; do not publish its output as the canonical scene set |
+| Terrain height field | Jett (#41) | Nothing. Landed in `scene/terrain.hpp` (#41); S3 removed. Canonical archive pending |
 | `Bvh` + `BvhQuery` | Jett, Mikail | Median builder/validator and traversal landed (#31, #46). Both query paths are tested through the CPU backend |
 | `Backend`, `PrepareInput`, `RenderSettings`, `rt_render` | Mikail (#42) | Nothing. Backend and CLI landed (#47); lit dispatch landed (#53). Removed preview S4 and its duplicate renderer |
 
@@ -106,8 +106,8 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 |---|---|---|
 | Oct 27 | Review INTERFACES §2 and sign off | S |
 | Oct 30 | Scene types, JSON IO, hash, validation, `scene_dump`; known scenes; image IO; brute-force CPU image | M |
-| Nov 6 | Development `rt_gen` + `.bin` and `rt_compare` implemented (#35); Backend/BVH/lit now integrated and real lit corruption fixtures replace S5. Real terrain remains pending | M |
-| Nov 6 | Retrieval script implemented and tested (#35). Canonical `scenes-v1` release and manifest await real terrain and verification ([details](../INTERFACES.md#generator-determinism-and-scene-distribution)) | S |
+| Nov 6 | Development `rt_gen` + `.bin` and `rt_compare` implemented (#35); Backend/BVH/lit now integrated and real lit corruption fixtures replace S5. Terrain integrated (#41) | M |
+| Nov 6 | Retrieval script implemented and tested (#35). Canonical `scenes-v1` release and manifest await publication ([details](../INTERFACES.md#generator-determinism-and-scene-distribution)) | S |
 | Nov 18 | CPU render scaling R = 1→72; profile-driven CPU optimization | M |
 | Final | Reproducibility instructions (exact commands, hashes, modules) | M |
 | Later | E4 Embree (after G2); `clustered` layout and seed 2 (after G2, if time); [deferred `rt_compare` hardening](../BENCHMARKING.md#deferred-comparison-hardening) only if needed | |
