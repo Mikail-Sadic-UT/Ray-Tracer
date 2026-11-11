@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "camera/camera.hpp"
+#include "shade/render_pixel.hpp"
 #include "shade/shading.hpp"
 #include "trace/brute.hpp"
 
@@ -449,6 +450,25 @@ TEST(ShadeHit, MultipleLightsAccumulateInOrderWithMask) {
     EXPECT_EQ(r.rgb.x, want.x);
     EXPECT_EQ(r.rgb.y, want.y);
     EXPECT_EQ(r.rgb.z, want.z);
+}
+
+/// LitShading is the default policy of render_pixel and equals shade_hit on the same hit.
+TEST(LitShading, IsRenderPixelDefault) {
+    const LitRig rig;
+    const rt::Camera cam{
+        {3.0f, 5.0f, 10.0f}, {3.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 40.0f, 8u, 8u};
+    const rt::BruteQuery q{rig.scene};
+    for (uint32_t py = 0; py < 8u; ++py) {
+        for (uint32_t px = 0; px < 8u; ++px) {
+            const rt::PixelResult a = rt::render_pixel<rt::BruteQuery>(cam, px, py, rig.scene, q);
+            const rt::PixelResult b = rt::render_pixel(cam, px, py, rig.scene, q, rt::LitShading{});
+            EXPECT_EQ(a.rgb.x, b.rgb.x);
+            EXPECT_EQ(a.rgb.y, b.rgb.y);
+            EXPECT_EQ(a.rgb.z, b.rgb.z);
+            EXPECT_EQ(a.prim_id, b.prim_id);
+            EXPECT_EQ(a.light_mask, b.light_mask);
+        }
+    }
 }
 
 }  // namespace
