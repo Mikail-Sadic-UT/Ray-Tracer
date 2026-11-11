@@ -144,7 +144,8 @@ def format_report(summary):
         '  totals (ms): ' + ', '.join(f'{t:.3f}' for t in summary['totals_ms']),
         f"  median run is #{summary['median_run_index']} ({run['file']}); its components:",
     ]
-    for name, value in run['components'].items():
+    for name in rs.APP_COMPONENTS:  # pipeline order, not the file's sorted key order
+        value = run['components'][name]
         if value != 0.0:
             lines.append(f'    {name:<10} {value:10.3f} ms')
     lines.append(f"    {'unattributed':<10} {run['unattributed_ms']:10.3f} ms")
@@ -220,7 +221,7 @@ def build_parser():
                         help='results files written by rt_render --mode app, one per process')
     source.add_argument('--rt-render', metavar='BIN',
                         help='run this rt_render in fresh processes; its arguments follow `--`')
-    parser.add_argument('--processes', type=int, default=DEFAULT_PROCESSES, metavar='N',
+    parser.add_argument('--processes', type=int, default=None, metavar='N',
                         help=f'with --rt-render: number of processes (default {DEFAULT_PROCESSES})')
     parser.add_argument('--out-dir', metavar='DIR',
                         help='with --rt-render: where the results files go (required)')
@@ -237,12 +238,14 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.sources:
-        if extra or args.out_dir or args.processes != DEFAULT_PROCESSES:
+        if extra or args.out_dir or args.processes is not None:
             parser.error('--from cannot be combined with --out-dir, --processes or rt_render '
                          'arguments')
     else:
         if not args.out_dir:
             parser.error('--rt-render needs --out-dir')
+        if args.processes is None:
+            args.processes = DEFAULT_PROCESSES
         if args.processes < 1:
             parser.error('--processes must be at least 1')
     try:

@@ -217,6 +217,28 @@ class CommandLine(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn('cannot write', result.stderr)
 
+    def test_components_print_in_pipeline_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            docs = docs_for([30.0, 31.0, 32.0, 33.0, 34.0])
+            for doc in docs:  # rt_render writes the keys sorted, as nlohmann::json does
+                doc['app']['components'] = dict(sorted(doc['app']['components'].items()))
+            paths = self.write_files(directory, docs)
+            result = self.run_cli('--from', *paths)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            printed = [line.split()[0] for line in result.stdout.splitlines()
+                       if line.startswith('    ')]
+            shown = [name for name in printed if name != 'unattributed']
+            self.assertEqual(shown, [n for n in rs.APP_COMPONENTS if n in shown])
+            self.assertLess(printed.index('load'), printed.index('render'))
+            self.assertEqual(printed[-1], 'unattributed')
+
+    def test_from_rejects_processes_even_at_the_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self.write_files(directory, docs_for([30.0, 31.0, 32.0, 33.0, 34.0]))
+            result = self.run_cli('--from', *paths, '--processes', '5')
+            self.assertEqual(result.returncode, 2)
+            self.assertIn('--from cannot be combined', result.stderr)
+
     def test_usage_error_exits_2(self):
         self.assertEqual(self.run_cli().returncode, 2)
 
