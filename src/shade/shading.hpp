@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <type_traits>
 
 #include "core/hostdev.hpp"
@@ -57,6 +58,51 @@ RT_INLINE SurfacePoint surface_at(const Ray& r, const Hit& h, const Scene& s) {
     }
     if (dot(ng, r.dir) > 0.0f) ng = -ng;
     return {p, ng, material_id};
+}
+
+/// Reinterprets the bits of a float as a signed integer.
+RT_INLINE int32_t float_bits(float f) {
+#ifdef __CUDA_ARCH__
+    return __float_as_int(f);
+#else
+    int32_t i;
+    std::memcpy(&i, &f, sizeof(i));
+    return i;
+#endif
+}
+
+/// Reinterprets the bits of a signed integer as a float.
+RT_INLINE float bits_float(int32_t i) {
+#ifdef __CUDA_ARCH__
+    return __int_as_float(i);
+#else
+    float f;
+    std::memcpy(&f, &i, sizeof(f));
+    return f;
+#endif
+}
+
+/// Moves the point @p p off its surface along the unit normal @p ng, so a ray that starts
+/// there does not hit the surface it leaves (Ray Tracing Gems I, Ch. 6).
+///
+/// Away from the origin the offset is a few units in the last place, applied to the integer
+/// representation of each coordinate, so it scales with the coordinate's magnitude. Within
+/// `1/32` of zero, where that scaling is too small, a fixed offset of `2^-16` is used.
+/// @pre @p p is finite and @p ng has unit length.
+/// @return The offset point, on the side @p ng points to.
+RT_INLINE vec3 offset_ray_origin(vec3 p, vec3 ng) {
+    constexpr float kOrigin = 1.0f / 32.0f;
+    constexpr float kFloatScale = 1.0f / 65536.0f;
+    constexpr float kIntScale = 256.0f;
+    vec3 out;
+    for (int a = 0; a < 3; ++a) {
+        const float c = p[a];
+        const float n = ng[a];
+        const int32_t step = static_cast<int32_t>(kIntScale * n);
+        const float moved = bits_float(float_bits(c) + (c < 0.0f ? -step : step));
+        out[a] = ::fabsf(c) < kOrigin ? c + kFloatScale * n : moved;
+    }
+    return out;
 }
 
 /// Visualizes face-forwarded geometric normals without querying lights or tracing shadows.

@@ -2,6 +2,8 @@
 /// @brief Tests for shared normal shading.
 #include <gtest/gtest.h>
 
+#include <cmath>
+
 #include "shade/shading.hpp"
 
 namespace {
@@ -106,6 +108,59 @@ TEST(NormalShading, MissReturnsBackground) {
     EXPECT_FLOAT_EQ(result.rgb.z, background.z);
     EXPECT_EQ(result.prim_id, rt::RT_MISS_PRIM);
     EXPECT_EQ(result.light_mask, 0u);
+}
+
+/// Offsets move the point toward the normal side, by a small relative amount, at any scale.
+TEST(OffsetRayOrigin, MovesTowardNormalAtEveryScale) {
+    const rt::vec3 normals[] = {{0.0f, 1.0f, 0.0f},
+                                {0.0f, -1.0f, 0.0f},
+                                {0.57735027f, 0.57735027f, -0.57735027f},
+                                {-1.0f, 0.0f, 0.0f}};
+    const float scales[] = {1e-3f, 0.02f, 0.5f, 1.0f, 37.0f, 1e3f, 1e6f, 1e12f};
+    for (const rt::vec3& n : normals) {
+        for (float s : scales) {
+            for (float sign : {1.0f, -1.0f}) {
+                const rt::vec3 p{1.1f * s * sign, 0.7f * s, -0.3f * s * sign};
+                const rt::vec3 o = rt::offset_ray_origin(p, n);
+                const rt::vec3 d = o - p;
+                EXPECT_TRUE(std::isfinite(o.x) && std::isfinite(o.y) && std::isfinite(o.z));
+                EXPECT_GT(rt::dot(d, n), 0.0f) << "scale " << s;
+                // Every coordinate of p is within 1/32 of zero for s < 0.1, where the offset is
+                // the fixed 2^-16 times n. The float add rounds by under 1e-4 of that.
+                // Otherwise each coordinate moves by int(256 n_a) ulps. An ulp is at most
+                // 2^-23 of the value, so the relative length is at most 256 * 2^-23 = 3.05e-5;
+                // the 3.1e-5 bound leaves room for rounding. The lower bound, about half the
+                // smallest measured 9.9e-6, fails if the offset shrinks to a few ulps.
+                if (s < 0.1f) {
+                    EXPECT_NEAR(rt::length(d), 1.0f / 65536.0f, 1e-4f / 65536.0f) << "scale " << s;
+                } else {
+                    const float rel = rt::length(d) / rt::length(p);
+                    EXPECT_LT(rel, 3.1e-5f) << "scale " << s;
+                    EXPECT_GT(rel, 5e-6f) << "scale " << s;
+                }
+            }
+        }
+    }
+}
+
+/// A point exactly on a plane moves off it, including at the origin.
+TEST(OffsetRayOrigin, MovesPointsNearAndAtZero) {
+    const rt::vec3 up{0.0f, 1.0f, 0.0f};
+    for (float x : {0.0f, -0.0f, 1e-9f, 0.01f}) {
+        const rt::vec3 o = rt::offset_ray_origin({x, 0.0f, 0.0f}, up);
+        EXPECT_GT(o.y, 0.0f);
+        EXPECT_EQ(o.x, x);
+    }
+}
+
+/// The offset of an exactly-planar point leaves the plane by more than rounding error.
+TEST(OffsetRayOrigin, OffsetsPastRoundingOfPlaneEquation) {
+    const rt::vec3 up{0.0f, 1.0f, 0.0f};
+    const float ys[] = {0.0f, 1.0f, 250.0f, -250.0f, 1e5f};
+    for (float y : ys) {
+        const rt::vec3 o = rt::offset_ray_origin({123.456f, y, -78.9f}, up);
+        EXPECT_NE(o.y, y);
+    }
 }
 
 }  // namespace
