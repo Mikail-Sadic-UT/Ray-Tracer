@@ -190,8 +190,9 @@ mkdir -p build/previews build/generated
 ```
 
 These commands check correctness and demonstrate image output; they do not establish benchmark timings. Generation
-uses the benchmark height field in `scene/terrain.hpp` (#41). Canonical scene publication
-remains pending (#35). Python 3 is required for `scripts/fetch_scenes.sh` and the
+uses the benchmark height field in `scene/terrain.hpp` (#41). Benchmarks use the published
+set instead of local generation: `bash scripts/fetch_scenes.sh scenes-v1` downloads and
+verifies it into `scenes/generated/` ([manifest](../scenes/manifest.json)). Python 3 is required for `scripts/fetch_scenes.sh` and the
 archive/CLI integration tests. See [Po's hand-off notes](PO_PROGRESS.md) for validation,
 retrieval commands, environment overrides and remaining dependencies. No gate is established
 by these tools alone; reference-platform and integrated-renderer checks are still required.

@@ -46,8 +46,11 @@ BruteQuery and ordinary synthetic unit-test inputs remain useful production/test
   topology, materials, invalid inputs and seed independence. Generated `.bin` files are
   byte-identical to the S3 output, so scene hashes are unchanged. Po can now generate and
   publish the canonical archive (#35).
-- **Canonical publication:** no `scenes-v1` release or canonical manifest has been published
-  by this work. The retrieval script is tested, but no real remote archive was available.
+- **Canonical publication (done Nov 11, Mikail):** `scenes-v1` is published as a GitHub
+  Release with `bench_10k_s1`, `bench_100k_s1` and `bench_1m_s1`, and listed in
+  `scenes/manifest.json`. They were generated on the laptop (WSL2, Ubuntu 24.04.5, glibc
+  2.39, g++ 13.3.0, Release, CPU-only, `dev` at `dd0efa7`); two runs were byte-identical,
+  and `fetch_scenes.sh scenes-v1` retrieves and verifies the real release.
 - **Vista:** GCC/CUDA, GPU agreement and CPU scaling/profile measurements remain unverified
   by this work. Mac tests do not establish reference-platform or performance results.
 - **Other integration:** `rt_bench` has landed (#51); benchmark CLI wiring, golden images and
@@ -88,7 +91,7 @@ mkdir -p build-mac/previews build-mac/generated
 The PFM has `.primid.u32img` and `.lightmask.u32img` sidecars. Use `--shade normal` for a
 normal-as-color diagnostic. Do not commit generated images or binary scenes.
 
-After an immutable archive and `scenes/manifest.json` exist:
+Retrieve the published benchmark scenes into `scenes/generated/`:
 
 ```bash
 bash scripts/fetch_scenes.sh scenes-v1

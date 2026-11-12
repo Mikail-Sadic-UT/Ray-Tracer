@@ -85,7 +85,7 @@ Measured in **primitives**. Fixed at gate G1 (Nov 6), and presented at check-in 
 | `bench_100k` | 50,000 | ~50,000 | 100,000 | 1 |
 | `bench_1m` | 500,000 | ~500,000 | 1,000,000 | 1 |
 
-The terrain grid gives `2·g²` triangles, slightly below the target, so the generator tops it up with sphere count until the total is exactly N. Results record the actual counts.
+The terrain grid gives `2·g²` triangles, slightly below the target, so the generator tops it up with sphere count until the total is exactly N. Results record the actual counts. In the published set `scenes-v1` ([manifest](../scenes/manifest.json)) these are 5,000 + 5,000, 50,072 + 49,928, and 500,000 + 500,000 (spheres + triangles).
 
 Every results file records the scene hash and the exact `rt_gen` command. Icospheres, if used, are counted by their triangles (20·4^k each).
 
