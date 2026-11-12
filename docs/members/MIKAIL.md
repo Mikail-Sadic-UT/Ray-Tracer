@@ -23,8 +23,8 @@
 | Building repo + CI | Everyone | Oct 30 | [BUILD.md](../BUILD.md) |
 | `intersect_*`, `brute_*`, `Hit`, `BruteQuery` | Po (first CPU image), Arek (shadow tests) | Oct 30 (landed: `Hit` #20; intersection, `brute_*`, and `BruteQuery` #21) | §5, §6 |
 | `render_pixel` ([ROADMAP blocker 3](../ROADMAP.md#start-now-check-and-cross-owner-blockers-oct-28)) | Po (CPU loop), megakernel | Landed (#33: `shade/render_pixel.hpp`) | §6 |
-| `traverse_closest` / `traverse_any`, `BvhQuery` | Po (CPU backend), Arek | Nov 6 | §5, §6 |
-| `Backend` interface, `rt_render` CLI | Everyone | Nov 6 (#42; Po's `scene_dump --render-normal` is stub S4 until it lands) | §7 |
+| `traverse_closest` / `traverse_any`, `BvhQuery` | Po (CPU backend), Arek | Nov 6 (landed: `trace/traverse.hpp`, #46) | §5, §6 |
+| `Backend` interface, `rt_render` CLI | Everyone | Nov 6 (landed, #47: `backend.hpp`, `CpuBackend`, `rt_render --backend cpu`; S4 removed, #55) | §7 |
 | CUDA megakernel backend | Everyone (GPU results) | Nov 13 | §7 |
 | sbatch sweep scripts | Everyone (measurements) | Nov 13 | [BENCHMARKING](../BENCHMARKING.md#sweeps) |
 
@@ -64,7 +64,10 @@ Standing rules:
   work"). Commits are kernel style and signed off (`git commit -s`).
 - Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
   --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
-- Assign yourself to the issue before you start and to the PR when you open it.
+- Assign yourself to the PR when you open it and to an existing tracking issue, if any.
+- Create issues only when useful for bugs, larger/high-risk work, coordination, or durable
+  tracking. Small self-contained PRs do not need an issue. Open ready for review by default;
+  use draft for unfinished work and explain what remains.
 - Make the docs update the last commit of the PR: your member file (docs/members/<you>.md) with
   the Deliverables and hand-off rows that changed, the "You depend on" rows that landed, and this
   week's contribution log row, plus any ROADMAP status, stub register, or CONTRACT_NOTES rows the
@@ -96,8 +99,8 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Oct 30 | Intersection + brute force | M |
 | Oct 30 | `render_pixel` in `shade/render_pixel.hpp`, with host and device tests (landed, #33) | S |
 | ~Nov 3 | GPU smoke image | S |
-| Nov 6 | Traversal (`BvhQuery`) | M |
-| Nov 6 | `Backend` interface (`backend.hpp`), CPU/CUDA dispatch in `rt_render` | M |
+| Nov 6 | Traversal (`BvhQuery`) (landed, #46: byte-identical to brute force on host and device) | M |
+| Nov 6 | `Backend` interface (`backend.hpp`), CPU/CUDA dispatch in `rt_render` (CPU landed, #47; CUDA comes with C10) | M |
 | Nov 13 | `DeviceScene` (explicit) + megakernel; sweep sbatch scripts; node-hour log | M |
 | Nov 18 | GPU profiling (`-Xptxas -v`, Nsight) | M |
 | Weekly | Status table in [ROADMAP](../ROADMAP.md#status), weekly meeting | S |
@@ -122,4 +125,4 @@ PBRT v4 Ch. 6 (watertight test); Woop et al. 2013; Aila & Laine 2009 (GPU traver
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Clarified INTERFACES §8: `render_kernel` is reported in a per-run `diagnostics` object, outside `components` and the totals (resolves W5). Reviewed and merged Arek's `NormalShading` and robust `normalize()` PRs | #24, #28, #29 | |
-| Nov 8–14 | Reviewed and finished #30 (subnormal slab test; found a GCC 13 range-analysis miscompile, replaced the double fallback with float division, coordinate bound) and #31 (median BVH: validator signature, outward sphere bounds, tests). Fixed GCC 13 warnings and scene IO error messages and float output for Po's #11, #12. Wrote `render_pixel` with host tests and a CUDA test that matches the CPU image | #30, #31, #11, #12, #27, #33 | — |
+| Nov 8–14 | Reviewed and finished #30 (subnormal slab test; found a GCC 13 range-analysis miscompile, replaced the double fallback with float division, coordinate bound) and #31 (median BVH: validator signature, outward sphere bounds, tests). Fixed GCC 13 warnings and scene IO error messages and float output for Po's #11, #12. Wrote `render_pixel` with host tests and a CUDA test that matches the CPU image. Wrote BVH traversal and `BvhQuery`, sharing the per-primitive step with brute force. Tested them against brute force (byte-identical hits, including ties across leaves), on the host and in a CUDA kernel, plus a stack-overflow test. Recorded the overflow-flag gap as CONTRACT_NOTES W8. Wrote `backend.hpp`, a `CpuBackend` around Po's tile loop (Po to review), and `rt_render --backend cpu`. Its output is byte-identical to `scene_dump --render-normal`, and BVH output is byte-identical to brute force at any thread count. Made the CUDA device tests skip instead of fail when no GPU is visible. Reviewed, fixed up and merged #36, #40, #49 and #51, running the GPU checks their authors couldn't. `CpuBackend` renders `--shade lit` through `LitShading`. Wired `rt_render --mode app\|prepared`, `--runs` and `--results` to `rt_bench`. Generated the canonical benchmark scenes on the laptop (two byte-identical runs), published them as release `scenes-v1`, and wrote `scenes/manifest.json`, closing the last G1 item. Added the README CPU build/render quick start and a linked user guide covering current tools, options, timing, CUDA tests, and troubleshooting. Updated the schedule after the team decision: no check-in 3 or automatic Nov 13 scope cut; scope reviews account for progress and break availability. Clarified optional issue tracking and ready-for-review PR defaults | #64, #30, #31, #11, #12, #27, #33, #26, #46, #42, #47, #34, #48, #36, #40, #49, #51, #53, #56, #35 | — |

@@ -10,6 +10,7 @@ import tempfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dump', required=True)
+parser.add_argument('--render', required=True)
 parser.add_argument('--compare', required=True)
 parser.add_argument('--generator', required=True)
 parser.add_argument('--scene', required=True)
@@ -24,8 +25,9 @@ with tempfile.TemporaryDirectory(prefix='rt-cli-') as directory:
     root = Path(directory)
     for threads in (1, 4):
         pfm = root / f't{threads}.pfm'
-        run([args.dump, args.scene, '--render-normal', str(pfm), '--png', str(pfm.with_suffix('.png')),
-             '--render-threads', str(threads)])
+        run([args.render, '--scene', args.scene, '--backend', 'cpu', '--shade', 'lit',
+             '--pfm', str(pfm), '--out', str(pfm.with_suffix('.png')),
+             '--aov', 'primid,lightmask', '--render-threads', str(threads)])
     for extension in ('.pfm', '.primid.u32img', '.lightmask.u32img'):
         assert (root / ('t1' + extension)).read_bytes() == (root / ('t4' + extension)).read_bytes()
     assert (root / 't1.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
@@ -50,13 +52,14 @@ with tempfile.TemporaryDirectory(prefix='rt-cli-') as directory:
     run(command)
     assert before == hashes()
     metadata = json.loads(prefix.with_suffix('.json').read_text())['generator']
-    assert metadata['terrain_source'] == 'stub-S3'
+    assert 'terrain_source' not in metadata
     assert metadata['num_spheres'] + metadata['num_triangles'] == 17
     assert metadata['command'] == f'rt_gen --layout uniform --primitives 17 --seed 42 --out {prefix}'
     # The same arguments through a different invocation path and working directory must
     # give the same bytes: the manifest records each file's SHA-256.
     generator = Path(args.generator).resolve()
-    relative = Path(os.path.relpath(generator, prefix.parent))
+    # Resolve /var -> /private/var before counting parent components on macOS.
+    relative = Path(os.path.relpath(generator, prefix.parent.resolve()))
     run([str(relative), '--layout', 'uniform', '--primitives', '17', '--seed', '42', '--out', str(prefix)],
         cwd=prefix.parent)
     assert before == hashes()

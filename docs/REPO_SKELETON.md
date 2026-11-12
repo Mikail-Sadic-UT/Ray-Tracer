@@ -31,7 +31,7 @@
 │   │   └── wavefront/          queues.hpp  trace_kernels.cu (Mikail)  shade_kernels.cu  accumulate.cu (Arek)
 │   ├── embree/     (Po)        embree_backend.hpp  embree_backend.cpp
 │   ├── optix/      (Mikail)    optix_backend.hpp  optix_backend.cpp  programs.cu
-│   ├── bench/      (Arek)      timings.hpp  timer.hpp  gpu_timer.hpp  results.hpp  results.cpp  machine_info.cpp
+│   ├── bench/      (Arek)      timings.hpp  timer.hpp  stats.hpp  harness.hpp  gpu_timer.hpp  results.hpp  machine_info.hpp  (+ .cpp)
 │   ├── image/      (Po)        image.hpp  image_io.hpp  image_io.cpp  io_helpers.hpp  write_png.cpp
 │   └── backend.hpp             # Backend interface
 ├── apps/

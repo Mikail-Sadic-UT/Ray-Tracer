@@ -9,7 +9,7 @@ ECE 379K project. A ray tracer for spheres and triangles that splits work betwee
 | Arek Plate | AWP688 | Member 3 | [AREK.md](docs/members/AREK.md) |
 | Po Han Ai | PA22435 | Member 4 | [PO.md](docs/members/PO.md) |
 
-**Status (Oct 24):** planning docs only; no code merged in this repository. The schedule was re-baselined to start from today. See [ROADMAP.md](docs/ROADMAP.md#status).
+**Status (Nov 11):** G1 met. The CPU renderer (Lambert + point-light shadows, median BVH, multicore), `rt_gen`, `rt_compare` and CPU timings have landed, and the benchmark scenes are published as `scenes-v1` (`bash scripts/fetch_scenes.sh scenes-v1`). G2 (CUDA) is in progress. See [ROADMAP.md](docs/ROADMAP.md#status).
 
 ## Required deliverable
 
@@ -54,21 +54,57 @@ Offline CLI renderer. No native Windows build.
 | Oct 30 | **G0** | Builds on WSL2 + Vista, CI green, brute-force CPU image |
 | Nov 6 | **G1** | Correct CPU renderer, median BVH, multicore, generator, `rt_compare`, CPU timings, benchmark scenes fixed |
 | Nov 12 | Check-in 2 (postponed) | G1 complete, builder decision (Nov 10), G2 progress; see [ROADMAP.md](docs/ROADMAP.md#gates-and-schedule) |
-| Nov 13 | **G2** | CUDA matches CPU; correct parallel builder (LBVH or task-parallel median); first Vista timings. Reduced scope if missed |
-| Nov 16–20 | Check-in 3; **G3** Nov 18 | Scaling, breakdowns, profiling, preliminary ratios; extensions chosen |
+| Nov 13 | **G2** | CUDA matches CPU; correct parallel builder (LBVH or task-parallel median); first Vista timings. Progress target; scope reviewed by the team |
+| Nov 18 | **G3** (internal target) | Scaling, breakdowns, profiling, preliminary ratios; extensions chosen |
 | Nov 30 | Ready | Final runs, review, slides |
 | Dec 1/3 | Presentation | |
 | Dec 6 | Release | Report, reproducible release |
 
+There is no check-in 3. G2/G3 are internal progress targets, and Nov 13 does not automatically trigger scope reduction. The team will review progress and available time, including work during the break, while keeping the final deadlines in view.
+
 ## Quick start
 
-WSL2 Ubuntu 24.04 with `g++-13`, `cmake`, `ninja-build`, and (optionally) the CUDA toolkit. Full setup, including Vista: [BUILD.md](docs/BUILD.md).
+For a full walkthrough of rendering options, scene generation, image comparison, and timing, see the **[User guide](docs/USER_GUIDE.md)**.
+
+On WSL2 Ubuntu 24.04, install `g++-13`, CMake 3.28+, and `ninja-build`. Run the commands below from the repository root. Full setup, including CUDA and Vista: [BUILD.md](docs/BUILD.md).
+
+### Compile the CPU renderer
+
+Configure the build, then compile. The first configure downloads the pinned dependencies, so it needs internet access. No GPU or CUDA toolkit is needed for this build.
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DRT_CUDA_ARCH=89   # CPU-only if nvcc isn't found
-cmake --build build -j
-ctest --test-dir build --output-on-failure
-./build/apps/hello_cuda/hello_cuda                                          # CUDA builds only
+cmake -S . -B build-cpu -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_COMPILER=g++-13 \
+  -DRT_ENABLE_CUDA=OFF
+cmake --build build-cpu -j 8
+```
+
+After editing code, rerun `cmake --build build-cpu -j 8` to rebuild the affected files. To run the tests:
+
+```bash
+ctest --test-dir build-cpu --output-on-failure
+```
+
+### Render the two-sphere scene
+
+This uses the CPU renderer, median BVH, lighting and hard shadows, with four render threads:
+
+```bash
+mkdir -p out
+./build-cpu/apps/rt_render/rt_render \
+  --scene scenes/known/known_two_spheres.json \
+  --backend cpu --bvh median --shade lit \
+  --render-threads 4 \
+  --out out/two_spheres.png
+```
+
+Open `out/two_spheres.png` to see the red and blue spheres on a floor with shadows. From WSL, `explorer.exe out` opens the output folder in Windows Explorer. The camera and resolution come from the scene JSON.
+
+Use `--shade normal` to visualize surface directions, or `--width 1920 --height 1080` to override the resolution. See all options with:
+
+```bash
+./build-cpu/apps/rt_render/rt_render --help
 ```
 
 ## How to use these docs
@@ -85,6 +121,7 @@ Expect to find gaps during implementation. Fix them where they show up, and keep
 
 | File | Contents |
 |---|---|
+| [USER_GUIDE.md](docs/USER_GUIDE.md) | Compile, render, change settings, inspect/generate scenes, compare images, collect timings, and troubleshoot |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, ownership vs views, backend lifecycle, GPU pipelines, memory modes, CLI |
 | [INTERFACES.md](docs/INTERFACES.md) | Types, frozen numeric rules, BVH pipeline, file formats, results schema |
 | [CONTRACT_NOTES.md](docs/CONTRACT_NOTES.md) | Known gaps in INTERFACES that don't need a change yet, with triggers and owners |

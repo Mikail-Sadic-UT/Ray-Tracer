@@ -7,7 +7,7 @@
 
 namespace rt {
 
-/// Explicit uniform-generator inputs. Generation currently uses registered terrain stub S3.
+/// Explicit uniform-generator inputs; the terrain shape is independent of the seed.
 struct UniformSettings {
     uint32_t primitives = 10000;
     uint64_t seed = 1;
@@ -23,7 +23,6 @@ Camera fit_camera(const AABB& bounds);
 
 /// Builds uniform spheres plus a height-field grid, exactly N primitives, and validates/hashes it.
 /// Requires 4 <= N < 2^31. Same binary and inputs produce identical scene data.
-/// Outputs use terrain stub S3 and must not be published as the canonical benchmark archive.
 SceneHost generate_uniform(const UniformSettings& settings);
 
 }  // namespace rt

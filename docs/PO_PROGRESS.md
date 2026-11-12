@@ -1,73 +1,88 @@
-# Po's implementation hand-off — Nov 9
+# Po's implementation hand-off — Nov 11
 
 Tracking issue: [#35](https://github.com/Mikail-Sadic-UT/Ray-Tracer/issues/35).
-Branch: `po/cpu-scene-tools`, based on `dev` at `b5d4e44`.
+Original implementation merged in [#36](https://github.com/Mikail-Sadic-UT/Ray-Tracer/pull/36).
+Cleanup branch: `po/remove-render-stubs`, based on `dev` at `08a9230`.
 
 ## Implemented
 
-- `cpu/normal_renderer.hpp`: real `BruteQuery` + `NormalShading` rendering through
-  `render_pixel`, dynamic 16x16 OpenMP tiles, explicit thread count, optional AOVs, and output
-  reuse. One-thread and four-thread outputs are bit-identical.
-- `scene_dump --render-normal`: saves PFM and both AOVs before optional PNG. This inspection
-  feature provides the first saved CPU image while Mikail's `rt_render` app is pending. It
-  does not define a substitute `Backend`, and normal shading is not used for benchmark claims.
-- `scene/binary_io.hpp`: field-by-field version 2 `.bin` IO, aligned arrays, canonical hashes,
-  bounds/size checks before allocation, and full scene validation after JSON is combined.
-  `load_scene` resolves binary paths relative to the JSON file. `save_binary_scene` writes the
-  matching `.json`/`.bin` pair without constructing a million JSON primitive objects.
-- `rt_compare`: the five core checks from BENCHMARKING, both hit-explanation directions,
-  bounded neighborhoods, mismatch budgets, unclamped shading tolerance, and an informational
-  sRGB summary. PFM/AOV dimensions must agree. Failures produce a nonzero exit.
-- `rt_gen --layout uniform`: owned PCG32, explicit float conversion and Box–Muller sampler,
-  log-uniform sphere radii, exact primitive counts, eight diffuse materials, scaled point light,
-  and deterministic camera fitting of all eight AABB corners into the 95% frame.
-- `scripts/fetch_scenes.sh`: staged retrieval, size/SHA-256 and decompression verification,
-  content/scene hash verification with `scene_dump`, and cache reuse. It refuses development
-  terrain-stub scenes as a published scene set. Python 3 is required.
-- Known single-sphere and degenerate-triangle scenes, each retaining the two-triangle floor.
+- Scene types, JSON/binary version 2 IO, validation and canonical hashes. Binary paths
+  resolve relative to the JSON file; binary validation checks bounds before allocation.
+- Deterministic dynamic 16×16 OpenMP tiles, now used by the integrated `CpuBackend`.
+  Mikail's Backend/CLI, BVH traversal and lit dispatch have landed (#47, #53), using
+  Arek's Lambert/shadow shading (#49). `rt_render` writes PFM, PNG and requested AOVs.
+- `rt_compare`: five core checks, symmetric hit explanations, bounded neighborhoods,
+  mismatch budgets, unclamped linear tolerances and an informational sRGB summary.
+- Uniform development generation: owned PCG32, explicit float conversion and Box–Muller,
+  log-uniform sphere radii, exact counts, eight materials, scaled light and fitted camera.
+- Verified archive retrieval with staged size/SHA-256, decompression and scene/hash checks;
+  cache reuse; rejection of development `stub-` scenes as published benchmark scenes.
+- Known two-sphere, single-sphere and degenerate-triangle scenes with a two-triangle floor.
 
-## Workarounds and their limits
+## Removed workarounds
 
-1. **Backend/CLI hand-off:** the CPU pixel loop is a reusable function in `src/cpu/`. The
-   existing `scene_dump` owns the preview command, so no implementation was added to Mikail's
-   `apps/rt_render/` or `backend.hpp`. Once those land, the CPU backend can reuse this loop.
-2. **Terrain S3:** `scene/terrain_stub.hpp` temporarily implements the documented height field
-   and grid in Po's module. It is registered in ROADMAP. Every generated JSON records
-   `generator.terrain_source = "stub-S3"`, and the CLI labels it development output. Adopt
-   Jett's terrain implementation, remove the stub/metadata marker/register row, then generate
-   the canonical archive. No `scenes-v1` release or canonical manifest was published here.
-3. **Shadow comparisons:** three corruption cases use the real normal-shaded known scene.
-   The shadow-block test uses explicitly synthetic masks because real Lambert/shadow shading
-   has not landed. These test comparison logic, not physical lighting correctness. Re-run all
-   four required corruption fixtures on the real lit known scene when Arek's shading lands.
-4. **Platform:** local checks run on macOS arm64, Apple Clang 21 and Homebrew OpenMP, CUDA off.
-   This does not establish GCC 13/CUDA correctness, GPU agreement, or performance ratios.
+- **S4:** removed `scene_dump --render-normal`, its preview-only options and CPU/image
+  dependencies, and `cpu/normal_renderer.hpp/.cpp`. Use `rt_render` for rendering and
+  `scene_dump` for inspection. Migrated CPU tests to the production Backend lifecycle,
+  retaining per-pixel checks against `render_pixel`, edge tiles, known pixels, output
+  reuse, thread determinism and the degenerate/single-sphere cases. Removed the redundant
+  test that compared the new backend to the deleted wrapper.
+- **S5:** replaced fabricated shadow masks with an actual `LitShading` render through
+  `CpuBackend`. All four corruption cases now use that lit image. The shadow test first
+  verifies real floor occlusion, then inserts a false 20×20 shadow into a lit floor patch
+  with a one-pixel lit margin. It requires exactly 400 unexplained shadow mismatches and
+  a failed comparison. CLI integration tests use the real renderer and compare its files.
+- Corrected the CLI repeatability test's relative executable path on macOS: resolve the
+  temporary-directory alias before computing a path from it.
+
+S4/S5 markers and register rows are removed. The shared tile loop, normal shading policy,
+BruteQuery and ordinary synthetic unit-test inputs remain useful production/test components.
+
+## Remaining workaround and hand-offs
+
+- **Terrain / Jett #41:** `scene/terrain.hpp` now supplies the benchmark height field and
+  upward-wound triangle grid. `rt_gen` uses it for terrain and sphere heights; S3 and its
+  marker/register/metadata have been removed. Regression tests cover analytic samples,
+  topology, materials, invalid inputs and seed independence. Generated `.bin` files are
+  byte-identical to the S3 output, so scene hashes are unchanged. Po can now generate and
+  publish the canonical archive (#35).
+- **Canonical publication (done Nov 11, Mikail):** `scenes-v1` is published as a GitHub
+  Release with `bench_10k_s1`, `bench_100k_s1` and `bench_1m_s1`, and listed in
+  `scenes/manifest.json`. They were generated on the laptop (WSL2, Ubuntu 24.04.5, glibc
+  2.39, g++ 13.3.0, Release, CPU-only, `dev` at `dd0efa7`); two runs were byte-identical,
+  and `fetch_scenes.sh scenes-v1` retrieves and verifies the real release through `gh`.
+  Still open (download without `gh`, load on Vista, Vista mirror, cross-platform hash):
+  [ROADMAP C6](ROADMAP.md#c6-generator-bin-hash).
+- **Vista:** GCC/CUDA, GPU agreement and CPU scaling/profile measurements remain unverified
+  by this work. Mac tests do not establish reference-platform or performance results.
+- **Other integration:** `rt_bench` has landed (#51); benchmark CLI wiring, golden images and
+  the independent oracle remain separate team deliverables. No full-gate claim is made here.
+
+## Verification
+
+- Current macOS arm64 Release build succeeds, Apple Clang with Homebrew OpenMP, CUDA off.
+- **231/233 tests pass.** All cleanup-related CPU, backend, comparison and CLI tests pass.
+  The remaining tests are `MachineInfo.DescribesHostAndLeavesGpuFieldsEmpty` and
+  `MachineInfo.RecordsTheHostCompilerVersion`: machine collection reads Linux `/proc`,
+  `lscpu` and `/etc/os-release`, and compiler identification returns empty for Clang.
+- Earlier #36 validation: development 10K/100K/1M scenes loaded and validated; repeated
+  10K generation produced identical JSON/bin bytes. These large scenes were not regenerated
+  during this cleanup. PCG32 matches the published reference demo sequence.
+- Archive tests cover independent binary encoding, bad hashes, cache reuse and verification
+  before installation. Formatting, whitespace and stub-register checks accompany cleanup.
 
 ## Reproduce locally
 
-Validation completed for this implementation:
-
-- Mac CPU Release build and all 144 tests pass; feature commits also build independently.
-- CPU preview bytes agree for one and four threads, including PFM and both AOV sidecars.
-- Corrupted inputs trigger the named comparator checks and a nonzero CLI exit.
-- Development scenes at 10K, 100K and 1M primitives load and validate. Repeating the same
-  10K generator command produces identical JSON and binary bytes.
-- PCG32 matches the [published reference demo sequence](https://www.pcg-random.org/using-pcg-c-basic.html).
-- Archive retrieval is tested with an independently encoded binary fixture, hash corruption,
-  cache reuse and verification before installation. A real remote `scenes-v1` archive is not
-  available yet.
-- Formatting, `git diff --check`, shell syntax and the stub register check pass. Compile
-  commands include OpenMP for the CPU renderer and `-ffp-contract=off` for hash/generator.
-
-From an already configured CPU build (substitute `build-cpu` or `build-vista` as appropriate):
+Use your configured build directory (`build-mac`, `build-cpu` or `build-vista`):
 
 ```bash
 cmake --build build-mac --parallel
 ctest --test-dir build-mac --output-on-failure
 mkdir -p build-mac/previews build-mac/generated
-./build-mac/apps/scene_dump/scene_dump scenes/known/known_two_spheres.json \
-  --render-normal build-mac/previews/known_two_spheres.pfm \
-  --png build-mac/previews/known_two_spheres.png --render-threads 4
+./build-mac/apps/rt_render/rt_render --scene scenes/known/known_two_spheres.json \
+  --backend cpu --bvh median --shade lit --render-threads 4 \
+  --pfm build-mac/previews/known_two_spheres.pfm \
+  --out build-mac/previews/known_two_spheres.png --aov primid,lightmask
 ./build-mac/apps/rt_compare/rt_compare build-mac/previews/known_two_spheres.pfm \
   build-mac/previews/known_two_spheres.pfm
 ./build-mac/apps/rt_gen/rt_gen --layout uniform --primitives 10000 --seed 1 \
@@ -75,33 +90,17 @@ mkdir -p build-mac/previews build-mac/generated
 ./build-mac/apps/scene_dump/scene_dump --verify build-mac/generated/dev_uniform_10000.json
 ```
 
-The preview writes `.primid.u32img` and `.lightmask.u32img` next to its PFM. Do not commit
-generated images or binary scenes. The current build's preview is normal-as-color, so rainbow
-spheres and a green floor are expected.
+The PFM has `.primid.u32img` and `.lightmask.u32img` sidecars. Use `--shade normal` for a
+normal-as-color diagnostic. Do not commit generated images or binary scenes.
 
-Retrieval after an immutable archive and `scenes/manifest.json` exist:
+Retrieve the published benchmark scenes into `scenes/generated/`:
 
 ```bash
 bash scripts/fetch_scenes.sh scenes-v1
 ```
 
-The manifest can be a list of entries or an object with a `scenes` array. Each entry uses the
-fields in INTERFACES §2: `set`, `name`, `content_hash`, `scene_hash`, `files` (archive filename,
-`bytes`, `sha256`, plus `uncompressed_sha256` for `.bin.gz`) and `archive.release/urls`.
-List a direct asset URL for every file. With `gh` installed, GitHub assets use
-`gh release download`; otherwise Python downloads the direct URLs. The tool never regenerates
-geometry. `RT_SCENE_DUMP`, `RT_SCENE_MANIFEST`, and `RT_SCENE_DEST` override executable,
-manifest and destination paths for alternate builds and integration tests.
-
-## Remaining hand-offs
-
-| Owner / access | Needed for | What can proceed without it |
-|---|---|---|
-| Mikail: `backend.hpp`, `PrepareInput`, `RenderSettings`, `rt_render` integration | Full CPU Backend lifecycle and canonical renderer CLI | CPU normal previews, file IO and comparison logic |
-| Mikail: BVH traversal / `BvhQuery` | Fast CPU rendering of large benchmark scenes and BVH-vs-brute-force validation | Exact brute force on small known scenes; generated large-scene load checks |
-| Arek: Lambert, shadow rays, `LitShading` | Lit images, real shadow corruption fixtures, renderer correctness gates | Normal images and synthetic comparison tests |
-| Jett: real terrain generator | Remove S3 and freeze/distribute the canonical scene set | Deterministic development scenes with the registered stand-in |
-| Vista account / GH compute allocation | GCC 13/CUDA verification and real scaling/profile measurements | Mac CPU correctness tests; no GPU or speedup claims |
-
-These hand-offs cannot be certified by adding more local stand-ins. No G0/G1/G2 gate is marked
-complete by this work. Official release publication and performance studies remain pending.
+The manifest accepts a list or an object with a `scenes` array. Entries use INTERFACES §2's
+set/name/hashes/files/archive fields. Provide a direct URL for every asset. The script uses
+`gh release download` when available and Python otherwise; it never regenerates geometry.
+`RT_SCENE_DUMP`, `RT_SCENE_MANIFEST` and `RT_SCENE_DEST` override executable, manifest and
+installation paths. Python 3 is required for retrieval and CLI integration tests.

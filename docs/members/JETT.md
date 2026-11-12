@@ -22,9 +22,9 @@
 |---|---|---|---|
 | `camera_ray`, `Camera` parsing and overrides | Everyone's renderers | Landed (#16, #17: `camera.hpp`, `camera_io.hpp`) | §4 |
 | `Bvh` from `build_bvh(Median)` | Mikail (traversal), Po (CPU backend) | Landed (#31: `bvh/bvh.hpp`, serial); validation and SAH follow-up landed (#40) | §3 |
-| Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Nov 6 (#41; Po uses stub S3 until it lands, and the canonical scene set waits on it) | [scene families](../BENCHMARKING.md#scene-families) |
+| Terrain height field `h(x,z)` and triangle grid | Po (`rt_gen`) | Implemented (#41, `scene/terrain.hpp`); integrated into `rt_gen`, S3 removed. Canonical set `scenes-v1` published (#35) | [scene families](../BENCHMARKING.md#scene-families) |
 | Expected shading values for analytic tests | Arek | Nov 6 | [quality protocol §1](../BENCHMARKING.md#1-independent-correctness-checks-ci-as-each-feature-lands) |
-| `Bvh` from the parallel builder | Everyone | Draft on `jett/lbvh` (#37); not ready for integration | §3 |
+| `Bvh` from the parallel builder | Everyone | Nov 13 | §3 |
 
 **You depend on:**
 
@@ -57,7 +57,10 @@ Standing rules:
   work"). Commits are kernel style and signed off (`git commit -s`).
 - Before you start: `git fetch origin`, make sure `dev` is current (`git switch dev && git pull
   --ff-only`), and branch from `origin/dev`. Merge `dev` again before opening the PR.
-- Assign yourself to the issue before you start and to the PR when you open it.
+- Assign yourself to the PR when you open it and to an existing tracking issue, if any.
+- Create issues only when useful for bugs, larger/high-risk work, coordination, or durable
+  tracking. Small self-contained PRs do not need an issue. Open ready for review by default;
+  use draft for unfinished work and explain what remains.
 - Make the docs update the last commit of the PR: your member file (docs/members/<you>.md) with
   the Deliverables and hand-off rows that changed, the "You depend on" rows that landed, and this
   week's contribution log row, plus any ROADMAP status, stub register, or CONTRACT_NOTES rows the
@@ -87,46 +90,14 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Oct 27 | Review INTERFACES §3–4 and sign off | S |
 | Oct 30 | `camera_ray` + tests | S |
 | Nov 6 | Bounds stage, median builder, validator, `sah_cost` stat (landed, #31); large-scene SAH and acceptance-coverage follow-up (landed, #40) | M |
-| Nov 6 | Terrain height field for `rt_gen` | S |
-| Nov 6 | Shading expected values for Arek's tests (hand calculations or Python) | S |
-| Nov 10 | **Decision:** continue LBVH conditional on the depth-recovery revision passing CI; reviewer verified validator and 1/8/72 determinism at 10K–1M. Task-parallel median remains the G2 backup | |
-| Nov 13 | Parallel builder (LBVH preferred), layout conversion, depth fallback: draft in progress (#37), acceptance pending | L |
+| Nov 6 | Terrain height field and upward-wound grid integrated into `rt_gen` (landed, #41) | S |
+| Nov 6 | Shading expected values for Arek's tests (hand calculations or Python). Covered by Mikail's independent check: `tests/oracle/shading_expected.py` and `tests/test_shade_independent.cpp`; Jett may still review it | S |
+| Nov 10 | **Decision:** if LBVH passes the validator and determinism tests, continue with it. Otherwise ship the task-parallel median builder (an accepted path, not a miss) | |
+| Nov 13 | Parallel builder (LBVH preferred), layout conversion, depth fallback | L |
 | Nov 18 | Preparation scaling, B = 1→72, per stage | M |
 | Later | E3 binned SAH (after G2), E6 `obj2bin` + Blender (after G3), backup for E4 Embree | |
 
 ## Risks
-
-### Current LBVH draft (Nov 10 review revision)
-
-The `jett/lbvh` branch contains parallel bounds generation, stable Morton radix
-sorting, recursive OpenMP hierarchy tasks, serial sibling-adjacent layout conversion
-and leaf collapse. Depth recovery now counts edges and rebuilds only a subtree at
-depth 32 whose edge height exceeds 32. Trees of depth at most 64 are left intact;
-`fallbacks` counts recovered subtrees. Recovery is included in `layout` timing.
-These are draft work, not a completed implementation of INTERFACES §3. Remaining
-implementation choices are tracked in
-[#37](https://github.com/Mikail-Sadic-UT/Ray-Tracer/issues/37): parallel Karras
-hierarchy construction, atomic `acq_rel` bottom-up refit, and parallel layout conversion.
-The reviewer identifies keeping the task-based hierarchy versus changing it as a
-team decision; the interface contract has not been changed or waived locally.
-New 4096-primitive random and clustered tests exercise hierarchy tasks at 1/8/72
-threads, repeat builds, and require zero fallbacks. A 512-sphere Morton-chain
-regression preserves a valid depth >32 tree, and synthetic depth-64/65 temporary
-trees test recovery boundaries and preservation of ancestors/outside siblings.
-Median bounds remain serial; small LBVH bounds runs also avoid thread startup.
-
-Reviewer evidence for the prior draft merged with #40: Ubuntu 24.04, GCC 13.3,
-CUDA 13.3, 32 cores; warning-free CUDA build, 141/141 tests, and scratch 10K–1M
-uniform/clustered/terrain scenes valid and byte-identical at B=1/8/72, no fallbacks.
-This supports continuing LBVH, conditional on fixing depth recovery first.
-Revision f158199 passed GCC 13 CPU compilation and all tests in CI, including the
-new recovery/task regressions. Its format-only failure was due to clang-format
-14/18 differences in the wrapped OpenMP pragma; the condition is now named so the
-directive fits on one line. Final CI and revised CUDA verification remain pending.
-Local CMake Tools exposes no configured targets; editing/formatting used native
-Windows and WSL clang-format 14.
-Terrain and independent analytic shading values can be prepared before their
-integration into Po's generator and Arek's shading path; they are not blocked tasks.
 
 | Risk | Mitigation |
 |---|---|
@@ -144,4 +115,4 @@ Karras 2012 (LBVH); PBRT v4 Ch. 7; Jacco Bikker, "How to build a BVH"; Wald 2007
 |---|---|---|---|
 | Oct 24–30 | | | |
 | Nov 1–7 | Bounds stage, serial median builder, `validate_bvh`, and `BvhStats` in `bvh/bvh.hpp`, with builder and validator tests | #31 | — |
-| Nov 8–14 | Hardened median validation and SAH (#40); revised LBVH after reference review: subtree-only edge-depth recovery, 4096-primitive random/clustered determinism, Morton-chain and synthetic recovery regressions; merged current dev. Prior draft CUDA/141 tests verified by reviewer; revised CPU/CUDA checks pending. | #37, #38, #39, #40 | — |
+| Nov 8–14 | Hardened nonfinite-bound validation and large-scale SAH diagnostics; added independent analytic SAH, degenerate geometry, clustered thread-count determinism and timing-reset tests. Terrain height field and upward-wound grid in `scene/terrain.hpp`, used by `rt_gen` for terrain and sphere heights; removed stub S3, with analytic, topology, material, input-validation and seed-independence tests | #39, #40, #41, #57 | — |
