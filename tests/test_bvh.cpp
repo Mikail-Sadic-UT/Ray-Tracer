@@ -494,55 +494,137 @@ TEST(Bvh, LbvhRecoveryPreservesDepth64AndRepairsOnlyDepth32Subtree) {
     // 30-bit Morton/index hierarchies cannot reach depth >64 at practical input
     // sizes. Inject full binary chains into the actual internal recovery pass.
     for (uint32_t depth : {64u, 65u}) {
-        const uint32_t count = depth + 1;
-        std::vector<rt::detail::BuildPrim> prims(count);
-        std::vector<uint32_t> order(count);
-        std::iota(order.begin(), order.end(), 0u);
-        std::vector<rt::detail::LbvhNode> nodes(2 * count - 1);
-        for (uint32_t i = 0; i < count; ++i) {
-            const float x = static_cast<float>(count - i);
-            prims[i] = {i, {{x, 0, 0}, {x + 0.5f, 1, 1}}, {x + 0.25f, 0.5f, 0.5f}};
-            if (i < depth) {
-                auto& node = nodes[2 * i];
-                node.first = i;
-                node.last = count - 1;
-                node.left = 2 * i + 1;
-                node.right = 2 * i + 2;
-                node.bounds = {{0, 0, 0}, {static_cast<float>(count + 1), 1, 1}};
-                auto& leaf = nodes[2 * i + 1];
-                leaf.first = leaf.last = i;
-                leaf.leaf = true;
-                leaf.bounds = prims[i].bounds;
+        for (bool scattered : {false, true}) {
+            const uint32_t count = depth + 1;
+            std::vector<rt::detail::BuildPrim> prims(count);
+            std::vector<uint32_t> order(count);
+            std::iota(order.begin(), order.end(), 0u);
+            std::vector<rt::detail::LbvhNode> nodes(2 * count - 1);
+            for (uint32_t i = 0; i < count; ++i) {
+                const float x = static_cast<float>(count - i);
+                prims[i] = {i, {{x, 0, 0}, {x + 0.5f, 1, 1}}, {x + 0.25f, 0.5f, 0.5f}};
+                if (i < depth) {
+                    auto& node = nodes[2 * i];
+                    node.first = i;
+                    node.last = count - 1;
+                    node.left = 2 * i + 1;
+                    node.right = 2 * i + 2;
+                    node.bounds = {{0, 0, 0}, {static_cast<float>(count + 1), 1, 1}};
+                    auto& leaf = nodes[2 * i + 1];
+                    leaf.first = leaf.last = i;
+                    leaf.leaf = true;
+                    leaf.bounds = prims[i].bounds;
+                }
             }
+            nodes.back().first = nodes.back().last = count - 1;
+            nodes.back().leaf = true;
+            nodes.back().bounds = prims.back().bounds;
+            // Karras stores leaves and internals separately. Permute all non-root
+            // slots to ensure recovery does not assume a contiguous subtree range.
+            const auto slot = [&](uint32_t i) {
+                return scattered ? static_cast<uint32_t>((i * 17) % nodes.size()) : i;
+            };
+            if (scattered) {
+                auto permuted = nodes;
+                for (uint32_t i = 0; i < nodes.size(); ++i) {
+                    auto node = nodes[i];
+                    if (!node.leaf) {
+                        node.left = slot(node.left);
+                        node.right = slot(node.right);
+                    }
+                    permuted[slot(i)] = node;
+                }
+                nodes = std::move(permuted);
+            }
+            const auto original = nodes;
+            const uint32_t fallbacks = rt::detail::recover_lbvh_depth(prims, order, nodes);
+            EXPECT_EQ(fallbacks, depth == 64 ? 0u : 1u);
+            EXPECT_LE(nodes[0].height, 64u);
+            // Every ancestor keeps its topology and primitive range, and each outside
+            // sibling leaf is untouched; only the depth-32 range may be permuted.
+            for (uint32_t i = 0; i < 32; ++i) {
+                EXPECT_EQ(nodes[slot(2 * i)].left, original[slot(2 * i)].left);
+                EXPECT_EQ(nodes[slot(2 * i)].right, original[slot(2 * i)].right);
+                EXPECT_EQ(nodes[slot(2 * i)].first, original[slot(2 * i)].first);
+                EXPECT_EQ(nodes[slot(2 * i)].last, original[slot(2 * i)].last);
+                EXPECT_EQ(nodes[slot(2 * i + 1)].first, i);
+                EXPECT_EQ(order[i], i);
+            }
+            if (depth == 64) {
+                for (uint32_t i = 0; i < count; ++i) EXPECT_EQ(order[i], i);
+            } else {
+                EXPECT_LE(nodes[slot(64)].height, 6u);
+                EXPECT_EQ(nodes[slot(64)].first, 32u);
+                EXPECT_EQ(nodes[slot(64)].last, count - 1);
+                // Median partitioning is spatial rather than retaining this reversed
+                // canonical order; coverage still consists of exactly the same refs.
+                auto sorted = order;
+                std::sort(sorted.begin(), sorted.end());
+                for (uint32_t i = 0; i < count; ++i) EXPECT_EQ(sorted[i], i);
+            }
+            std::vector<bool> seen(nodes.size(), false);
+            const auto check = [&](const auto& self, uint32_t index) -> void {
+                ASSERT_LT(index, nodes.size());
+                ASSERT_FALSE(seen[index]);
+                seen[index] = true;
+                const auto& node = nodes[index];
+                if (node.leaf) {
+                    EXPECT_EQ(node.first, node.last);
+                    const auto& bounds = prims[order[node.first]].bounds;
+                    EXPECT_EQ(node.bounds.lo.x, bounds.lo.x);
+                    EXPECT_EQ(node.bounds.hi.x, bounds.hi.x);
+                    return;
+                }
+                EXPECT_EQ(nodes[node.left].first, node.first);
+                EXPECT_EQ(nodes[node.left].last + 1, nodes[node.right].first);
+                EXPECT_EQ(nodes[node.right].last, node.last);
+                self(self, node.left);
+                self(self, node.right);
+            };
+            check(check, 0);
+            EXPECT_EQ(std::count(seen.begin(), seen.end(), true), nodes.size());
         }
-        nodes.back().first = nodes.back().last = count - 1;
-        nodes.back().leaf = true;
-        nodes.back().bounds = prims.back().bounds;
-        const auto original = nodes;
-        const uint32_t fallbacks = rt::detail::recover_lbvh_depth(prims, order, nodes);
-        EXPECT_EQ(fallbacks, depth == 64 ? 0u : 1u);
-        EXPECT_LE(nodes[0].height, 64u);
-        // Every ancestor keeps its topology and primitive range, and each outside
-        // sibling leaf is untouched; only the depth-32 range may be permuted.
-        for (uint32_t i = 0; i < 32; ++i) {
-            EXPECT_EQ(nodes[2 * i].left, original[2 * i].left);
-            EXPECT_EQ(nodes[2 * i].right, original[2 * i].right);
-            EXPECT_EQ(nodes[2 * i].first, original[2 * i].first);
-            EXPECT_EQ(nodes[2 * i].last, original[2 * i].last);
-            EXPECT_EQ(nodes[2 * i + 1].first, i);
-            EXPECT_EQ(order[i], i);
-        }
-        if (depth == 64) {
-            for (uint32_t i = 0; i < count; ++i) EXPECT_EQ(order[i], i);
-        } else {
-            EXPECT_LE(nodes[64].height, 6u);
-            EXPECT_EQ(nodes[64].first, 32u);
-            EXPECT_EQ(nodes[64].last, count - 1);
-            // Median partitioning is spatial rather than retaining this reversed
-            // canonical order; coverage still consists of exactly the same refs.
-            auto sorted = order;
-            std::sort(sorted.begin(), sorted.end());
-            for (uint32_t i = 0; i < count; ++i) EXPECT_EQ(sorted[i], i);
+    }
+}
+
+/// Empty/small inputs, equal Morton codes, and collapse boundaries stay deterministic.
+TEST(Bvh, LbvhEdgeCasesAndLeafCollapse) {
+    for (uint32_t count : {0u, 1u, 2u, 3u, 31u, 32u, 33u, 1025u, 4096u}) {
+        std::vector<rt::Sphere> spheres(count / 2, rt::Sphere{{0, 0, 0}, 1, 0});
+        std::vector<rt::Triangle> triangles(count - count / 2,
+                                            rt::Triangle{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, 0});
+        const auto scene = make_scene(spheres, triangles);
+        for (uint32_t leaf_size : {1u, 4u, 8192u}) {
+            rt::BvhParams params;
+            params.method = rt::BvhMethod::LBVH;
+            params.max_leaf_size = leaf_size;
+            rt::Timings timings;
+            const auto baseline = rt::build_bvh(scene, params, timings);
+            ASSERT_TRUE(rt::validate_bvh(baseline, scene));
+            for (int threads : {8, 72}) {
+                params.threads = threads;
+                const auto tree = rt::build_bvh(scene, params, timings);
+                ASSERT_TRUE(rt::validate_bvh(tree, scene));
+                EXPECT_EQ(tree.stats.fallbacks, 0u);
+                EXPECT_EQ(tree.stats.depth, baseline.stats.depth);
+                EXPECT_EQ(tree.stats.leaves, baseline.stats.leaves);
+                EXPECT_EQ(tree.prim_refs, baseline.prim_refs);
+                ASSERT_EQ(tree.nodes.size(), baseline.nodes.size());
+                if (!tree.nodes.empty()) {
+                    EXPECT_EQ(std::memcmp(tree.nodes.data(), baseline.nodes.data(),
+                                          tree.nodes.size() * sizeof(rt::BvhNode)),
+                              0);
+                }
+            }
+            for (uint32_t i = 0; i < count; ++i)
+                EXPECT_EQ(baseline.prim_refs[i],
+                          i < spheres.size() ? i
+                                             : rt::PRIM_TRIANGLE_BIT |
+                                                   (i - static_cast<uint32_t>(spheres.size())));
+            if (count > 0 && count <= leaf_size) {
+                EXPECT_EQ(baseline.nodes.size(), 1u);
+                EXPECT_EQ(baseline.stats.depth, 0u);
+            }
         }
     }
 }

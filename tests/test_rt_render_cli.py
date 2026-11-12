@@ -109,6 +109,10 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
                    clean_stdout=False)
     assert 'FAIL' not in compared.stdout, compared.stdout
 
+    # LBVH is supported and preserves the brute-force RGB and AOV bytes.
+    render(root / 'lbvh.pfm', '--bvh', 'lbvh', '--build-threads', '8', '--max-leaf-size', '1')
+    same_files(root / 'reference.pfm', root / 'lbvh.pfm')
+
     # Overrides change the output size; only requested AOVs are written.
     run([args.render, '--scene', args.scene, '--shade', 'normal', '--width', '33', '--height', '17',
          '--cam-pos', '0', '1', '6', '--cam-vfov', '50', '--aov', 'primid', '--pfm', str(root / 'small.pfm')])
@@ -133,6 +137,11 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
     assert (root / 'lit_none.pfm').read_bytes() != (root / 'reference.pfm').read_bytes()
     assert (root / 'lit.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
 
+    run([args.render, '--scene', args.scene, '--shade', 'lit', '--bvh', 'lbvh',
+         '--build-threads', '8', '--render-threads', '4', *lit,
+         '--pfm', str(root / 'lit_lbvh.pfm')])
+    same_files(root / 'lit_none.pfm', root / 'lit_lbvh.pfm')
+
     # --mode app (default): one T_app record. The image is the same as without --results.
     run([args.render, '--scene', args.scene, *lit, '--pfm', str(root / 'app.pfm'),
          '--results', str(root / 'app.json')])
@@ -154,6 +163,14 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
     assert len(doc['build_and_render']['runs']) == 3 and len(doc['frame']['runs']) == 3
     assert doc['image']['rgb_hash'] == pfm_rgb_hash(root / 'prep.pfm')
     assert doc['config']['render_threads'] == 4
+
+    run([args.render, '--scene', args.scene, *lit, '--bvh', 'lbvh', '--build-threads', '8',
+         '--mode', 'prepared', '--runs', '2', '--pfm', str(root / 'prep_lbvh.pfm'),
+         '--results', str(root / 'prep_lbvh.json')])
+    same_files(root / 'app.pfm', root / 'prep_lbvh.pfm')
+    lbvh_doc = check_results(root / 'prep_lbvh.json', ['build_and_render', 'frame'])
+    assert lbvh_doc['config']['bvh'] == 'lbvh'
+    assert lbvh_doc['bvh_stats']['fallbacks'] == 0
 
     # Brute force has no BVH section; overrides are recorded.
     run([args.render, '--scene', args.scene, '--bvh', 'none', '--width', '40', '--height', '30',
@@ -178,7 +195,7 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
         '--runs applies only': ['--runs', '3'],
         'cannot open': ['--results', str(root / 'missing_dir' / 'r.json')],
         'cuda backend': ['--backend', 'cuda', '--shade', 'normal'],
-        'only Median': ['--bvh', 'lbvh', '--shade', 'normal'],
+        'only Median': ['--bvh', 'sah', '--shade', 'normal'],
         'vfov_deg': ['--shade', 'normal', '--cam-vfov', '180'],
         '--pfm': ['--shade', 'normal', '--aov', 'primid'],
     }

@@ -1,9 +1,10 @@
 /// @file bvh.cpp
-/// @brief Serial bounds stage and deterministic median BVH builder.
+/// @brief Deterministic median and parallel LBVH construction and validation.
 #include "bvh/bvh.hpp"
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <functional>
@@ -115,43 +116,82 @@ uint32_t lbvh_split(const std::vector<uint32_t>& order, const std::vector<uint32
     return split;
 }
 
+/// Builds each Karras internal node independently, then refits from the leaves.
 void build_lbvh_tree(const std::vector<Prim>& prims, const std::vector<uint32_t>& order,
-                     const std::vector<uint32_t>& keys, std::vector<LbvhNode>& nodes,
-                     uint32_t node_index, uint32_t first, uint32_t last, bool parallel) {
-    LbvhNode& node = nodes[node_index];
-    node.first = first;
-    node.last = last;
-    if (first == last) {
-        node.leaf = true;
-        node.bounds = prims[order[first]].bounds;
-        return;
+                     const std::vector<uint32_t>& keys, std::vector<LbvhNode>& nodes, int threads) {
+    const int64_t count = static_cast<int64_t>(order.size());
+    const uint32_t leaf_base = static_cast<uint32_t>(count - 1);
+    std::vector<uint32_t> parents(nodes.size(), 0);
+    std::vector<std::atomic<uint32_t>> visits(leaf_base);
+    for (auto& visit : visits) visit.store(0, std::memory_order_relaxed);
+    const auto prefix = [&](int64_t i, int64_t j) {
+        return j < 0 || j >= count ? -1 : common_prefix(order, keys, i, j);
+    };
+#pragma omp parallel for num_threads(threads) schedule(static)
+    for (int64_t i = 0; i < count - 1; ++i) {
+        const int64_t direction = prefix(i, i + 1) > prefix(i, i - 1) ? 1 : -1;
+        const int minimum = prefix(i, i - direction);
+        int64_t upper = 2;
+        while (prefix(i, i + upper * direction) > minimum) upper *= 2;
+        int64_t length = 0;
+        for (int64_t step = upper / 2; step >= 1; step /= 2)
+            if (prefix(i, i + (length + step) * direction) > minimum) length += step;
+        const int64_t end = i + length * direction;
+        const uint32_t first = static_cast<uint32_t>(std::min(i, end));
+        const uint32_t last = static_cast<uint32_t>(std::max(i, end));
+        const uint32_t split = lbvh_split(order, keys, first, last);
+        LbvhNode& node = nodes[i];
+        node.first = first;
+        node.last = last;
+        node.left = split == first ? leaf_base + split : split;
+        node.right = split + 1 == last ? leaf_base + split + 1 : split + 1;
+        parents[node.left] = static_cast<uint32_t>(i);
+        parents[node.right] = static_cast<uint32_t>(i);
     }
-
-    const uint32_t split = lbvh_split(order, keys, first, last);
-    const uint32_t left_count = 2 * (split - first + 1) - 1;
-    node.left = node_index + 1;
-    node.right = node_index + 1 + left_count;
-    if (parallel && last - first > 1024) {
-#pragma omp task shared(prims, order, keys, nodes) firstprivate(parallel, first, split)
-        build_lbvh_tree(prims, order, keys, nodes, node.left, first, split, parallel);
-#pragma omp task shared(prims, order, keys, nodes) firstprivate(parallel, split, last)
-        build_lbvh_tree(prims, order, keys, nodes, node.right, split + 1, last, parallel);
-#pragma omp taskwait
-    } else {
-        build_lbvh_tree(prims, order, keys, nodes, node.left, first, split, parallel);
-        build_lbvh_tree(prims, order, keys, nodes, node.right, split + 1, last, parallel);
+#pragma omp parallel for num_threads(threads) schedule(static)
+    for (int64_t i = 0; i < count; ++i) {
+        uint32_t index = leaf_base + static_cast<uint32_t>(i);
+        LbvhNode& leaf = nodes[index];
+        leaf.first = leaf.last = static_cast<uint32_t>(i);
+        leaf.leaf = true;
+        leaf.bounds = prims[order[i]].bounds;
+        while (index != 0) {
+            const uint32_t parent = parents[index];
+            // Publish this child's bounds and acquire the first child's stores.
+            if (visits[parent].fetch_add(1, std::memory_order_acq_rel) == 0) break;
+            LbvhNode& node = nodes[parent];
+            node.bounds = nodes[node.left].bounds;
+            node.bounds.grow(nodes[node.right].bounds);
+            node.height = 1 + std::max(nodes[node.left].height, nodes[node.right].height);
+            index = parent;
+        }
     }
-    node.bounds = empty_box();
-    node.bounds.grow(nodes[node.left].bounds);
-    node.bounds.grow(nodes[node.right].bounds);
 }
 
-uint32_t collapsed_node_count(const std::vector<LbvhNode>& nodes, uint32_t index,
-                              uint32_t max_leaf_size) {
+struct LayoutInfo {
+    uint32_t nodes = 1;
+    uint32_t leaves = 1;
+    uint32_t depth = 0;
+};
+
+/// Counts collapsed output subtrees independently of task scheduling.
+void count_layout(const std::vector<LbvhNode>& nodes, uint32_t index, uint32_t max_leaf_size,
+                  std::vector<LayoutInfo>& counts, bool parallel) {
     const LbvhNode& node = nodes[index];
-    if (node.last - node.first + 1 <= max_leaf_size) return 1;
-    return 1 + collapsed_node_count(nodes, node.left, max_leaf_size) +
-           collapsed_node_count(nodes, node.right, max_leaf_size);
+    if (node.last - node.first + 1 <= max_leaf_size) return;
+    if (parallel && node.last - node.first > 1024) {
+#pragma omp task shared(nodes, counts) firstprivate(index, max_leaf_size, parallel)
+        count_layout(nodes, nodes[index].left, max_leaf_size, counts, parallel);
+#pragma omp task shared(nodes, counts) firstprivate(index, max_leaf_size, parallel)
+        count_layout(nodes, nodes[index].right, max_leaf_size, counts, parallel);
+#pragma omp taskwait
+    } else {
+        count_layout(nodes, node.left, max_leaf_size, counts, parallel);
+        count_layout(nodes, node.right, max_leaf_size, counts, parallel);
+    }
+    const LayoutInfo left = counts[node.left], right = counts[node.right];
+    counts[index] = {1 + left.nodes + right.nodes, left.leaves + right.leaves,
+                     1 + std::max(left.depth, right.depth)};
 }
 
 uint32_t update_height(std::vector<LbvhNode>& nodes, uint32_t index) {
@@ -162,10 +202,19 @@ uint32_t update_height(std::vector<LbvhNode>& nodes, uint32_t index) {
     return node.height;
 }
 
-/// Reuses the recovered subtree's exact slot range; no outside node is relocated.
+/// Collects exactly the slots owned by a subtree, including noncontiguous Karras nodes.
+void subtree_slots(const std::vector<LbvhNode>& nodes, uint32_t index,
+                   std::vector<uint32_t>& slots) {
+    slots.push_back(index);
+    if (nodes[index].leaf) return;
+    subtree_slots(nodes, nodes[index].left, slots);
+    subtree_slots(nodes, nodes[index].right, slots);
+}
+
+/// Reuses the recovered subtree's slots; no outside node is relocated.
 void rebuild_median_subtree(const std::vector<Prim>& prims, std::vector<uint32_t>& order,
                             std::vector<LbvhNode>& nodes, uint32_t index, uint32_t first,
-                            uint32_t last) {
+                            uint32_t last, const std::vector<uint32_t>& slots, uint32_t offset) {
     LbvhNode& node = nodes[index];
     node = {};
     node.first = first;
@@ -190,20 +239,22 @@ void rebuild_median_subtree(const std::vector<Prim>& prims, std::vector<uint32_t
                          const float cb = prims[b].centroid[axis];
                          return ca < cb || (ca == cb && prims[a].ref < prims[b].ref);
                      });
-    node.left = index + 1;
-    node.right = index + 2 * (middle - first);
-    rebuild_median_subtree(prims, order, nodes, node.left, first, middle - 1);
-    rebuild_median_subtree(prims, order, nodes, node.right, middle, last);
+    node.left = slots[offset + 1];
+    node.right = slots[offset + 2 * (middle - first)];
+    rebuild_median_subtree(prims, order, nodes, node.left, first, middle - 1, slots, offset + 1);
+    rebuild_median_subtree(prims, order, nodes, node.right, middle, last, slots,
+                           offset + 2 * (middle - first));
     node.height = 1 + std::max(nodes[node.left].height, nodes[node.right].height);
 }
 
 uint32_t recover_subtrees(const std::vector<Prim>& prims, std::vector<uint32_t>& order,
                           std::vector<LbvhNode>& nodes, uint32_t index, uint32_t depth) {
     LbvhNode& node = nodes[index];
-    if (node.leaf) return 0;
+    if (node.height <= RT_MAX_BVH_DEPTH - depth) return 0;
     if (depth == RT_FALLBACK_DEPTH) {
-        if (node.height <= RT_MAX_BVH_DEPTH - RT_FALLBACK_DEPTH) return 0;
-        rebuild_median_subtree(prims, order, nodes, index, node.first, node.last);
+        std::vector<uint32_t> slots;
+        subtree_slots(nodes, index, slots);
+        rebuild_median_subtree(prims, order, nodes, index, node.first, node.last, slots, 0);
         return 1;
     }
     const uint32_t count = recover_subtrees(prims, order, nodes, node.left, depth + 1) +
@@ -212,27 +263,37 @@ uint32_t recover_subtrees(const std::vector<Prim>& prims, std::vector<uint32_t>&
     return count;
 }
 
+/// Emits into disjoint, predetermined output slots and sorted primitive ranges.
 void emit_lbvh(const std::vector<Prim>& prims, const std::vector<uint32_t>& order,
-               const std::vector<LbvhNode>& nodes, uint32_t index, uint32_t output_index,
-               uint32_t& next_output, uint32_t max_leaf_size, Bvh& result, uint32_t depth) {
+               const std::vector<LbvhNode>& nodes, const std::vector<LayoutInfo>& counts,
+               uint32_t index, uint32_t output_index, uint32_t descendants, uint32_t max_leaf_size,
+               Bvh& result, bool parallel) {
     const LbvhNode& node = nodes[index];
-    result.stats.depth = std::max(result.stats.depth, depth);
     if (node.last - node.first + 1 <= max_leaf_size) {
-        const uint32_t first_ref = static_cast<uint32_t>(result.prim_refs.size());
         for (uint32_t i = node.first; i <= node.last; ++i)
-            result.prim_refs.push_back(prims[order[i]].ref);
-        result.nodes[output_index] = {node.bounds, first_ref, node.last - node.first + 1};
-        ++result.stats.leaves;
+            result.prim_refs[i] = prims[order[i]].ref;
+        result.nodes[output_index] = {node.bounds, node.first, node.last - node.first + 1};
         return;
     }
-
-    const uint32_t left_output = next_output++;
-    const uint32_t right_output = next_output++;
-    result.nodes[output_index] = {node.bounds, left_output, 0};
-    emit_lbvh(prims, order, nodes, node.left, left_output, next_output, max_leaf_size, result,
-              depth + 1);
-    emit_lbvh(prims, order, nodes, node.right, right_output, next_output, max_leaf_size, result,
-              depth + 1);
+    const uint32_t left = descendants;
+    const uint32_t right_descendants = descendants + 1 + counts[node.left].nodes;
+    result.nodes[output_index] = {node.bounds, left, 0};
+    if (parallel && node.last - node.first > 1024) {
+#pragma omp task shared(prims, order, nodes, counts, result) \
+    firstprivate(index, left, max_leaf_size, parallel)
+        emit_lbvh(prims, order, nodes, counts, nodes[index].left, left, left + 2, max_leaf_size,
+                  result, parallel);
+#pragma omp task shared(prims, order, nodes, counts, result) \
+    firstprivate(index, left, right_descendants, max_leaf_size, parallel)
+        emit_lbvh(prims, order, nodes, counts, nodes[index].right, left + 1, right_descendants,
+                  max_leaf_size, result, parallel);
+#pragma omp taskwait
+    } else {
+        emit_lbvh(prims, order, nodes, counts, node.left, left, left + 2, max_leaf_size, result,
+                  parallel);
+        emit_lbvh(prims, order, nodes, counts, node.right, left + 1, right_descendants,
+                  max_leaf_size, result, parallel);
+    }
 }
 
 double sah_cost(const Bvh& bvh) {
@@ -310,9 +371,10 @@ bool fail(std::string* error, const std::string& message) {
 }  // namespace
 
 uint32_t detail::recover_lbvh_depth(const std::vector<BuildPrim>& prims,
-                                    std::vector<uint32_t>& order, std::vector<LbvhNode>& nodes) {
+                                    std::vector<uint32_t>& order, std::vector<LbvhNode>& nodes,
+                                    bool heights_ready) {
     if (nodes.empty()) return 0;
-    update_height(nodes, 0);
+    if (!heights_ready) update_height(nodes, 0);
     return recover_subtrees(prims, order, nodes, 0, 0);
 }
 
@@ -361,28 +423,27 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
         stable_radix_sort(order, keys);
 
         std::vector<LbvhNode> temp(2 * prims.size() - 1);
-        const bool parallel = params.threads > 1;
-        if (parallel) {
-#pragma omp parallel num_threads(params.threads)
-            {
-#pragma omp single
-                build_lbvh_tree(prims, order, keys, temp, 0, 0,
-                                static_cast<uint32_t>(order.size() - 1), true);
-            }
-        } else {
-            build_lbvh_tree(prims, order, keys, temp, 0, 0, static_cast<uint32_t>(order.size() - 1),
-                            false);
-        }
+        build_lbvh_tree(prims, order, keys, temp, params.threads);
         const auto build_end = std::chrono::steady_clock::now();
         timings.build = std::chrono::duration<double, std::milli>(build_end - build_start).count();
 
         const auto layout_start = std::chrono::steady_clock::now();
-        result.stats.fallbacks = detail::recover_lbvh_depth(prims, order, temp);
-        const uint32_t output_count = collapsed_node_count(temp, 0, params.max_leaf_size);
-        result.nodes.resize(output_count);
-        uint32_t next_output = 1;
-        emit_lbvh(prims, order, temp, 0, 0, next_output, params.max_leaf_size, result, 0);
-        result.stats.nodes = output_count;
+        result.stats.fallbacks = detail::recover_lbvh_depth(prims, order, temp, true);
+        std::vector<LayoutInfo> counts(temp.size());
+        result.prim_refs.resize(prims.size());
+#pragma omp parallel num_threads(params.threads)
+        {
+#pragma omp single
+            {
+                count_layout(temp, 0, params.max_leaf_size, counts, params.threads > 1);
+                result.nodes.resize(counts[0].nodes);
+                emit_lbvh(prims, order, temp, counts, 0, 0, 1, params.max_leaf_size, result,
+                          params.threads > 1);
+            }
+        }
+        result.stats.nodes = counts[0].nodes;
+        result.stats.leaves = counts[0].leaves;
+        result.stats.depth = counts[0].depth;
         result.stats.sah_cost = sah_cost(result);
         const auto layout_end = std::chrono::steady_clock::now();
         timings.layout =

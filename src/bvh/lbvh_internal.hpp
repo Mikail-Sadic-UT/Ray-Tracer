@@ -15,7 +15,7 @@ struct BuildPrim {
     vec3 centroid;
 };
 
-/// Temporary preorder binary tree; each subtree occupies 2 * primitive_count - 1 slots.
+/// Temporary binary tree with explicit child indices; subtrees may be noncontiguous.
 struct LbvhNode {
     AABB bounds{};
     uint32_t left = 0;
@@ -27,10 +27,10 @@ struct LbvhNode {
 };
 
 /// Rebuilds only depth-32 subtrees whose edge height exceeds 32; returns rebuild count.
-/// Exposed internally so synthetic over-deep trees can test the otherwise unreachable
-/// recovery path of the 30-bit Morton/index hierarchy at practical scene sizes.
+/// `heights_ready` requires valid edge heights from the bottom-up refit.
+/// Synthetic trees may omit heights and let recovery compute them.
 uint32_t recover_lbvh_depth(const std::vector<BuildPrim>& prims, std::vector<uint32_t>& order,
-                            std::vector<LbvhNode>& nodes);
+                            std::vector<LbvhNode>& nodes, bool heights_ready = false);
 
 }  // namespace detail
 }  // namespace rt
