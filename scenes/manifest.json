@@ -1,0 +1,127 @@
+{
+  "scenes": [
+    {
+      "set": "scenes-v1",
+      "name": "bench_10k_s1",
+      "command": "rt_gen --layout uniform --primitives 10000 --seed 1 --out bench_10k_s1",
+      "generator_env": {
+        "host": "El-Studiobook (laptop, i9-13980HX, WSL2 kernel 6.18.58.1-microsoft-standard-WSL2)",
+        "os": "Ubuntu 24.04.5 LTS (x86_64)",
+        "glibc": "2.39",
+        "compiler": "g++ 13.3.0",
+        "flags": "-O3 -DNDEBUG -std=c++17 -march=native; -ffp-contract=off on generator.cpp and hash.cpp",
+        "build": "cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DRT_ENABLE_CUDA=OFF",
+        "commit": "dd0efa7"
+      },
+      "primitives": {
+        "spheres": 5000,
+        "triangles": 5000
+      },
+      "content_hash": "0xc71ed4059aed8c71",
+      "scene_hash": "0x3ca3818aff1c72c3",
+      "files": [
+        {
+          "path": "bench_10k_s1.json",
+          "bytes": 2341,
+          "sha256": "54155ef67b2b30d6bb1e5aa805b563459884dd6c584411e608cd10b0f6c1dfac"
+        },
+        {
+          "path": "bench_10k_s1.bin.gz",
+          "bytes": 127095,
+          "sha256": "982806a0f18d52dc8ecd17e58680ed4a54040d2f1db9ef7a3ad15e2f89aeb2a5",
+          "uncompressed_sha256": "a71dca853b327ee4320af628219419d6722d0f99885a133dd4837a0c2ca411ab"
+        }
+      ],
+      "archive": {
+        "release": "scenes-v1",
+        "urls": [
+          "https://github.com/Mikail-Sadic-UT/Ray-Tracer/releases/download/scenes-v1/bench_10k_s1.json",
+          "https://github.com/Mikail-Sadic-UT/Ray-Tracer/releases/download/scenes-v1/bench_10k_s1.bin.gz"
+        ],
+        "mirror": "TBD (C12, Vista shared storage)"
+      }
+    },
+    {
+      "set": "scenes-v1",
+      "name": "bench_100k_s1",
+      "command": "rt_gen --layout uniform --primitives 100000 --seed 1 --out bench_100k_s1",
+      "generator_env": {
+        "host": "El-Studiobook (laptop, i9-13980HX, WSL2 kernel 6.18.58.1-microsoft-standard-WSL2)",
+        "os": "Ubuntu 24.04.5 LTS (x86_64)",
+        "glibc": "2.39",
+        "compiler": "g++ 13.3.0",
+        "flags": "-O3 -DNDEBUG -std=c++17 -march=native; -ffp-contract=off on generator.cpp and hash.cpp",
+        "build": "cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DRT_ENABLE_CUDA=OFF",
+        "commit": "dd0efa7"
+      },
+      "primitives": {
+        "spheres": 50072,
+        "triangles": 49928
+      },
+      "content_hash": "0xf34a969c085d7184",
+      "scene_hash": "0xbd57b96b2018047a",
+      "files": [
+        {
+          "path": "bench_100k_s1.json",
+          "bytes": 2379,
+          "sha256": "119674ea1fb92f1ebcb92ddd4827eb08dadf5c15324f6242643392bf552a6ea3"
+        },
+        {
+          "path": "bench_100k_s1.bin.gz",
+          "bytes": 1296024,
+          "sha256": "e3e3f8600c2bd9c2461cc0a0e408a8a3cd406badcf60d44d122332d9004dfba2",
+          "uncompressed_sha256": "4b45374f6506b3a3239751e81c3511a91d3004e5385015b783dd76abcf032c83"
+        }
+      ],
+      "archive": {
+        "release": "scenes-v1",
+        "urls": [
+          "https://github.com/Mikail-Sadic-UT/Ray-Tracer/releases/download/scenes-v1/bench_100k_s1.json",
+          "https://github.com/Mikail-Sadic-UT/Ray-Tracer/releases/download/scenes-v1/bench_100k_s1.bin.gz"
+        ],
+        "mirror": "TBD (C12, Vista shared storage)"
+      }
+    },
+    {
+      "set": "scenes-v1",
+      "name": "bench_1m_s1",
+      "command": "rt_gen --layout uniform --primitives 1000000 --seed 1 --out bench_1m_s1",
+      "generator_env": {
+        "host": "El-Studiobook (laptop, i9-13980HX, WSL2 kernel 6.18.58.1-microsoft-standard-WSL2)",
+        "os": "Ubuntu 24.04.5 LTS (x86_64)",
+        "glibc": "2.39",
+        "compiler": "g++ 13.3.0",
+        "flags": "-O3 -DNDEBUG -std=c++17 -march=native; -ffp-contract=off on generator.cpp and hash.cpp",
+        "build": "cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DRT_ENABLE_CUDA=OFF",
+        "commit": "dd0efa7"
+      },
+      "primitives": {
+        "spheres": 500000,
+        "triangles": 500000
+      },
+      "content_hash": "0x4343cc63d3bda7b4",
+      "scene_hash": "0x5bfce14a811e3060",
+      "files": [
+        {
+          "path": "bench_1m_s1.json",
+          "bytes": 2363,
+          "sha256": "57c1dea3dfbea120e957e9c024f1a6f8822b7a6ab7daf61cce8f2240715418f8"
+        },
+        {
+          "path": "bench_1m_s1.bin.gz",
+          "bytes": 13537529,
+          "sha256": "40f60097ae36aabaa16aba592749b0ecb21ff145bd585641322538a151871666",
+          "uncompressed_sha256": "daa108b5f9e1b321ed4ecf671fc5e73051563b56782c748817a4c13777268b12"
+        }
+      ],
+      "archive": {
+        "release": "scenes-v1",
+        "urls": [
+          "https://github.com/Mikail-Sadic-UT/Ray-Tracer/releases/download/scenes-v1/bench_1m_s1.json",
+          "https://github.com/Mikail-Sadic-UT/Ray-Tracer/releases/download/scenes-v1/bench_1m_s1.bin.gz"
+        ],
+        "mirror": "TBD (C12, Vista shared storage)"
+      }
+    }
+  ]
+}
