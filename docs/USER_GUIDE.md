@@ -2,7 +2,7 @@
 
 A practical guide to compiling and using the tools currently in this repo. All commands run from the **repository root** in a Bash terminal. Examples use WSL2 Ubuntu 24.04 and write output under `out/`.
 
-**Current scope:** CPU rendering works with spheres, triangles, Lambert point-light shading, hard shadows, and a serial median BVH. CUDA builds include GPU tests and `hello_cuda`; the production `rt_render --backend cuda` path is still pending in the Nov 11 snapshot. Some CLI choices describe future features and currently return an error.
+**Current scope:** CPU rendering works with spheres, triangles, Lambert point-light shading, hard shadows, and median or parallel LBVH acceleration. CUDA builds include GPU tests and `hello_cuda`; the production `rt_render --backend cuda` path is still pending in the Nov 12 snapshot. Some CLI choices describe future features and currently return an error.
 
 ## Find what you need
 
@@ -103,7 +103,7 @@ Add these options to a render command:
 
 Width and height must each be in `1..16384`. More render threads distribute pixel tiles across more CPU threads. The CPU loop uses dynamic 16×16 tiles.
 
-Preparation and rendering have separate counts: `--build-threads B` and `--render-threads R`. **The current median builder is serial**, so increasing B does not parallelize it yet.
+Preparation and rendering have separate counts: `--build-threads B` and `--render-threads R`. The median builder is serial. Use `--bvh lbvh --build-threads 8` for parallel preparation; rendering still uses `--render-threads R`.
 
 ### Camera overrides
 
@@ -124,7 +124,7 @@ Use `--shade normal` instead of `--shade lit` to show surface normals as colors.
 
 ### BVH versus brute force
 
-`--bvh median` builds the search tree. `--bvh none` tests every primitive directly. Brute force is useful for checking small scenes, but becomes expensive on large ones. `--max-leaf-size 4` controls how many primitives a median-BVH leaf may contain; 4 is the default.
+`--bvh median` builds the serial baseline tree. `--bvh lbvh` builds a parallel Morton-code tree with deterministic output across build thread counts. `--bvh none` tests every primitive directly. Brute force is useful for checking small scenes, but becomes expensive on large ones. `--max-leaf-size 4` controls how many primitives a BVH leaf may contain; 4 is the default.
 
 ## Save colors and diagnostic outputs
 
@@ -227,7 +227,7 @@ The explicit executable path ensures the script uses your CPU build. Python 3 is
 | `bench_100k_s1.json` | 50,072 | 49,928 | 100,000 |
 | `bench_1m_s1.json` | 500,000 | 500,000 | 1,000,000 |
 
-Pass, for example, `--scene scenes/generated/bench_100k_s1.json` to `rt_render`. Prefer the median BVH for these sizes.
+Pass, for example, `--scene scenes/generated/bench_100k_s1.json` to `rt_render`. Use `--bvh median` for the serial baseline or `--bvh lbvh --build-threads 8` for parallel preparation.
 
 Optional environment overrides: `RT_SCENE_MANIFEST` selects the manifest and `RT_SCENE_DEST` selects the installation directory. Release retrieval through `gh` was verified at publication; direct-URL retrieval and loading on Vista remained open checks in the Nov 11 notes. See [ROADMAP C6](ROADMAP.md#c6-generator-bin-hash).
 
@@ -306,7 +306,7 @@ ctest --test-dir build --output-on-failure
 
 If `nvcc` isn't found, configuration falls back to CPU-only. Put `/usr/local/cuda-13.3/bin` on PATH or provide `-DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc` when configuring a fresh build directory.
 
-**Enabling CUDA currently builds the device tests; it does not enable the pending production CUDA rendering backend.** `--backend cuda` still returns an error. Embree/OptiX backends and LBVH/SAH builders are also unavailable in this snapshot.
+**Enabling CUDA currently builds the device tests; it does not enable the pending production CUDA rendering backend.** `--backend cuda` still returns an error. Embree/OptiX backends and the SAH builder are also unavailable in this snapshot.
 
 ### Vista
 
@@ -324,8 +324,8 @@ Allocate a GH compute node and load the documented GCC/CUDA/CMake modules. Use `
 | `--aov` rejected | Supply `--pfm`; use `primid`, `lightmask`, or both comma-separated. |
 | Comparator reports missing files | Each PFM needs both matching `.primid.u32img` and `.lightmask.u32img` sidecars. |
 | `--runs` rejected | It applies only to `--mode prepared`. Use the Python process script for repeated app measurements. |
-| CUDA/backend/builder unavailable | Currently use `--backend cpu` and `--bvh median` or `none`; see the scope note above. |
-| Unexpectedly slow render | Check Release build, median BVH, resolution, scene size, and render thread count. Brute force is costly on large scenes. |
+| CUDA/backend/builder unavailable | Currently use `--backend cpu` and `--bvh median`, `lbvh` or `none`; see the scope note above. |
+| Unexpectedly slow render | Check Release build, median/LBVH acceleration, resolution, scene size, and render thread count. Brute force is costly on large scenes. |
 | Scene hash unchanged after moving camera | Expected: the scene hash excludes the camera. Results record the effective camera separately. |
 | Fetch cannot find `scene_dump` | Set `RT_SCENE_DUMP` to the absolute executable path, as in the download example. |
 
@@ -337,9 +337,9 @@ Allocate a GH compute node and load the documented GCC/CUDA/CMake modules. Use `
 |---|---|
 | `--scene PATH` | Required version-2 scene JSON |
 | `--backend cpu` | Available production backend |
-| `--bvh median\|none` | Median tree or brute force |
+| `--bvh median\|lbvh\|none` | Serial median tree, parallel LBVH, or brute force |
 | `--max-leaf-size N` | Positive leaf limit; default 4 |
-| `--build-threads B` | Positive preparation thread parameter; median remains serial |
+| `--build-threads B` | Positive preparation thread count; used by LBVH, median remains serial |
 | `--render-threads R` | Positive CPU rendering thread count |
 | `--width W --height H` | Override resolution |
 | `--cam-pos X Y Z` | Override camera position |
