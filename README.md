@@ -54,11 +54,13 @@ Offline CLI renderer. No native Windows build.
 | Oct 30 | **G0** | Builds on WSL2 + Vista, CI green, brute-force CPU image |
 | Nov 6 | **G1** | Correct CPU renderer, median BVH, multicore, generator, `rt_compare`, CPU timings, benchmark scenes fixed |
 | Nov 12 | Check-in 2 (postponed) | G1 complete, builder decision (Nov 10), G2 progress; see [ROADMAP.md](docs/ROADMAP.md#gates-and-schedule) |
-| Nov 13 | **G2** | CUDA matches CPU; correct parallel builder (LBVH or task-parallel median); first Vista timings. Reduced scope if missed |
-| Nov 16–20 | Check-in 3; **G3** Nov 18 | Scaling, breakdowns, profiling, preliminary ratios; extensions chosen |
+| Nov 13 | **G2** | CUDA matches CPU; correct parallel builder (LBVH or task-parallel median); first Vista timings. Progress target; scope reviewed by the team |
+| Nov 18 | **G3** (internal target) | Scaling, breakdowns, profiling, preliminary ratios; extensions chosen |
 | Nov 30 | Ready | Final runs, review, slides |
 | Dec 1/3 | Presentation | |
 | Dec 6 | Release | Report, reproducible release |
+
+There is no check-in 3. G2/G3 are internal progress targets, and Nov 13 does not automatically trigger scope reduction. The team will review progress and available time, including work during the break, while keeping the final deadlines in view.
 
 ## Quick start
 

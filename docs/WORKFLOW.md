@@ -37,7 +37,7 @@ flowchart RL
 
 | Branch | Protected | Receives | Rules |
 |---|---|---|---|
-| `main` | Yes | PRs from `dev` at check-ins | PR required with 1 approving review. No force-push, no deletion. Tagged `checkin-2`, `checkin-3`, `final` |
+| `main` | Yes | PRs from `dev` at check-ins | PR required with 1 approving review. No force-push, no deletion. Tagged `checkin-2`, `final` |
 | `dev` | Partly | PRs or pushes from feature branches | No force-push, no deletion. A PR and review are expected, but not enforced yet |
 | `<member>/<topic>` | No | Your commits | Branch from `dev`, keep short-lived |
 
@@ -218,11 +218,11 @@ Golden-image tests are ordinary `ctest` cases: render a known scene, then `rt_co
 
 ## Checkpoints and check-ins
 
-Gates G0–G3 in [ROADMAP.md](ROADMAP.md#gates-and-schedule) are team checkpoints, discussed at the weekly meeting, not formal freezes. Before G1 and G2, check that the [stub register](ROADMAP.md#stub-register) holds no stub for a contract type unless its row explains why. Only the instructor check-ins go to `main`:
+Gates G0–G3 in [ROADMAP.md](ROADMAP.md#gates-and-schedule) are team checkpoints, discussed at the weekly meeting, not formal freezes. Before G1 and G2, check that the [stub register](ROADMAP.md#stub-register) holds no stub for a contract type unless its row explains why. There is no check-in 3. Nov 13 is a progress target, not an automatic scope-reduction deadline; scope decisions are made by the team. Check-in 2 and the final release use this promotion process for `main`:
 
 1. Agree on a `dev` commit that builds and passes tests on the laptop and Vista.
 2. PR `dev` → `main`, quick whole-team look.
-3. Tag it (`checkin-2`, `checkin-3`, `final`).
+3. Tag it (`checkin-2`, `final`).
 
 ## Issues
 
