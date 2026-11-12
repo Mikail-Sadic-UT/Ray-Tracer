@@ -50,7 +50,9 @@ BruteQuery and ordinary synthetic unit-test inputs remain useful production/test
   Release with `bench_10k_s1`, `bench_100k_s1` and `bench_1m_s1`, and listed in
   `scenes/manifest.json`. They were generated on the laptop (WSL2, Ubuntu 24.04.5, glibc
   2.39, g++ 13.3.0, Release, CPU-only, `dev` at `dd0efa7`); two runs were byte-identical,
-  and `fetch_scenes.sh scenes-v1` retrieves and verifies the real release.
+  and `fetch_scenes.sh scenes-v1` retrieves and verifies the real release through `gh`.
+  Still open (download without `gh`, load on Vista, Vista mirror, cross-platform hash):
+  [ROADMAP C6](ROADMAP.md#c6-generator-bin-hash).
 - **Vista:** GCC/CUDA, GPU agreement and CPU scaling/profile measurements remain unverified
   by this work. Mac tests do not establish reference-platform or performance results.
 - **Other integration:** `rt_bench` has landed (#51); benchmark CLI wiring, golden images and
