@@ -30,7 +30,7 @@ Triangles are Core: the floor in every known-case scene is two triangles, and tr
 | E5 | Wavefront pipeline | Arek, Mikail | After G3 | 1 week | Per-stage GPU timing; first to cut |
 | E6 | `obj2bin` + Blender export | Jett | After G3 | 3 days | Demo images only |
 
-**No extension starts before G2.** At check-in 3 the team picks which extensions to run, based on remaining time and on what the preliminary results raise. Realistically E1–E3 fit; the rest are likely cut. Extensions never block a Core gate.
+**No extension starts before G2.** After G2 the team picks which extensions to run, based on remaining time and on what the preliminary results raise. Realistically E1–E3 fit; the rest are likely cut. Extensions never block a Core gate.
 
 ### Stretch (not planned)
 
@@ -65,21 +65,21 @@ flowchart LR
 | GPU smoke | **~Nov 3** | Normal-colored image of `known_two_spheres` from a CUDA kernel running `render_pixel<BruteQuery, NormalShading>`, on the laptop and a GH node. Finite pixels; `prim_id` matches the CPU brute-force image except explained mismatches. No BVH, no lighting, no performance claims. | |
 | **G1** | Nov 6 | Lambert + point-light shadows on CPU passing analytic tests. Median BVH + validator; BVH = brute force exactly. Multicore CPU bit-identical to 1 thread. `rt_gen` `field_uniform` + `.bin` + hash. `rt_compare` core checks (nonfinite, explained mismatches, shading tolerance). Harness reports T_br and T_frame on CPU. Benchmark scene definitions fixed. | Check-in 2 (Nov 12) |
 | **G2** | Nov 13 | CUDA megakernel passes `rt_compare` against CPU on the known scenes and `bench_100k`, on laptop and Vista. A correct parallel builder (LBVH, or the task-parallel median per the Nov 10 decision): validator passes, deterministic for any thread count. First Vista T_app / T_br / T_frame at 3 sizes. Comparison tolerances set from real CPU/GPU data. | |
-| **G3** | Nov 18 | Preparation scaling (B = 1→72) and CPU render scaling. GPU breakdown. Profiling done (`-Xptxas -v`, Nsight). Preliminary 10× / 2× / 20× ratios. Scope frozen; extensions chosen. | Check-in 3 (Nov 16–20) |
-| Final | Nov 30 | Final sweeps, quality review (2 reviewers), slides. Thanksgiving is Nov 26; plan around it. | |
+| **G3** | Nov 18 | Preparation scaling (B = 1→72) and CPU render scaling. GPU breakdown. Profiling done (`-Xptxas -v`, Nsight). Preliminary 10× / 2× / 20× ratios. Scope and extensions reviewed by the team. | Internal checkpoint |
+| Final | Nov 30 | Final sweeps, quality review (2 reviewers), slides. Thanksgiving is Nov 26; account for work during the break and each member's availability. | |
 | | Dec 1/3 | | Presentation |
 | | Dec 6 | Report, reproducibility instructions, `final` tag | Release |
 
-**Check-in 2 (postponed, now Nov 12).** It moved from Oct 26–30 to **Nov 12**. The gate dates don't move: the postponement buys no extra time before check-in 3 and the final deadline, so the team keeps working to G0 (Oct 30), G1 (Nov 6) and G2 (Nov 13). Check-in 2 falls after G1 and the Nov 10 builder decision, and one day before G2. Present the latest gate that has passed:
+**Check-in 2 (postponed, now Nov 12).** It moved from Oct 26–30 to **Nov 12**. There is no check-in 3. G2 (Nov 13) and G3 (Nov 18) remain internal progress targets; final presentation and release dates are unchanged. Check-in 2 falls after G1 and the Nov 10 builder decision, and one day before G2. Present the latest gate that has passed:
 
 | If check-in 2 falls on | Present |
 |---|---|
 | Oct 31–Nov 5 | G0 complete, the re-baselined plan, G1 progress (shaded CPU image, median BVH if merged) |
 | Nov 6–12 | G1 complete: correct CPU renderer with shadows, BVH, multicore, `rt_compare`, first CPU timings, fixed benchmark scenes. For Nov 10–12 also the C11 builder decision and G2 progress (GPU smoke image, megakernel status) |
 
-The **GPU smoke image** (~Nov 3) can be shown at check-in 2 as evidence that the device path works: device compilation of shared code, scene pointers, kernel launch, download. Full GPU correctness and performance acceptance stay at G2 (Nov 13). Check-in 3 (Nov 16–20) is assumed unchanged; update this table if it moves too.
+The **GPU smoke image** (~Nov 3) can be shown at check-in 2 as evidence that the device path works: device compilation of shared code, scene pointers, kernel launch, download. Full GPU correctness and performance acceptance stay at G2 (Nov 13). The team will review progress internally through the final presentation.
 
-**Reduced-scope trigger:** if G2 is not met by **Nov 13**, adopt the [reduced scope](#reduced-scope-fallback) immediately (earlier than the proposal's Nov 20) and spend the remaining time on measurement.
+**Schedule decision (Nov 12):** Nov 13 is a progress checkpoint, not a hard risk-reduction deadline. Missing G2 on that date does not automatically change scope. The team expects work to continue near deadlines and during the break, and will review scope based on actual progress, remaining work, and member availability. Keep time for correctness checks, measurements, and reporting; use the [reduced scope](#reduced-scope-fallback) if the team decides it is needed.
 
 ## Ownership
 
@@ -316,9 +316,9 @@ Owner: Mikail.
 
 ### C13: Measurements and profiling
 Owners: all.
-- **Objective:** preliminary results for check-in 3.
+- **Objective:** preliminary results for the internal G3 checkpoint and final presentation.
 - **Guidance:** Core sweeps and plots from [BENCHMARKING.md](BENCHMARKING.md#sweeps); profiling requirements; preliminary ratios with spread.
-- **Demo:** check-in 3 slides with T_br / T_frame / T_app ratios and breakdowns.
+- **Demo:** preliminary T_br / T_frame / T_app ratios and breakdowns for team review.
 
 ### C14: Final
 Owners: all (Jett and Arek measure; Mikail and Po validate; all write).
@@ -329,7 +329,7 @@ Owners: all (Jett and Arek measure; Mikail and Po validate; all write).
 
 | Risk | Early signal | Response |
 |---|---|---|
-| Schedule: 5 weeks for the whole Core | G0 or G1 slips | Reduced scope at Nov 13; no extensions before G2 |
+| Schedule: 5 weeks for the whole Core | G0 or G1 slips | Review scope as a team using actual progress and remaining time, including break availability; no extensions before G2 |
 | Vista GPU access or build fails | C1 by Oct 30 | Lonestar6 A100; laptop measurements continue |
 | CUDA/GCC pair unsupported | C1 build fails | Try module pairs; check NVIDIA's versioned install guide for that CUDA minor; record the working pair |
 | Shared bug makes CPU and GPU agree | Analytic or oracle test fails | Independent checks by a different author (see Ownership) |
@@ -344,7 +344,7 @@ Owners: all (Jett and Arek measure; Mikail and Po validate; all write).
 
 ## Reduced-scope fallback
 
-From the proposal; adopted at Nov 13 if G2 fails:
+From the proposal; available if the team decides remaining time and progress call for it. This is not automatically adopted on Nov 13:
 
 - **Correctness scene:** one fixed scene of spheres + a two-triangle floor, one point light, shadows, 640×480 (the proposal's reduced scope).
 - **Measurement scene:** one fixed generated scene, `bench_1m` (`field_uniform`, 1M primitives, seed 1) at 1920×1080, with `bench_100k` only if 1M isn't feasible. A tiny scene shows correctness but says almost nothing about parallel preparation or GPU speedup. This deviates from the proposal's 640×480-only fallback, deliberately.
@@ -359,10 +359,11 @@ Updated by Mikail weekly.
 
 | Item | Status (Nov 11) | Notes |
 |---|---|---|
-| Check-in 2 date | Nov 12 | Postponed from Oct 26–30; gates unchanged |
+| Check-in 2 date | Nov 12 | Postponed from Oct 26–30 |
+| Schedule decision (Nov 12) | No check-in 3; no automatic Nov 13 scope cut | G2/G3 remain internal targets. Review scope as a team, accounting for work during the break and protecting final validation/measurement time |
 | G0 (Oct 30) | Met except sign-off | CPU CI, CUDA builds on the laptop and Vista, `hello_cuda` on a GH node (C1). Brute-force normal-shaded CPU image of `known_two_spheres` available through `rt_render --backend cpu --shade normal` (#47); temporary preview S4 removed. INTERFACES v1.0 is still marked Proposed |
 | G1 (Nov 6) | **Met (Nov 11)** | Landed: median builder and validator (#31, #40), multicore CPU loop bit-identical to 1 thread (#36), `rt_gen` uniform + `.bin` + hash (#36; terrain integrated in #41), `rt_compare` core checks (#36), traversal with BVH = brute force (C5), `Backend` interface, `CpuBackend` and `rt_render --backend cpu` with `--bvh none\|median` (#47), Lambert + point-light shadows (C4, #49) rendered by `rt_render --shade lit` (#53). T_app, T_br and T_frame on CPU through `rt_render --mode app\|prepared --results` (C9, #51, #56). Benchmark scenes fixed: `bench_10k_s1`, `bench_100k_s1` and `bench_1m_s1` published as release `scenes-v1`, listed in `scenes/manifest.json` (#35). Met five days late |
-| G2 (Nov 13) | At risk | Needs C10 megakernel, C11 parallel builder, and first Vista timings. Not met by Nov 13 means [reduced scope](#reduced-scope-fallback) |
+| G2 (Nov 13) | At risk | Needs C10 megakernel, C11 parallel builder, and first Vista timings. Nov 13 is a progress target; the team reviews scope as needed rather than automatically adopting [reduced scope](#reduced-scope-fallback) |
 | INTERFACES v1.0 | Proposed | Sign-off was due Oct 27. Open interface proposal #4 (Arek) |
 | C1 | Done (Oct 28) | CMake, CI (first GitHub run green), `.clang-format`, PR template, `hello_cuda`. Verified on the laptop (WSL2, GCC 13.3, CUDA 13.3) and on a Vista GH200 node (GCC 13.2, CUDA 13.3, `ctest` 4/4, `hello_cuda`). Branch protection set: `main` needs a PR with 1 approval; `main` and `dev` block force-push and deletion; the admin can bypass. Making the `cpu` CI job a required check is deferred ([WORKFLOW.md](WORKFLOW.md#deferred-process)) |
 | C2 | Partly done | Merged on `dev`: math library and `AABB` slab tests (#1, #13), scene types, IO, validation, hash, image IO and `scene_dump` (#9), `bvh_types.hpp` (#18), `Timings` (#22), subnormal slab fix and 1e18 coordinate bound (#30), robust `normalize()` (#29). Remaining: INTERFACES sign-off |

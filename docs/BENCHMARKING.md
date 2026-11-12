@@ -50,7 +50,7 @@ The proposal compares the GPU against the **fastest tested** multicore CPU, whic
 - **GPU\***: the GPU configuration with the lowest median of the quantity being reported among the tested build-thread counts B, with the same per-size, per-quantity selection.
 - Results record which configuration was selected for each quantity, and its spread.
 
-**For the final report only (C14):** pick CPU\* and GPU\* from the sweep, then rerun the 1-core baseline, CPU\*, GPU\*, and fixed-72 configurations in one job, interleaved, 5 runs each. Report the headline ratios from those reruns; picking the minimum of noisy medians biases the picked value low. Preliminary numbers at check-in 3 can come straight from the sweep.
+**For the final report only (C14):** pick CPU\* and GPU\* from the sweep, then rerun the 1-core baseline, CPU\*, GPU\*, and fixed-72 configurations in one job, interleaved, 5 runs each. Report the headline ratios from those reruns; picking the minimum of noisy medians biases the picked value low. Preliminary G3 numbers can come straight from the sweep.
 
 | Target | Headline ratio | Also reported |
 |---|---|---|
