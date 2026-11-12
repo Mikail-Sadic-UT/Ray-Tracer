@@ -227,6 +227,8 @@ Start every test case that launches a kernel or allocates device memory with `RT
 
 Goldens are compared with the normal `rt_compare` tolerances, not exact equality, so they work on any x86 machine with GCC 13. Regenerate them deliberately in a PR that says why, never to make a failing test pass.
 
+The lit goldens for the three known scenes are in `scenes/golden/` (`test_golden` and `golden_cli` in ctest). They are regression-only: they were rendered by this renderer, so they do not validate shading independently. `scenes/golden/README.md` lists what they do not catch. Regenerate with `scripts/regen_goldens.sh --render <rt_render> --reason "why"` from a clean tree; it writes `scenes/golden/PROVENANCE.txt`.
+
 ### Golden-image environment (deferred)
 
 Exact, bit-identical goldens would need a pinned CI container (image digest, exact `g++-13` package, `-O2 -march=x86-64 -ffp-contract=off`, 1 and 4 threads). That's deferred. Revisit only if tolerance-based goldens miss a real regression.
