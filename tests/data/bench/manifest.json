@@ -1,0 +1,21 @@
+{
+  "valid": [
+    "app_valid.json",
+    "app_valid_slower.json",
+    "prepared_valid.json"
+  ],
+  "invalid": [
+    {"file": "invalid_app_missing_component.json", "error": "app.components.render: missing"},
+    {"file": "invalid_app_extra_component.json", "error": "app.components.wait: unknown component"},
+    {"file": "invalid_app_render_kernel_component.json", "error": "app.components.render_kernel: a diagnostic overlaps render"},
+    {"file": "invalid_app_bad_unattributed.json", "error": "app.unattributed_ms: expected"},
+    {"file": "invalid_app_negative_time.json", "error": "app.components.load: negative time"},
+    {"file": "invalid_app_diagnostics.json", "error": "app.diagnostics: the app section has no diagnostics"},
+    {"file": "invalid_bad_scene_hash.json", "error": "scene.hash: expected 0x"},
+    {"file": "invalid_primitive_sum.json", "error": "scene.num_primitives: expected"},
+    {"file": "invalid_schema_version.json", "error": "schema_version: expected 2"},
+    {"file": "invalid_no_section.json", "error": "expected at least one of app, build_and_render or frame"},
+    {"file": "invalid_prepared_bad_median.json", "error": "build_and_render.median_ms: the runs give"},
+    {"file": "invalid_prepared_median_index.json", "error": "frame.median_run_index: the runs give"}
+  ]
+}
