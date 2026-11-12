@@ -44,12 +44,13 @@ rt::BvhView view(const rt::Bvh& bvh) {
             static_cast<uint32_t>(bvh.nodes.size())};
 }
 
-/// Median BVH over @p s with the given leaf size, checked by the validator.
-rt::Bvh build_median(const rt::Scene& s, uint32_t max_leaf_size) {
+/// BVH over @p s with the given method and leaf size, checked by the validator.
+rt::Bvh build_tree(const rt::Scene& s, uint32_t max_leaf_size,
+                   rt::BvhMethod method = rt::BvhMethod::Median) {
     rt::BvhParams p;
-    p.method = rt::BvhMethod::Median;
+    p.method = method;
     p.max_leaf_size = max_leaf_size;
-    p.threads = 1;
+    p.threads = 8;
     rt::Timings timings;
     rt::Bvh bvh = rt::build_bvh(s, p, timings);
     std::string err;
@@ -102,7 +103,7 @@ TEST(Traverse, EmptyBvh) {
 TEST(Traverse, SingleLeaf) {
     const std::vector<rt::Sphere> spheres{{{0.0f, 0.0f, 0.0f}, 1.0f, 0}};
     const rt::Scene s = make_scene(spheres, {});
-    const rt::Bvh bvh = build_median(s, 4);
+    const rt::Bvh bvh = build_tree(s, 4);
     ASSERT_EQ(bvh.nodes.size(), 1u);
     const rt::Ray hit = make_ray({0, 0, -5}, kUp);
     const rt::Ray miss = make_ray({3, 0, -5}, kUp);
@@ -153,7 +154,7 @@ TEST(Traverse, NearerHitWins) {
     const std::vector<rt::Sphere> spheres{{{0.0f, 0.0f, 10.0f}, 1.0f, 0},
                                           {{0.0f, 0.0f, 0.0f}, 1.0f, 0}};
     const rt::Scene s = make_scene(spheres, {});
-    const rt::Bvh bvh = build_median(s, 1);
+    const rt::Bvh bvh = build_tree(s, 1);
     const rt::Ray r = make_ray({0, 0, -5}, kUp);
     expect_identical(rt::traverse_closest(r, s, view(bvh)), {4.0f, 1u, 0.0f, 0.0f});
     // From the other side, sphere 0 is nearer.
@@ -168,7 +169,7 @@ TEST(Traverse, SharedEdgeTieAcrossLeaves) {
         {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0},
         {{1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0}};
     const rt::Scene s = make_scene({}, tris);
-    const rt::Bvh bvh = build_median(s, 1);
+    const rt::Bvh bvh = build_tree(s, 1);
     ASSERT_GT(bvh.nodes.size(), 1u);
     const rt::Ray r = make_ray({0.5f, 0.5f, -1.0f}, kUp);
     expect_identical(rt::traverse_closest(r, s, view(bvh)),
@@ -181,7 +182,7 @@ TEST(Traverse, QueryForwards) {
     const std::vector<rt::Sphere> spheres{{{0.0f, 0.0f, 0.0f}, 1.0f, 0},
                                           {{3.0f, 0.0f, 0.0f}, 1.0f, 0}};
     const rt::Scene s = make_scene(spheres, {});
-    const rt::Bvh bvh = build_median(s, 1);
+    const rt::Bvh bvh = build_tree(s, 1);
     const rt::BvhQuery q{s, view(bvh)};
     for (const rt::Ray& r :
          {make_ray({0, 0, -5}, kUp), make_ray({3, 0, -5}, kUp), make_ray({9, 9, -5}, kUp)}) {
@@ -329,10 +330,12 @@ rt::Ray random_ray(std::mt19937& rng, const std::vector<rt::Sphere>& spheres,
     return make_ray(o, d, tmin, tmax);
 }
 
+class TraverseProperty : public testing::TestWithParam<rt::BvhMethod> {};
+
 /// Feature: bvh-traversal, Property 1: on random scenes and rays, traverse_closest returns the
 /// same Hit as brute_closest byte for byte, and traverse_any matches brute_any, for every leaf
 /// size.
-TEST(TraverseProperty, MatchesBruteForce) {
+TEST_P(TraverseProperty, MatchesBruteForce) {
     std::mt19937 rng(201);
     std::vector<rt::Sphere> spheres;
     std::vector<rt::Triangle> tris;
@@ -341,7 +344,7 @@ TEST(TraverseProperty, MatchesBruteForce) {
         random_scene(rng, 150, spheres, tris);
         const rt::Scene s = make_scene(spheres, tris);
         for (uint32_t leaf : {1u, 2u, 4u, 8u}) {
-            const rt::Bvh bvh = build_median(s, leaf);
+            const rt::Bvh bvh = build_tree(s, leaf, GetParam());
             const rt::BvhView v = view(bvh);
             for (int k = 0; k < 50; ++k) {
                 const rt::Ray r = random_ray(rng, spheres, tris);
@@ -363,7 +366,7 @@ TEST(TraverseProperty, MatchesBruteForce) {
 /// Feature: bvh-traversal, Property 2: on a quad mesh with shared edges and vertices, rays
 /// through exact grid vertices and edge midpoints (many exact ties across leaves) match brute
 /// force byte for byte, and never pass between triangles.
-TEST(TraverseProperty, GridTiesMatchBruteForce) {
+TEST_P(TraverseProperty, GridTiesMatchBruteForce) {
     constexpr int kN = 16;  // kN x kN quads, two triangles each, in the z = 0 plane
     std::vector<rt::Triangle> tris;
     for (int y = 0; y < kN; ++y) {
@@ -382,7 +385,7 @@ TEST(TraverseProperty, GridTiesMatchBruteForce) {
     const rt::Scene s = make_scene(spheres, tris);
     std::mt19937 rng(202);
     for (uint32_t leaf : {1u, 4u}) {
-        const rt::Bvh bvh = build_median(s, leaf);
+        const rt::Bvh bvh = build_tree(s, leaf, GetParam());
         for (int i = 0; i <= 2 * kN; ++i) {
             for (int j = 0; j <= 2 * kN; ++j) {
                 const rt::vec3 target{0.5f * float(i), 0.5f * float(j), 0.0f};
@@ -405,12 +408,12 @@ TEST(TraverseProperty, GridTiesMatchBruteForce) {
 
 /// Feature: bvh-traversal, Property 3: when every centroid is equal (identical spheres), the
 /// BVH splits by canonical order and traversal still returns the lowest PrimRef.
-TEST(TraverseProperty, AllEqualCentroids) {
+TEST_P(TraverseProperty, AllEqualCentroids) {
     const std::vector<rt::Sphere> spheres(37, rt::Sphere{{1.0f, 2.0f, 3.0f}, 1.5f, 0});
     const rt::Scene s = make_scene(spheres, {});
     std::mt19937 rng(203);
     for (uint32_t leaf : {1u, 3u}) {
-        const rt::Bvh bvh = build_median(s, leaf);
+        const rt::Bvh bvh = build_tree(s, leaf, GetParam());
         for (int k = 0; k < 200; ++k) {
             const rt::vec3 o = uniform_vec(rng, 20.0f);
             const rt::Ray r = make_ray(o, rt::vec3{1, 2, 3} + uniform_vec(rng, 1.0f) - o);
@@ -425,14 +428,14 @@ TEST(TraverseProperty, AllEqualCentroids) {
 
 /// Feature: bvh-traversal, Property 4: axis-aligned rays (zero direction components, both
 /// signs of zero) and rays starting inside the scene bounds match brute force byte for byte.
-TEST(TraverseProperty, AxisAlignedAndInteriorRays) {
+TEST_P(TraverseProperty, AxisAlignedAndInteriorRays) {
     std::mt19937 rng(204);
     std::vector<rt::Sphere> spheres;
     std::vector<rt::Triangle> tris;
     for (int scene = 0; scene < 50; ++scene) {
         random_scene(rng, 100, spheres, tris);
         const rt::Scene s = make_scene(spheres, tris);
-        const rt::Bvh bvh = build_median(s, 4);
+        const rt::Bvh bvh = build_tree(s, 4, GetParam());
         for (int k = 0; k < 60; ++k) {
             const rt::vec3 o = uniform_vec(rng, 20.0f);
             rt::vec3 d{0.0f, 0.0f, 0.0f};
@@ -448,5 +451,8 @@ TEST(TraverseProperty, AxisAlignedAndInteriorRays) {
         }
     }
 }
+
+INSTANTIATE_TEST_SUITE_P(Builders, TraverseProperty,
+                         testing::Values(rt::BvhMethod::Median, rt::BvhMethod::LBVH));
 
 }  // namespace
