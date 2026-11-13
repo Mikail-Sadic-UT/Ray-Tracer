@@ -10,3 +10,7 @@ target_compile_definitions(test_golden PRIVATE
 add_test(NAME golden_cli COMMAND python3 "${PROJECT_SOURCE_DIR}/tests/test_golden_cli.py"
   --render $<TARGET_FILE:rt_render> --compare $<TARGET_FILE:rt_compare>
   --scenes "${PROJECT_SOURCE_DIR}/scenes/known" --goldens "${PROJECT_SOURCE_DIR}/scenes/golden")
+
+add_test(NAME regen_goldens_provenance COMMAND python3
+  "${PROJECT_SOURCE_DIR}/tests/test_regen_goldens.py"
+  "${PROJECT_SOURCE_DIR}/scripts/regen_goldens.sh")

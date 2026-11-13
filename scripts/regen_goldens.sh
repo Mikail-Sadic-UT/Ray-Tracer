@@ -2,8 +2,8 @@
 # Regenerate the lit regression goldens in scenes/golden/ from the known scenes.
 #
 # Deliberate use only (scenes/golden/README.md): never regenerate to make a failing test pass.
-# Requires a clean tracked tree, so the commit recorded in PROVENANCE.txt is the source that was
-# built, and a reason that goes into PROVENANCE.txt and the commit message you write.
+# Requires a clean tracked tree and a renderer built from that exact clean commit, plus a
+# reason that goes into PROVENANCE.txt and the commit message you write.
 #
 #   scripts/regen_goldens.sh --render build/apps/rt_render/rt_render --reason "why" [--out DIR]
 #
@@ -33,7 +33,6 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
 fi
 commit="$(git rev-parse HEAD)"
 golden_dir="${out:-scenes/golden}"
-mkdir -p "$golden_dir"
 
 # Compiler and build type come from the CMake cache of the build that made rt_render.
 build_dir="$(cd "$(dirname "$render")/../.." && pwd)"
@@ -52,7 +51,18 @@ trap 'rm -rf "$work"' EXIT
 
 render_scene() {  # render_scene NAME DIR
   "$render" --scene "scenes/known/$1.json" --backend cpu --bvh median --shade lit \
-    --build-threads 1 --render-threads 1 --pfm "$2/$1.pfm" --aov primid,lightmask 2>/dev/null
+    --build-threads 1 --render-threads 1 --pfm "$2/$1.pfm" --aov primid,lightmask \
+    --results "$2/$1.results.json"
+  python3 - "$2/$1.results.json" "$commit" <<'PYTHON'
+import json
+import sys
+
+with open(sys.argv[1]) as source:
+    build = json.load(source)["build"]
+if build.get("commit") != sys.argv[2] or build.get("dirty") is not False:
+    sys.exit("error: renderer was not built from this exact clean commit; rebuild rt_render "
+             "and retry (goldens were not written)")
+PYTHON
 }
 
 for name in "${scenes[@]}"; do
@@ -65,6 +75,7 @@ for name in "${scenes[@]}"; do
   done
 done
 
+mkdir -p "$golden_dir"
 for name in "${scenes[@]}"; do
   for suffix in .pfm .primid.u32img .lightmask.u32img; do
     cp "$work/a/$name$suffix" "$golden_dir/$name$suffix"
