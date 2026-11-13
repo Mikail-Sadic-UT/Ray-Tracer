@@ -64,8 +64,10 @@ intended, run
 
     scripts/regen_goldens.sh --render build/apps/rt_render/rt_render --reason "why"
 
-from a clean tree, then commit the files, `PROVENANCE.txt` and the updated hash above together,
-and explain the visible difference in the PR.
+from a clean tree after rebuilding `rt_render` at that commit, then commit the files, `PROVENANCE.txt` and the updated hash above together,
+and explain the visible difference in the PR. The script checks the build commit and dirty
+flag reported by every render before replacing any golden; stale, dirty and unknown builds
+are rejected.
 
 ## Not yet verified
 
