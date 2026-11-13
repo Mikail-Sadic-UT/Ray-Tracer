@@ -91,9 +91,11 @@ rt::vec3 uniform_vec(std::mt19937& rng, float h) {
     return {uniform(rng, -h, h), uniform(rng, -h, h), uniform(rng, -h, h)};
 }
 
+class TraverseDeviceBuild : public testing::TestWithParam<rt::BvhMethod> {};
+
 /// In a kernel, BVH traversal returns exactly the brute-force hit (same prim, bit-identical t,
 /// u, v) on a random scene with duplicated primitives, for several leaf sizes.
-TEST(TraverseDevice, MatchesBruteForceOnDevice) {
+TEST_P(TraverseDeviceBuild, MatchesBruteForceOnDevice) {
     RT_SKIP_WITHOUT_CUDA_DEVICE();
     std::mt19937 rng(301);
     std::vector<rt::Sphere> spheres;
@@ -140,6 +142,8 @@ TEST(TraverseDevice, MatchesBruteForceOnDevice) {
         SCOPED_TRACE("leaf " + std::to_string(leaf));
         rt::BvhParams p;
         p.max_leaf_size = leaf;
+        p.method = GetParam();
+        p.threads = 8;
         rt::Timings timings;
         const rt::Bvh bvh = rt::build_bvh(host_scene, p, timings);
         ASSERT_TRUE(rt::validate_bvh(bvh, host_scene));
@@ -224,5 +228,8 @@ TEST(TraverseDevice, OverflowSetsFlag) {
     RT_CUDA_CHECK(cudaFree(d_refs));
     RT_CUDA_CHECK(cudaFree(d_spheres));
 }
+
+INSTANTIATE_TEST_SUITE_P(Builders, TraverseDeviceBuild,
+                         testing::Values(rt::BvhMethod::Median, rt::BvhMethod::LBVH));
 
 }  // namespace

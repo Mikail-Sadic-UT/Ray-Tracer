@@ -30,7 +30,7 @@ Triangles are Core: the floor in every known-case scene is two triangles, and tr
 | E5 | Wavefront pipeline | Arek, Mikail | After G3 | 1 week | Per-stage GPU timing; first to cut |
 | E6 | `obj2bin` + Blender export | Jett | After G3 | 3 days | Demo images only |
 
-**No extension starts before G2.** At check-in 3 the team picks which extensions to run, based on remaining time and on what the preliminary results raise. Realistically E1–E3 fit; the rest are likely cut. Extensions never block a Core gate.
+**No extension starts before G2.** After G2 the team picks which extensions to run, based on remaining time and on what the preliminary results raise. Realistically E1–E3 fit; the rest are likely cut. Extensions never block a Core gate.
 
 ### Stretch (not planned)
 
@@ -65,21 +65,21 @@ flowchart LR
 | GPU smoke | **~Nov 3** | Normal-colored image of `known_two_spheres` from a CUDA kernel running `render_pixel<BruteQuery, NormalShading>`, on the laptop and a GH node. Finite pixels; `prim_id` matches the CPU brute-force image except explained mismatches. No BVH, no lighting, no performance claims. | |
 | **G1** | Nov 6 | Lambert + point-light shadows on CPU passing analytic tests. Median BVH + validator; BVH = brute force exactly. Multicore CPU bit-identical to 1 thread. `rt_gen` `field_uniform` + `.bin` + hash. `rt_compare` core checks (nonfinite, explained mismatches, shading tolerance). Harness reports T_br and T_frame on CPU. Benchmark scene definitions fixed. | Check-in 2 (Nov 12) |
 | **G2** | Nov 13 | CUDA megakernel passes `rt_compare` against CPU on the known scenes and `bench_100k`, on laptop and Vista. A correct parallel builder (LBVH, or the task-parallel median per the Nov 10 decision): validator passes, deterministic for any thread count. First Vista T_app / T_br / T_frame at 3 sizes. Comparison tolerances set from real CPU/GPU data. | |
-| **G3** | Nov 18 | Preparation scaling (B = 1→72) and CPU render scaling. GPU breakdown. Profiling done (`-Xptxas -v`, Nsight). Preliminary 10× / 2× / 20× ratios. Scope frozen; extensions chosen. | Check-in 3 (Nov 16–20) |
-| Final | Nov 30 | Final sweeps, quality review (2 reviewers), slides. Thanksgiving is Nov 26; plan around it. | |
+| **G3** | Nov 18 | Preparation scaling (B = 1→72) and CPU render scaling. GPU breakdown. Profiling done (`-Xptxas -v`, Nsight). Preliminary 10× / 2× / 20× ratios. Scope and extensions reviewed by the team. | Internal checkpoint |
+| Final | Nov 30 | Final sweeps, quality review (2 reviewers), slides. Thanksgiving is Nov 26; account for work during the break and each member's availability. | |
 | | Dec 1/3 | | Presentation |
 | | Dec 6 | Report, reproducibility instructions, `final` tag | Release |
 
-**Check-in 2 (postponed, now Nov 12).** It moved from Oct 26–30 to **Nov 12**. The gate dates don't move: the postponement buys no extra time before check-in 3 and the final deadline, so the team keeps working to G0 (Oct 30), G1 (Nov 6) and G2 (Nov 13). Check-in 2 falls after G1 and the Nov 10 builder decision, and one day before G2. Present the latest gate that has passed:
+**Check-in 2 (postponed, now Nov 12).** It moved from Oct 26–30 to **Nov 12**. There is no check-in 3. G2 (Nov 13) and G3 (Nov 18) remain internal progress targets; final presentation and release dates are unchanged. Check-in 2 falls after G1 and the Nov 10 builder decision, and one day before G2. Present the latest gate that has passed:
 
 | If check-in 2 falls on | Present |
 |---|---|
 | Oct 31–Nov 5 | G0 complete, the re-baselined plan, G1 progress (shaded CPU image, median BVH if merged) |
 | Nov 6–12 | G1 complete: correct CPU renderer with shadows, BVH, multicore, `rt_compare`, first CPU timings, fixed benchmark scenes. For Nov 10–12 also the C11 builder decision and G2 progress (GPU smoke image, megakernel status) |
 
-The **GPU smoke image** (~Nov 3) can be shown at check-in 2 as evidence that the device path works: device compilation of shared code, scene pointers, kernel launch, download. Full GPU correctness and performance acceptance stay at G2 (Nov 13). Check-in 3 (Nov 16–20) is assumed unchanged; update this table if it moves too.
+The **GPU smoke image** (~Nov 3) can be shown at check-in 2 as evidence that the device path works: device compilation of shared code, scene pointers, kernel launch, download. Full GPU correctness and performance acceptance stay at G2 (Nov 13). The team will review progress internally through the final presentation.
 
-**Reduced-scope trigger:** if G2 is not met by **Nov 13**, adopt the [reduced scope](#reduced-scope-fallback) immediately (earlier than the proposal's Nov 20) and spend the remaining time on measurement.
+**Schedule decision (Nov 12):** Nov 13 is a progress checkpoint, not a hard risk-reduction deadline. Missing G2 on that date does not automatically change scope. The team expects work to continue near deadlines and during the break, and will review scope based on actual progress, remaining work, and member availability. Keep time for correctness checks, measurements, and reporting; use the [reduced scope](#reduced-scope-fallback) if the team decides it is needed.
 
 ## Ownership
 
@@ -255,6 +255,20 @@ Owners: Po (sphere layouts, `.bin`, hash, CLI, archive); Jett (terrain height fi
   - `uniform` by G1; `clustered` after G2 only if time.
 - **Tests:** repeatable bytes on the recorded generator environment (required); scenes copied to Vista load with matching `content_hash` and match `scenes/manifest.json`; cross-platform generation compared and reported (informational, doesn't block G1); `.bin` round trip; reader rejects bad headers; generated scenes pass load validation; exact primitive counts; fitted camera keeps all AABB corners in frame.
 - **Demo:** `bench_1m` loads and renders on CPU, with visible-fraction and hit-fraction diagnostics.
+- **`scenes-v1` (Nov 11, #35, #62):** published from the laptop (El-Studiobook, WSL2, Ubuntu 24.04.5, glibc 2.39, g++ 13.3.0, CPU-only Release build of `dev` at `dd0efa7`), because Vista was down for maintenance. Verified there: two generation runs byte-identical; `scene_dump --verify` passes with exact counts; `fetch_scenes.sh scenes-v1` through `gh` installs files byte-identical to the originals; one asset downloaded by `curl` matches its manifest SHA-256. Diagnostics from lit 1920×1080 renders (`--bvh median`, `primid` AOV):
+
+  | Scene | Hit fraction | Visible fraction |
+  |---|---|---|
+  | `bench_10k_s1` | 0.359 | 0.283 (2,834 of 10,000) |
+  | `bench_100k_s1` | 0.432 | 0.246 (24,602 of 100,000) |
+  | `bench_1m_s1` | 0.462 | 0.167 (167,442 of 1,000,000) |
+
+- **Open checks for `scenes-v1`** (anyone may run them; record the result here and in C6 status):
+  - [ ] **Direct-URL download without `gh`.** Not completed: Python's `urllib` timed out connecting to `github.com:443` from the laptop while `gh` worked, so the manifest URLs are untested end to end. Run `fetch_scenes.sh scenes-v1` with `gh` absent from `PATH` (as on a Vista node without `gh`).
+  - [ ] **Load on Vista** (required by the tests above): on a GH node, `bash scripts/fetch_scenes.sh scenes-v1`, then `scene_dump --verify` matches the manifest's `content_hash` and `scene_hash` for all three scenes. Record node and commit.
+  - [ ] **Vista mirror (C12):** pick the group-readable project path, copy `scenes-v1` there, and replace `"mirror": "TBD ..."` in `scenes/manifest.json` (a manifest edit; the release itself stays unchanged).
+  - [ ] **Cross-platform generation (informational, never blocks):** run the same `rt_gen` commands on Vista (aarch64) and report whether `content_hash` matches. A mismatch is expected from libm, and never replaces the published files.
+  - [ ] **Po's review** of the generator environment choice (laptop instead of Po's machine), since #35 is Po's issue.
 
 ### C7: CPU backend, 1..N threads
 Owner: Po.
@@ -302,9 +316,9 @@ Owner: Mikail.
 
 ### C13: Measurements and profiling
 Owners: all.
-- **Objective:** preliminary results for check-in 3.
+- **Objective:** preliminary results for the internal G3 checkpoint and final presentation.
 - **Guidance:** Core sweeps and plots from [BENCHMARKING.md](BENCHMARKING.md#sweeps); profiling requirements; preliminary ratios with spread.
-- **Demo:** check-in 3 slides with T_br / T_frame / T_app ratios and breakdowns.
+- **Demo:** preliminary T_br / T_frame / T_app ratios and breakdowns for team review.
 
 ### C14: Final
 Owners: all (Jett and Arek measure; Mikail and Po validate; all write).
@@ -315,7 +329,7 @@ Owners: all (Jett and Arek measure; Mikail and Po validate; all write).
 
 | Risk | Early signal | Response |
 |---|---|---|
-| Schedule: 5 weeks for the whole Core | G0 or G1 slips | Reduced scope at Nov 13; no extensions before G2 |
+| Schedule: 5 weeks for the whole Core | G0 or G1 slips | Review scope as a team using actual progress and remaining time, including break availability; no extensions before G2 |
 | Vista GPU access or build fails | C1 by Oct 30 | Lonestar6 A100; laptop measurements continue |
 | CUDA/GCC pair unsupported | C1 build fails | Try module pairs; check NVIDIA's versioned install guide for that CUDA minor; record the working pair |
 | Shared bug makes CPU and GPU agree | Analytic or oracle test fails | Independent checks by a different author (see Ownership) |
@@ -330,7 +344,7 @@ Owners: all (Jett and Arek measure; Mikail and Po validate; all write).
 
 ## Reduced-scope fallback
 
-From the proposal; adopted at Nov 13 if G2 fails:
+From the proposal; available if the team decides remaining time and progress call for it. This is not automatically adopted on Nov 13:
 
 - **Correctness scene:** one fixed scene of spheres + a two-triangle floor, one point light, shadows, 640×480 (the proposal's reduced scope).
 - **Measurement scene:** one fixed generated scene, `bench_1m` (`field_uniform`, 1M primitives, seed 1) at 1920×1080, with `bench_100k` only if 1M isn't feasible. A tiny scene shows correctness but says almost nothing about parallel preparation or GPU speedup. This deviates from the proposal's 640×480-only fallback, deliberately.
@@ -343,22 +357,23 @@ From the proposal; adopted at Nov 13 if G2 fails:
 
 Updated by Mikail weekly.
 
-| Item | Status (Nov 9) | Notes |
+| Item | Status (Nov 12) | Notes |
 |---|---|---|
-| Check-in 2 date | Nov 12 | Postponed from Oct 26–30; gates unchanged |
+| Check-in 2 date | Nov 12 | Postponed from Oct 26–30 |
+| Schedule decision (Nov 12) | No check-in 3; no automatic Nov 13 scope cut | G2/G3 remain internal targets. Review scope as a team, accounting for work during the break and protecting final validation/measurement time |
 | G0 (Oct 30) | Met except sign-off | CPU CI, CUDA builds on the laptop and Vista, `hello_cuda` on a GH node (C1). Brute-force normal-shaded CPU image of `known_two_spheres` available through `rt_render --backend cpu --shade normal` (#47); temporary preview S4 removed. INTERFACES v1.0 is still marked Proposed |
-| G1 (Nov 6) | **Not met** | Landed: median builder and validator (#31, #40), multicore CPU loop bit-identical to 1 thread (#36), `rt_gen` uniform + `.bin` + hash (#36; terrain integrated in #41), `rt_compare` core checks (#36), traversal with BVH = brute force (C5), `Backend` interface, `CpuBackend` and `rt_render --backend cpu` with `--bvh none\|median` (#47), Lambert + point-light shadows (C4, #49) rendered by `rt_render --shade lit` (#53). T_app, T_br and T_frame on CPU through `rt_render --mode app\|prepared --results` (C9, #51, #56). Missing: fixed benchmark scenes (terrain integrated; generation and publication pending, #35) |
-| G2 (Nov 13) | At risk | Needs C10 megakernel, C11 parallel builder, and first Vista timings. Not met by Nov 13 means [reduced scope](#reduced-scope-fallback) |
+| G1 (Nov 6) | **Met (Nov 11)** | Landed: median builder and validator (#31, #40), multicore CPU loop bit-identical to 1 thread (#36), `rt_gen` uniform + `.bin` + hash (#36; terrain integrated in #41), `rt_compare` core checks (#36), traversal with BVH = brute force (C5), `Backend` interface, `CpuBackend` and `rt_render --backend cpu` with `--bvh none\|median` (#47), Lambert + point-light shadows (C4, #49) rendered by `rt_render --shade lit` (#53). T_app, T_br and T_frame on CPU through `rt_render --mode app\|prepared --results` (C9, #51, #56). Benchmark scenes fixed: `bench_10k_s1`, `bench_100k_s1` and `bench_1m_s1` published as release `scenes-v1`, listed in `scenes/manifest.json` (#35). Met five days late |
+| G2 (Nov 13) | At risk | C11 parallel LBVH builder landed (#38). Needs C10 megakernel and first Vista timings. Nov 13 is a progress target; the team reviews scope as needed rather than automatically adopting [reduced scope](#reduced-scope-fallback) |
 | INTERFACES v1.0 | Proposed | Sign-off was due Oct 27. Open interface proposal #4 (Arek) |
 | C1 | Done (Oct 28) | CMake, CI (first GitHub run green), `.clang-format`, PR template, `hello_cuda`. Verified on the laptop (WSL2, GCC 13.3, CUDA 13.3) and on a Vista GH200 node (GCC 13.2, CUDA 13.3, `ctest` 4/4, `hello_cuda`). Branch protection set: `main` needs a PR with 1 approval; `main` and `dev` block force-push and deletion; the admin can bypass. Making the `cpu` CI job a required check is deferred ([WORKFLOW.md](WORKFLOW.md#deferred-process)) |
 | C2 | Partly done | Merged on `dev`: math library and `AABB` slab tests (#1, #13), scene types, IO, validation, hash, image IO and `scene_dump` (#9), `bvh_types.hpp` (#18), `Timings` (#22), subnormal slab fix and 1e18 coordinate bound (#30), robust `normalize()` (#29). Remaining: INTERFACES sign-off |
 | C3 | Done | Camera and camera IO (#16, #17), `Hit`, intersection and `BruteQuery` (#20, #21), `NormalShading` (#24) and `render_pixel` (#33) landed. `rt_render --backend cpu --bvh none --shade normal` (#47) replaces the temporary normal preview (#36); S4 removed |
 | C3G (GPU smoke) | Partly done | `render_pixel<BruteQuery, NormalShading>` runs in a CUDA test kernel on `known_two_spheres` and matches the CPU image (0 `prim_id` differences on the laptop, #33). `DeviceScene`, the kernel in `src/gpu/`, and `rt_render --backend cuda` not started |
-| C4 | Done (#49) | `offset_ray_origin`, `light_sample`, `shade_hit`, `LitShading` and the `render_pixel` default (W7, an edit to Mikail's `render_pixel.hpp` approved by him Nov 11; contract note W7 closed), with analytic tests on the CPU. Expected values are Arek's own, pending Jett's independent ones. `ShadeDevice` matches the host on the RTX 4070 laptop with the BENCHMARKING tolerances (#49 review). `rt_render --backend cpu --shade lit` renders it, BVH and brute force byte-identical (#53). Corruption test 4 now uses a real lit image (S5 removed); lit goldens remain pending |
-| C5 | Done for the median BVH | Median builder and validator merged (#31, #40). `traverse_closest` / `traverse_any` and `BvhQuery` in `trace/traverse.hpp` share the per-primitive step with brute force (#46, closes #26). Hits are byte-identical to brute force on random, tie-heavy, and axis-aligned rays, on the host and in a CUDA kernel. Rerun the test on LBVH trees when #38 lands. Overflow-flag plumbing: [CONTRACT_NOTES W8](CONTRACT_NOTES.md#w8-where-the-traversal-overflow-flag-lives) |
-| C6 | Partly done | `.bin` IO and `uniform` generation (#36): exact counts, canonical hashes, fitted camera, archive fetch script. Terrain integrated and S3 removed (#41); verification and Po's generation/publication of `scenes-v1` (#35) remain pending. Vista check pending |
+| C4 | Done (#49) | `offset_ray_origin`, `light_sample`, `shade_hit`, `LitShading` and the `render_pixel` default (W7, an edit to Mikail's `render_pixel.hpp` approved by him Nov 11; contract note W7 closed), with analytic tests on the CPU. Independent expected values (double-precision Python, `tests/oracle/shading_expected.py`) agree with Arek's tests and back three extra cases in `tests/test_shade_independent.cpp`: off-axis sphere normal, tilted triangle, multi-light color sum. `ShadeDevice` matches the host on the RTX 4070 laptop with the BENCHMARKING tolerances (#49 review). `rt_render --backend cpu --shade lit` renders it, BVH and brute force byte-identical (#53). Corruption test 4 now uses a real lit image (S5 removed); lit goldens remain pending |
+| C5 | Done for median and LBVH | Median builder and validator merged (#31, #40). `traverse_closest` / `traverse_any` and `BvhQuery` in `trace/traverse.hpp` share the per-primitive step with brute force (#46, closes #26). Hits are byte-identical to brute force on random, tie-heavy, and axis-aligned rays, on the host and in a CUDA kernel. The same brute-force property tests run on median and LBVH trees on CPU and CUDA (#38). Overflow-flag plumbing: [CONTRACT_NOTES W8](CONTRACT_NOTES.md#w8-where-the-traversal-overflow-flag-lives) |
+| C6 | Done except the Vista check | `.bin` IO and `uniform` generation (#36): exact counts, canonical hashes, fitted camera, archive fetch script. Terrain integrated and S3 removed (#41). `scenes-v1` (Nov 11): the three `field_uniform` seed-1 scenes generated on the laptop (WSL2, Ubuntu 24.04.5, glibc 2.39, g++ 13.3.0, Release, CPU-only, `dev` at `dd0efa7`); two generation runs byte-identical; `scene_dump --verify` passes; published as a GitHub Release and recorded in `scenes/manifest.json`; `fetch_scenes.sh scenes-v1` retrieves and verifies them. Remaining: the [open checks](#c6-generator-bin-hash) (direct-URL download, load on Vista, Vista mirror, informational cross-platform hash) |
 | C7 | Partly done | `CpuBackend` (`cpu/cpu_backend.hpp`, #47) runs Po's 16×16 dynamic tile loop (moved to `cpu/tile_loop.hpp`) through the `Backend` interface, with `BvhQuery` or `BruteQuery`. BVH and brute-force images are byte-identical, at 1 to 16 threads, on known and generated scenes. `--shade lit` (the default) and `--shade normal` both render (#53); lit BVH and brute-force images, shadow rays included, are byte-identical at 1 to 16 threads. Temporary preview S4 and duplicate normal renderer removed; CPU pixel tests exercise the backend |
 | C8 | Partly done | `rt_compare` core checks merged (#36), with all four corruption cases on a real lit `known_two_spheres` image through `CpuBackend`; synthetic shadow fixture S5 removed. Double-precision intersection oracle added in #60 (`tests/oracle/`; sphere and triangle against `double`, with a derived error band). Not started: golden tests (Arek), shading expected values (Jett) |
 | C9 | Partly done | `Timings` (#22) and `rt_bench` (#51) landed: run statistics, timers, T_br and T_frame run loops, machine and build identity, results schema v2 writer and validator, CUDA event and stage timers (device tests pass on the RTX 4070 laptop; driven with `CpuBackend` on a 100K scene, unattributed under 0.05 ms per T_br run). `rt_render --mode app\|prepared`, `--runs` and `--results` write schema v2 results for the CPU backend (#56). `scripts/bench/run_tapp.py` (#54) runs 5 fresh `rt_render --mode app` processes, validates their results files and reports the median T_app. It landed and was tested end to end against `rt_render` from #56 (CPU backend, on a non-reference VM); Vista and GPU runs still to do. Remaining: `gpu_timer.hpp` and the aarch64 CPU model on a Vista GH node |
-| C11 builder decision | Due Nov 10 | LBVH draft (#38) is valid and byte-identical at 1/8/72 threads on 10K–1M test scenes (review on #38). Before relying on it: fix the depth fallback, which rebuilds the whole tree too early, and add tests above the 1,024-primitive task threshold. Fallback: task-parallel median |
+| C11 builder decision | Done: LBVH (Nov 12) | Parallel Karras hierarchy, atomic `acq_rel` refit, task-parallel sibling-adjacent layout/collapse, and subtree-only depth recovery landed (#38, closes #37). Validator and byte determinism pass at B=1/8/72, including 1M uniform/clustered/equal-position scratch scenes with zero fallbacks. CPU/CUDA traversal matches brute force; normal/lit CLI images and AOVs match. GCC 13 CPU suite 254/254; CUDA suite 269 passed, one expected no-device-path skip (270 total). Vista validation and preparation scaling remain |
 | C10, C12–C14 | Not started | |

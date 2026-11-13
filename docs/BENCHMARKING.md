@@ -50,7 +50,7 @@ The proposal compares the GPU against the **fastest tested** multicore CPU, whic
 - **GPU\***: the GPU configuration with the lowest median of the quantity being reported among the tested build-thread counts B, with the same per-size, per-quantity selection.
 - Results record which configuration was selected for each quantity, and its spread.
 
-**For the final report only (C14):** pick CPU\* and GPU\* from the sweep, then rerun the 1-core baseline, CPU\*, GPU\*, and fixed-72 configurations in one job, interleaved, 5 runs each. Report the headline ratios from those reruns; picking the minimum of noisy medians biases the picked value low. Preliminary numbers at check-in 3 can come straight from the sweep.
+**For the final report only (C14):** pick CPU\* and GPU\* from the sweep, then rerun the 1-core baseline, CPU\*, GPU\*, and fixed-72 configurations in one job, interleaved, 5 runs each. Report the headline ratios from those reruns; picking the minimum of noisy medians biases the picked value low. Preliminary G3 numbers can come straight from the sweep.
 
 | Target | Headline ratio | Also reported |
 |---|---|---|
@@ -85,7 +85,7 @@ Measured in **primitives**. Fixed at gate G1 (Nov 6), and presented at check-in 
 | `bench_100k` | 50,000 | ~50,000 | 100,000 | 1 |
 | `bench_1m` | 500,000 | ~500,000 | 1,000,000 | 1 |
 
-The terrain grid gives `2·g²` triangles, slightly below the target, so the generator tops it up with sphere count until the total is exactly N. Results record the actual counts.
+The terrain grid gives `2·g²` triangles, slightly below the target, so the generator tops it up with sphere count until the total is exactly N. Results record the actual counts. In the published set `scenes-v1` ([manifest](../scenes/manifest.json)) these are 5,000 + 5,000, 50,072 + 49,928, and 500,000 + 500,000 (spheres + triangles).
 
 Every results file records the scene hash and the exact `rt_gen` command. Icospheres, if used, are counted by their triangles (20·4^k each).
 
