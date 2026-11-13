@@ -212,7 +212,10 @@ Shared CPU/GPU code proves the backends are **consistent**, not that they're **c
   - shadow boundary location of a sphere on the floor;
   - no shadow acne on an unoccluded plane.
   - Tolerance: relative 1e-5 on linear values.
-- **Double-precision oracle** (test-only code, written by Arek, not Mikail): ray-sphere and ray-triangle in `double`, compared with the float versions on random rays. Hits must agree except within a documented distance of edges and silhouettes.
+- **Double-precision oracle** (test-only code, written by Arek, not Mikail; `tests/oracle/`): ray-sphere and ray-triangle in `double`, compared with the float versions on seeded random rays. Hits must agree except within a band around edges, silhouettes and interval ends, derived from the float code's roundoff (eps = 2^-24; derivation in the comment of `tests/oracle/test_oracle.cpp`):
+  - sphere: hit or miss is undetermined when `|R² − dist²| ≤ 2R·ε_L`, with `ε_L = 32·eps·(|origin − center| + R)`; a root is wrong by at most `min(√D, D/h)/|dir| + 32·eps·scale`, where `D = 2R·ε_L` and `h` is the half chord;
+  - triangle: inside or outside is undetermined when `|margin| ≤ 8·eps·reach²/A`, with `reach` the farthest vertex from the origin and `A` the area projected perpendicular to the ray;
+  - inside the band any decision is accepted, but a reported hit must still match the oracle's `t` and barycentrics within the tolerance. Rays in a triangle's own plane are not judged.
 - **BVH vs brute force**: identical `Hit` (same `prim`, bit-identical `t`) on random rays and scenes.
 - **Determinism**: CPU 1 thread vs N threads, repeated BVH builds, and repeated GPU runs are bit-identical (linear PFM and AOVs).
 
