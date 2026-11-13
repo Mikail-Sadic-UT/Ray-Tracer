@@ -1,0 +1,15 @@
+commit: dd0efa7d615c14844a87aa7d0aa2202b9b685638
+renderer: rt_render --backend cpu --bvh median --shade lit --build-threads 1 --render-threads 1 --aov primid,lightmask
+compiler: /usr/bin/c++: c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+build type: Release
+reason: first generation of the lit regression goldens for the known scenes
+sha256:
+d8e6a7ec1b1dbc0a5f366a35fc053e73add70f97bc673ea0c11bedc7b6c7e533  known_degenerate_triangle.pfm
+3144ac8d0b8bee2867359f8fc5179a5c4f9d9a1297da880c746ed7bfc51c2629  known_single_sphere.pfm
+d8e6a7ec1b1dbc0a5f366a35fc053e73add70f97bc673ea0c11bedc7b6c7e533  known_two_spheres.pfm
+01a591d1cc951dc32cf84158de0a30ad1ef90f8bcfc75969f1f3e7a1dae3943c  known_degenerate_triangle.lightmask.u32img
+9e138d03deba0d2a61894edec09d0a6e79aa2f63bc450e3a9cc1808be4b3cfde  known_degenerate_triangle.primid.u32img
+2687aead70bc49619b6ad78ad20d2b9da74f17a4aab8d5b3c0a584833a93a273  known_single_sphere.lightmask.u32img
+b5fd8eb1db6277b5d47cd0bbfc5f224b627219828a929946ad065d0267e4d5e7  known_single_sphere.primid.u32img
+01a591d1cc951dc32cf84158de0a30ad1ef90f8bcfc75969f1f3e7a1dae3943c  known_two_spheres.lightmask.u32img
+9e138d03deba0d2a61894edec09d0a6e79aa2f63bc450e3a9cc1808be4b3cfde  known_two_spheres.primid.u32img
