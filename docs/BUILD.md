@@ -73,6 +73,7 @@ module list                           # expect gcc/13.2.0, cuda/13.3, cmake/4.1.
 - **CMake** defaults to 4.1.1. `cmake/3.29.5` and `cmake/3.31.5` also work with the project's 3.28 minimum.
 - **No Ninja:** use the default Unix Makefiles generator, i.e. leave out `-G Ninja`.
 - **Storage:** clone and build in `$WORK` (1 TB quota). `$SCRATCH` is purged, and `$HOME` is small (23 GB).
+- **Login nodes build but cannot run the project.** There is no NVIDIA driver, so the device tests fail with `CUDA driver version is insufficient for CUDA runtime version` instead of skipping (#73), and OpenMP tests such as `Bvh.LbvhEdgeCasesAndLeafCollapse` fail with `libgomp: Thread creation failed` because of the per-user thread limit. Build with a small `-j` (`scripts/tacc/build_vista.sh` uses 8; 72 parallel nvcc jobs exhaust the process limit), and run `ctest`, `verify.sh` and sweeps on a compute node (`idev` or `sbatch`).
 - **Hostnames** end in `.vista.tacc.utexas.edu`: `login1.vista...` on login nodes, `c642-061.vista...` on `gh-dev` compute nodes.
 - **Compute nodes have outbound internet** (HTTPS to github.com works), so CMake can fetch dependencies on a GH node. Configure and build on a compute node via `idev`, not on a login node.
 - **`OMP_NUM_THREADS=1` is set by default** in TACC shells, so `omp_get_max_threads()` and `nproc` report 1 even though all 72 cores are available (`taskset -cp $$` shows `0-71`). The project is not affected: every parallel region passes an explicit `num_threads(B)` or `num_threads(R)` (INTERFACES §0). Don't read `OMP_NUM_THREADS` or call `omp_get_max_threads()` in library code or scripts, and export `OMP_PROC_BIND=close OMP_PLACES=cores` in every job.
@@ -88,7 +89,13 @@ ldd build-vista/apps/rt_render/rt_render | grep -Ei 'gomp|omp|nvhpc'
 
 If it resolves wrongly, `module unload nvidia` (or `module reset` followed by loading only `gcc` and `cuda/13.3`), rebuild, and check again. The NVIDIA module is `nvidia/<version>` (24.5 through 26.9 are installed). Even with `gcc/13.2.0` loaded, `LD_LIBRARY_PATH` still contains NVIDIA paths from `nvpl` (math libraries) and the CUDA module, so the `ldd` check matters. TACC's user guide recommends `ldd` for checking library resolution.
 
-Record machine identity on the allocated node every time (the sbatch template does this automatically):
+`scripts/tacc/env.sh` does the module loads and thread pinning in one step, and `scripts/tacc/build_vista.sh` configures and builds `build-vista`. It fails on any warning or on a wrong OpenMP runtime:
+
+```bash
+source scripts/tacc/env.sh && bash scripts/tacc/build_vista.sh
+```
+
+Record machine identity on the allocated node every time (`scripts/tacc/sweep.py` does this automatically):
 
 ```bash
 nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv
@@ -102,7 +109,7 @@ Interactive GPU session for development:
 idev -p gh-dev -N 1 -n 1 -t 1:00:00
 ```
 
-Batch jobs use `sbatch` on `gh-dev` (testing, 20 nodes) or `gh` (production, 576 nodes). See the template in [REPO_SKELETON.md](REPO_SKELETON.md#sbatch-template). Allocation: `TRA25006` (check the balance with `/usr/local/etc/taccinfo`). The login node is also aarch64 and accepts `-mcpu=native`, but build on a compute node: `-march`/`-mcpu=native` targets the CPU the build runs on, and only compute nodes have the GPU for `hello_cuda` and tests. Keep build trees and large scenes in `$WORK` or `$SCRATCH`, not `$HOME`.
+Batch jobs use `sbatch` on `gh-dev` (testing, 20 nodes) or `gh` (production, 576 nodes). Use `scripts/tacc/sweep.sbatch` ([BENCHMARKING.md](BENCHMARKING.md#sweeps)). Allocation: `TRA25006` (check the balance with `/usr/local/etc/taccinfo`). The login node is also aarch64 and accepts `-mcpu=native`, but build on a compute node: `-march`/`-mcpu=native` targets the CPU the build runs on, and only compute nodes have the GPU for `hello_cuda` and tests. Keep build trees and large scenes in `$WORK` or `$SCRATCH`, not `$HOME`.
 
 Fallback if Vista GPU access fails: Lonestar6 A100 nodes, `RT_CUDA_ARCH=80`, x86 host.
 

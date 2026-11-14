@@ -9,7 +9,7 @@ ECE 379K project. A ray tracer for spheres and triangles that splits work betwee
 | Arek Plate | AWP688 | Member 3 | [AREK.md](docs/members/AREK.md) |
 | Po Han Ai | PA22435 | Member 4 | [PO.md](docs/members/PO.md) |
 
-**Status (Nov 13):** G1 met. The CPU renderer (Lambert + point-light shadows, median BVH, multicore), `rt_gen`, `rt_compare` and CPU timings have landed, and the benchmark scenes are published as `scenes-v1` (`bash scripts/fetch_scenes.sh scenes-v1`). The parallel LBVH builder is available (`--bvh lbvh --build-threads 8`, #38). The CUDA megakernel renders with `--backend cuda` in a CUDA build and matches the CPU byte for byte on the laptop; Vista verification and first Vista timings remain for G2. See [ROADMAP.md](docs/ROADMAP.md#status).
+**Status (Nov 13):** G1 met. The CPU renderer (Lambert + point-light shadows, median BVH, multicore), `rt_gen`, `rt_compare` and CPU timings have landed, and the benchmark scenes are published as `scenes-v1` (`bash scripts/fetch_scenes.sh scenes-v1`). The parallel LBVH builder is available (`--bvh lbvh --build-threads 8`, #38). The CUDA megakernel renders with `--backend cuda` in a CUDA build and matches the CPU byte for byte on the laptop and on a Vista GH node. **G2 met (Nov 13)**; first Vista timings are in [RESULTS.md](docs/RESULTS.md) (1M primitives: 30× multicore over one core, GPU 1.5× over the best CPU for build-and-render and 5× for a prepared frame). See [ROADMAP.md](docs/ROADMAP.md#status).
 
 ## Required deliverable
 
@@ -126,6 +126,7 @@ Expect to find gaps during implementation. Fix them where they show up, and keep
 | [INTERFACES.md](docs/INTERFACES.md) | Types, frozen numeric rules, BVH pipeline, file formats, results schema |
 | [CONTRACT_NOTES.md](docs/CONTRACT_NOTES.md) | Known gaps in INTERFACES that don't need a change yet, with triggers and owners |
 | [BUILD.md](docs/BUILD.md) | WSL2 and Vista setup, pinned toolchains, CMake options, flags |
+| [RESULTS.md](docs/RESULTS.md) | Preliminary Vista measurements, ratios against the proposal's targets, and what limits them |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Timing quantities, threads, targets, sweeps, memory-mode protocol, quality protocol |
 | [WORKFLOW.md](docs/WORKFLOW.md) | Branching, commit messages, development environment check, PRs, CI, issues, gates |
 | [ROADMAP.md](docs/ROADMAP.md) | Scope, gates, owners, tasks, risks, status |
