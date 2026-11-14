@@ -234,7 +234,9 @@ Float differences legitimately flip a few pixels along silhouettes and shadow bo
 | Shading agreement | Same `prim_id` and `light_mask`: `|a − b| ≤ τ_abs + τ_rel·|ref|` per channel | Any pixel |
 | Broad summary | % of pixels within 2/255 in 8-bit sRGB | Reported only |
 
-Starting values: `τ_abs = 1e-5`, `τ_rel = 1e-4`, `B_px = 0.05%` of pixels (~154 at 640×480, ~1,000 at 1080p). These are **guesses**. At G2, look at real CPU-vs-GPU pairs, set the final values, and note the data used in the PR. If something exceeds tolerance, find the cause (often FMA contraction) before loosening anything.
+Starting values: `τ_abs = 1e-5`, `τ_rel = 1e-4`, `B_px = 0.05%` of pixels (~154 at 640×480, ~1,000 at 1080p). These started as guesses, to be set from real CPU-vs-GPU pairs at G2. If something exceeds tolerance, find the cause (often FMA contraction) before loosening anything.
+
+**G2 calibration (Nov 13, laptop, RTX 4070 Laptop, C10):** the starting values are kept. With the default FMA contraction, GCC and nvcc fused differently, and `rt_compare` failed `bench_1m` at 1080p: 1,407 shading-agreement pixels (at most 1/255 in 8-bit sRGB) and 46 unexplained shadow mismatches (isolated shadow-edge flips). `bench_100k` failed 28 and 9. The cause was fixed instead of loosening the tolerances: with contraction off everywhere ([BUILD.md](BUILD.md#compiler-flags)), CPU and GPU images and AOVs are byte-identical on `bench_10k`, `bench_100k` and `bench_1m` (LBVH, lit) and on the known scenes. Vista calibration is still to do.
 
 **Core corruption tests** (`ctest`, with C8). Each corrupted copy of a reference image must fail, by the named check:
 
