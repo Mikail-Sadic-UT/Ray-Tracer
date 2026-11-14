@@ -9,7 +9,7 @@ ECE 379K project. A ray tracer for spheres and triangles that splits work betwee
 | Arek Plate | AWP688 | Member 3 | [AREK.md](docs/members/AREK.md) |
 | Po Han Ai | PA22435 | Member 4 | [PO.md](docs/members/PO.md) |
 
-**Status (Nov 12):** G1 met. The CPU renderer (Lambert + point-light shadows, median BVH, multicore), `rt_gen`, `rt_compare` and CPU timings have landed, and the benchmark scenes are published as `scenes-v1` (`bash scripts/fetch_scenes.sh scenes-v1`). The parallel LBVH builder is available (`--bvh lbvh --build-threads 8`, #38). G2 (CUDA) is in progress. See [ROADMAP.md](docs/ROADMAP.md#status).
+**Status (Nov 13):** G1 met. The CPU renderer (Lambert + point-light shadows, median BVH, multicore), `rt_gen`, `rt_compare` and CPU timings have landed, and the benchmark scenes are published as `scenes-v1` (`bash scripts/fetch_scenes.sh scenes-v1`). The parallel LBVH builder is available (`--bvh lbvh --build-threads 8`, #38). The CUDA megakernel renders with `--backend cuda` in a CUDA build and matches the CPU byte for byte on the laptop; Vista verification and first Vista timings remain for G2. See [ROADMAP.md](docs/ROADMAP.md#status).
 
 ## Required deliverable
 

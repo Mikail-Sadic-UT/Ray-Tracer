@@ -29,6 +29,10 @@
 #include "cpu/cpu_backend.hpp"
 #include "image/image_io.hpp"
 #include "scene/scene_io.hpp"
+#ifdef RT_HAVE_CUDA_BACKEND
+#include "bench/gpu_timer.hpp"
+#include "gpu/cuda_backend.hpp"
+#endif
 
 namespace {
 
@@ -36,7 +40,13 @@ namespace {
 /// @throws rt::Error for a backend this build doesn't provide.
 std::unique_ptr<rt::Backend> make_backend(const std::string& name) {
     if (name == "cpu") return std::make_unique<rt::CpuBackend>();
-    if (name == "cuda") throw rt::Error("rt_render: the cuda backend has not landed yet (C10)");
+#ifdef RT_HAVE_CUDA_BACKEND
+    if (name == "cuda") return std::make_unique<rt::CudaBackend>();
+#else
+    if (name == "cuda") {
+        throw rt::Error("rt_render: this build has no cuda backend (configured without CUDA)");
+    }
+#endif
     throw rt::Error("rt_render: the " + name + " backend is not part of this build");
 }
 
@@ -92,6 +102,7 @@ int main(int argc, char** argv) {
         rt::Timings startup;
         CLI::App app{"Render a scene with one of the ray-tracer backends"};
         std::string scene_path, backend_name = "cpu", bvh_name = "median", shade_name = "lit";
+        std::string pipeline = "mega";
         std::string out_png, out_pfm, results_path, mode = "app";
         std::vector<std::string> aov_names;
         int build_threads = 1, render_threads = 1, runs = 5;
@@ -103,6 +114,9 @@ int main(int argc, char** argv) {
             app.add_option("--scene", scene_path, "Version 2 scene JSON file")->required();
             app.add_option("--backend", backend_name, "Renderer")
                 ->check(CLI::IsMember({"cpu", "cuda", "embree", "optix"}))
+                ->capture_default_str();
+            app.add_option("--pipeline", pipeline, "CUDA pipeline (--backend cuda only)")
+                ->check(CLI::IsMember({"mega", "wavefront"}))
                 ->capture_default_str();
             app.add_option("--bvh", bvh_name, "Our BVH builder; none = brute force (testing only)")
                 ->check(CLI::IsMember({"none", "median", "lbvh", "sah"}))
@@ -145,6 +159,12 @@ int main(int argc, char** argv) {
             if (mode == "app" && app.count("--runs") != 0) {
                 throw rt::Error("rt_render: --runs applies only to --mode prepared");
             }
+            if (backend_name != "cuda" && app.count("--pipeline") != 0) {
+                throw rt::Error("rt_render: --pipeline applies only to --backend cuda");
+            }
+            if (pipeline == "wavefront") {
+                throw rt::Error("rt_render: --pipeline wavefront is Extension E5, not implemented");
+            }
         }
 
         rt::SceneHost scene;
@@ -183,6 +203,11 @@ int main(int argc, char** argv) {
             shade_name == "normal" ? rt::ShadeMode::Normal : rt::ShadeMode::Lit};
 
         std::unique_ptr<rt::Backend> backend = make_backend(backend_name);
+        const bool cuda = backend_name == "cuda";
+#ifdef RT_HAVE_CUDA_BACKEND
+        // Context creation lands in `cuda_init` (T_app only), not in the first alloc or launch.
+        if (cuda) startup.cuda_init = rt::cuda_init_ms();
+#endif
         const bool use_bvh = backend->needs_bvh() && bvh_name != "none";
         rt::BvhParams params;
         params.method = bvh_name == "lbvh"  ? rt::BvhMethod::LBVH
@@ -243,6 +268,9 @@ int main(int argc, char** argv) {
 
         if (!results_path.empty()) {
             doc.machine = rt::collect_machine_info();
+#ifdef RT_HAVE_CUDA_BACKEND
+            if (cuda) rt::fill_gpu_machine_info(doc.machine);
+#endif
             doc.build = rt::collect_build_info();
             doc.scene.json = scene_path;
             doc.scene.hash = scene.hash;
@@ -253,7 +281,7 @@ int main(int argc, char** argv) {
             doc.scene.num_lights = static_cast<uint32_t>(scene.lights.size());
             rt::ConfigInfo& c = doc.config;
             c.backend = backend->name();
-            c.pipeline = "none";  // only the CUDA backends have mega / wavefront (C10, E5)
+            c.pipeline = cuda ? pipeline : "none";  // only CUDA has mega / wavefront (C10, E5)
             c.bvh = bvh_name;
             c.max_leaf_size = max_leaf_size;
             c.build_threads = build_threads;
@@ -293,6 +321,11 @@ int main(int argc, char** argv) {
         std::cerr << "  args " << startup.args << " ms, load " << startup.load << " ms, bounds "
                   << shown.bounds << " ms, build " << shown.build << " ms, layout " << shown.layout
                   << " ms, render " << shown.render << " ms\n";
+        if (cuda) {
+            std::cerr << "  cuda_init " << startup.cuda_init << " ms, alloc " << shown.alloc
+                      << " ms, upload " << shown.upload << " ms, render_kernel "
+                      << shown.render_kernel << " ms, download " << shown.download << " ms\n";
+        }
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << '\n';
