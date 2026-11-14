@@ -150,7 +150,7 @@ sbatch scripts/tacc/sweep.sbatch                                   # verify, the
 sbatch -p gh -t 01:00:00 --export=ALL,PRESET=core scripts/tacc/sweep.sbatch
 ```
 
-Each job writes `$SCRATCH/rt-results/<preset>-<job id>/`: `identity/` (nvidia-smi, lscpu, gcc, nvcc, modules, ldd, OpenMP environment), `points/<point>/` (results files and the exact command), `verify/summary.txt`, and `sweep.csv`. The CSV has one row per point and quantity, with the components of the median run. Finished points are skipped on resubmission. The laptop runs `g2` in about 1.5 minutes (`--machine laptop`); copy `sweep.csv` and `identity/` out of `$SCRATCH` before it is purged.
+Each job writes `$SCRATCH/rt-results/<preset>-<job id>/`: `identity/` (nvidia-smi, lscpu, gcc, nvcc, modules, ldd, OpenMP environment), `points/<point>/` (results files and the exact command), `verify/summary.txt`, and `sweep.csv`. The CSV has one row per point and quantity, with the components of the median run. Finished points are skipped on resubmission. The laptop runs `g2` in about 1.5 minutes (`--machine laptop`); copy `sweep.csv` and `identity/` out of `$SCRATCH` before it is purged. `python3 scripts/tacc/ratios.py sweep.csv` prints the target ratios (CPU\* and GPU\* chosen by the rule above, with the number of thread counts CPU\* came from) and the T_br breakdown; results so far are in [RESULTS.md](RESULTS.md).
 
 ## Machine identity
 

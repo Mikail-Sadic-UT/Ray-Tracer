@@ -296,7 +296,7 @@ python3 scripts/tacc/sweep.py run --preset g2 --machine laptop --scenes scenes/g
   --rt-render build/apps/rt_render/rt_render --out out/sweep-g2
 ```
 
-The results are in `out/sweep-g2/sweep.csv`.
+The results are in `out/sweep-g2/sweep.csv`. Summarize it with `python3 scripts/tacc/ratios.py out/sweep-g2/sweep.csv`. On Vista, use `scripts/tacc/sweep.sbatch` instead ([BENCHMARKING.md](BENCHMARKING.md#sweeps)); the first Vista results are in [RESULTS.md](RESULTS.md).
 
 ## Build CUDA and render on the GPU
 
