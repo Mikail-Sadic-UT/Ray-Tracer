@@ -287,7 +287,16 @@ export OMP_PROC_BIND=close
 export OMP_PLACES=cores
 ```
 
-Small known scenes are useful for correctness demos; generated scenes expose meaningful rendering work. Keep all run records and compare medians with spread. Full sweep rules and speedup definitions are in [BENCHMARKING.md](BENCHMARKING.md).
+Small known scenes are useful for correctness demos; generated scenes expose meaningful rendering work. Keep all run records and compare medians with spread. Full sweep rules and speedup definitions are in [BENCHMARKING.md](BENCHMARKING.md). To run a whole sweep and get one CSV, use `scripts/tacc/sweep.py`. For example, after fetching `scenes-v1`:
+
+```bash
+export OMP_PROC_BIND=close OMP_PLACES=cores
+python3 scripts/tacc/sweep.py plan --preset g2 --machine laptop --scenes scenes/generated   # list the runs
+python3 scripts/tacc/sweep.py run --preset g2 --machine laptop --scenes scenes/generated \
+  --rt-render build/apps/rt_render/rt_render --out out/sweep-g2
+```
+
+The results are in `out/sweep-g2/sweep.csv`.
 
 ## Build CUDA and render on the GPU
 

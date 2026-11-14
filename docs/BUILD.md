@@ -88,7 +88,13 @@ ldd build-vista/apps/rt_render/rt_render | grep -Ei 'gomp|omp|nvhpc'
 
 If it resolves wrongly, `module unload nvidia` (or `module reset` followed by loading only `gcc` and `cuda/13.3`), rebuild, and check again. The NVIDIA module is `nvidia/<version>` (24.5 through 26.9 are installed). Even with `gcc/13.2.0` loaded, `LD_LIBRARY_PATH` still contains NVIDIA paths from `nvpl` (math libraries) and the CUDA module, so the `ldd` check matters. TACC's user guide recommends `ldd` for checking library resolution.
 
-Record machine identity on the allocated node every time (the sbatch template does this automatically):
+`scripts/tacc/env.sh` does the module loads and thread pinning in one step, and `scripts/tacc/build_vista.sh` configures and builds `build-vista`. It fails on any warning or on a wrong OpenMP runtime:
+
+```bash
+source scripts/tacc/env.sh && bash scripts/tacc/build_vista.sh
+```
+
+Record machine identity on the allocated node every time (`scripts/tacc/sweep.py` does this automatically):
 
 ```bash
 nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv
@@ -102,7 +108,7 @@ Interactive GPU session for development:
 idev -p gh-dev -N 1 -n 1 -t 1:00:00
 ```
 
-Batch jobs use `sbatch` on `gh-dev` (testing, 20 nodes) or `gh` (production, 576 nodes). See the template in [REPO_SKELETON.md](REPO_SKELETON.md#sbatch-template). Allocation: `TRA25006` (check the balance with `/usr/local/etc/taccinfo`). The login node is also aarch64 and accepts `-mcpu=native`, but build on a compute node: `-march`/`-mcpu=native` targets the CPU the build runs on, and only compute nodes have the GPU for `hello_cuda` and tests. Keep build trees and large scenes in `$WORK` or `$SCRATCH`, not `$HOME`.
+Batch jobs use `sbatch` on `gh-dev` (testing, 20 nodes) or `gh` (production, 576 nodes). Use `scripts/tacc/sweep.sbatch` ([BENCHMARKING.md](BENCHMARKING.md#sweeps)). Allocation: `TRA25006` (check the balance with `/usr/local/etc/taccinfo`). The login node is also aarch64 and accepts `-mcpu=native`, but build on a compute node: `-march`/`-mcpu=native` targets the CPU the build runs on, and only compute nodes have the GPU for `hello_cuda` and tests. Keep build trees and large scenes in `$WORK` or `$SCRATCH`, not `$HOME`.
 
 Fallback if Vista GPU access fails: Lonestar6 A100 nodes, `RT_CUDA_ARCH=80`, x86 host.
 
