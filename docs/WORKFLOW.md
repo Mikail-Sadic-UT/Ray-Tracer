@@ -2,6 +2,21 @@
 
 Kept deliberately light. The goal is that four people (and their agents) can work in parallel and merge without breaking each other. Anything heavier is listed under [Deferred](#deferred-process) and switched on only if a real problem shows up.
 
+> ## Post-G2 note (Nov 22): relaxed rules
+>
+> G2 is met and the base of the project is done, and the remaining work is mostly done by one person (Mikail). The rest of this file is kept as written, because it still describes how the project was built. From here, these rules are **relaxed**:
+>
+> | Rule below | Now |
+> |---|---|
+> | One approving review from someone other than the author; "ideally the code's owner" | Not required. The author may merge after CI passes. Ask a teammate to look at anything risky or numeric, but it is optional |
+> | Owner approval and a version bump for [Interface changes](#interface-changes) | INTERFACES.md is frozen. Record changes in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md); no approval step |
+> | Assigning issues and PRs, "tell the group chat", "out of work" routine | Optional. Issues are for bugs and decisions worth a record |
+> | Stub-register checks at gates, stubs for a missing teammate piece | Stubs are rarely needed now. `check_stubs.sh` still runs in CI |
+> | "Verified on Vista" and `Developed-on:` / `Needs-check:` trailers | Recommended for GPU or numeric changes; not required |
+> | Weekly meeting and contribution-log rows | Keep the log row if the report needs it; the meeting is optional |
+>
+> **Unchanged:** work on a `<member>/<topic>` branch from `dev`, open a PR into `dev` (ready for review by default), kernel-style commit messages with `Signed-off-by`, docs updated in the last commit of a PR, merge commits (not squash), and a green `cpu` CI job before merging. The environment check and the GPU check for render-code changes still apply. Forward-looking work is in [PLAN.md](PLAN.md).
+
 ## Start with open issues
 
 Before you start new work, look at the open [GitHub issues](../../../issues) and try to fix the ones that apply to you first.

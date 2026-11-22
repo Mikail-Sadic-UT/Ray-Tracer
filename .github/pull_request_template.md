@@ -1,3 +1,5 @@
+<!-- Post-G2 (Nov 22): review, assignment, interface-approval and stub checkboxes below are optional;
+     see docs/WORKFLOW.md "Post-G2 note". Unchecked boxes that don't apply can be left as is. -->
 <!-- Before you open this PR: base branch is `dev` (not `main`), branch name is
      `<member>/<topic>`, and commits read `subsystem: summary` with `git commit -s`.
      See docs/WORKFLOW.md "Branches" and "Commit messages". -->
