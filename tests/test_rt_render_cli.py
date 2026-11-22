@@ -194,7 +194,7 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
     failures = {
         '--runs applies only': ['--runs', '3'],
         'cannot open': ['--results', str(root / 'missing_dir' / 'r.json')],
-        'cuda backend': ['--backend', 'cuda', '--shade', 'normal'],
+        'embree backend': ['--backend', 'embree', '--shade', 'normal'],
         'only Median': ['--bvh', 'sah', '--shade', 'normal'],
         'vfov_deg': ['--shade', 'normal', '--cam-vfov', '180'],
         '--pfm': ['--shade', 'normal', '--aov', 'primid'],

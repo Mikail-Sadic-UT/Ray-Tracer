@@ -17,7 +17,7 @@
 │   ├── core/       (Arek)      hostdev.hpp  math.hpp (vec3, color)  ray.hpp  aabb.hpp  error.hpp
 │   ├── scene/      (Po)        scene.hpp (Scene view)  scene_host.hpp  scene_io.hpp  scene_io.cpp  json_helpers.hpp
 │   │                           binary_format.hpp  hash.hpp  hash.cpp  generator.cpp  pcg32.hpp
-│   │                           # generator.cpp + hash: -ffp-contract=off
+│   │                           # generator.cpp + hash: -ffp-contract=off (now project-wide)
 │   ├── camera/     (Jett)      camera.hpp (inline camera_ray, device-usable)  camera_io.hpp  camera.cpp (host only: parsing, overrides)
 │   ├── bvh/        (Jett)      bvh_types.hpp  bvh.hpp  bounds.cpp  build_median.cpp  build_lbvh.cpp  layout.cpp  build_sah.cpp  validate.cpp
 │   │                           morton.hpp  radix_sort.hpp

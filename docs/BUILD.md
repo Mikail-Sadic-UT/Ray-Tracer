@@ -241,7 +241,7 @@ Exact, bit-identical goldens would need a pinned CI container (image digest, exa
 | `-march=native` | x86 laptop |
 | `-mcpu=native` (or `-mcpu=neoverse-v2`) | Grace. GCC 13.2.0 accepts both; CMake uses `-mcpu=native` on aarch64 |
 | No `-ffast-math`, no `--use_fast_math` | Everywhere (the NaN-safe slab test depends on IEEE comparisons; see [INTERFACES.md](INTERFACES.md#ray-box-slab-test-frozen)) |
-| `-ffp-contract=off` | Generator and scene-hash sources only. Reduces variation, but doesn't make x86 and ARM bytes identical (libm differs), so benchmark scenes are generated once and distributed ([INTERFACES.md](INTERFACES.md#generator-determinism-and-scene-distribution)) |
+| `-ffp-contract=off` (C++, and `-Xcompiler` for the host side of `.cu` files), `--fmad=false` (nvcc device code) | Everywhere, through `rt_core` (`cmake/RtCompilerFlags.cmake`). GCC and nvcc fuse `a*b + c` in different places; with contraction off, CPU and GPU images are byte-identical on the benchmark scenes (C10). Explicit `fmaf()` calls are unaffected. It doesn't make x86 and ARM bytes identical (libm differs), so benchmark scenes are still generated once and distributed ([INTERFACES.md](INTERFACES.md#generator-determinism-and-scene-distribution)) |
 | `-Xcompiler -fopenmp`, `-lineinfo`, `-Xptxas -v` | nvcc (lineinfo for Nsight; `-v` reports registers and local memory) |
 
 Benchmark binaries on Vista must be built on Vista. Don't copy laptop binaries.

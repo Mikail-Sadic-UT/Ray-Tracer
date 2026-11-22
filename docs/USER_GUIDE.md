@@ -2,7 +2,7 @@
 
 A practical guide to compiling and using the tools currently in this repo. All commands run from the **repository root** in a Bash terminal. Examples use WSL2 Ubuntu 24.04 and write output under `out/`.
 
-**Current scope:** CPU rendering works with spheres, triangles, Lambert point-light shading, hard shadows, and median or parallel LBVH acceleration. CUDA builds include GPU tests and `hello_cuda`; the production `rt_render --backend cuda` path is still pending in the Nov 12 snapshot. Some CLI choices describe future features and currently return an error.
+**Current scope:** CPU rendering works with spheres, triangles, Lambert point-light shading, hard shadows, and median or parallel LBVH acceleration. CUDA builds add GPU rendering (`rt_render --backend cuda`, the megakernel), GPU tests, and `hello_cuda`. Some CLI choices describe future features and currently return an error.
 
 ## Find what you need
 
@@ -15,7 +15,7 @@ A practical guide to compiling and using the tools currently in this repo. All c
 - [Generate larger scenes](#generate-larger-scenes)
 - [Download the fixed benchmark scenes](#download-the-fixed-benchmark-scenes)
 - [Measure performance](#measure-performance)
-- [Build CUDA tests](#build-cuda-tests)
+- [Build CUDA and render on the GPU](#build-cuda-and-render-on-the-gpu)
 - [Troubleshooting](#troubleshooting)
 - [Command reference](#command-reference)
 
@@ -289,7 +289,7 @@ export OMP_PLACES=cores
 
 Small known scenes are useful for correctness demos; generated scenes expose meaningful rendering work. Keep all run records and compare medians with spread. Full sweep rules and speedup definitions are in [BENCHMARKING.md](BENCHMARKING.md).
 
-## Build CUDA tests
+## Build CUDA and render on the GPU
 
 On the reference laptop, with the CUDA 13.3 toolkit and RTX 4070 (`sm_89`):
 
@@ -306,7 +306,16 @@ ctest --test-dir build --output-on-failure
 
 If `nvcc` isn't found, configuration falls back to CPU-only. Put `/usr/local/cuda-13.3/bin` on PATH or provide `-DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc` when configuring a fresh build directory.
 
-**Enabling CUDA currently builds the device tests; it does not enable the pending production CUDA rendering backend.** `--backend cuda` still returns an error. Embree/OptiX backends and the SAH builder are also unavailable in this snapshot.
+A CUDA build also enables `rt_render --backend cuda`, the megakernel (one GPU thread per pixel, the same tracing and shading code as the CPU). Every other option works as with `--backend cpu`. `--render-threads` is ignored, and `--build-threads` still sets the CPU BVH build:
+
+```bash
+./build/apps/rt_render/rt_render \
+  --scene scenes/known/known_two_spheres.json \
+  --backend cuda --bvh lbvh --build-threads 8 --shade lit \
+  --aov primid,lightmask --pfm out/two_spheres.cuda.pfm --out out/two_spheres.cuda.png
+```
+
+Compare it with a CPU render of the same scene using `rt_compare` (see [Compare two renders](#compare-two-renders)). With contraction off in both compilers ([BUILD.md](BUILD.md#compiler-flags)), the two images are normally byte-identical. CUDA results files add `cuda_init` (app mode only), `alloc`, `upload` and `download` components, a `render_kernel` diagnostic (kernel-only time, overlapping `render`), the GPU identity, and `"pipeline": "mega"`. `--pipeline wavefront` and the `--mem` options are extensions (E5, E1) and aren't implemented. Embree/OptiX backends and the SAH builder are also unavailable in this snapshot.
 
 ### Vista
 
@@ -324,7 +333,9 @@ Allocate a GH compute node and load the documented GCC/CUDA/CMake modules. Use `
 | `--aov` rejected | Supply `--pfm`; use `primid`, `lightmask`, or both comma-separated. |
 | Comparator reports missing files | Each PFM needs both matching `.primid.u32img` and `.lightmask.u32img` sidecars. |
 | `--runs` rejected | It applies only to `--mode prepared`. Use the Python process script for repeated app measurements. |
-| CUDA/backend/builder unavailable | Currently use `--backend cpu` and `--bvh median`, `lbvh` or `none`; see the scope note above. |
+| Backend/builder unavailable | Use `--backend cpu` or (in a CUDA build) `cuda`, and `--bvh median`, `lbvh` or `none`; see the scope note above. |
+| `this build has no cuda backend` | The build was configured with `RT_ENABLE_CUDA=OFF`, or `nvcc` wasn't found. Use a CUDA build directory. |
+| `no CUDA-capable device is detected` | No GPU is visible (check `nvidia-smi` and `CUDA_VISIBLE_DEVICES`). |
 | Unexpectedly slow render | Check Release build, median/LBVH acceleration, resolution, scene size, and render thread count. Brute force is costly on large scenes. |
 | Scene hash unchanged after moving camera | Expected: the scene hash excludes the camera. Results record the effective camera separately. |
 | Fetch cannot find `scene_dump` | Set `RT_SCENE_DUMP` to the absolute executable path, as in the download example. |
@@ -336,11 +347,12 @@ Allocate a GH compute node and load the documented GCC/CUDA/CMake modules. Use `
 | Option | Current use |
 |---|---|
 | `--scene PATH` | Required version-2 scene JSON |
-| `--backend cpu` | Available production backend |
+| `--backend cpu\|cuda` | CPU renderer, or the CUDA megakernel (CUDA builds only) |
+| `--pipeline mega` | CUDA pipeline; `mega` is the default and the only one implemented |
 | `--bvh median\|lbvh\|none` | Serial median tree, parallel LBVH, or brute force |
 | `--max-leaf-size N` | Positive leaf limit; default 4 |
 | `--build-threads B` | Positive preparation thread count; used by LBVH, median remains serial |
-| `--render-threads R` | Positive CPU rendering thread count |
+| `--render-threads R` | Positive CPU rendering thread count (ignored by `cuda`) |
 | `--width W --height H` | Override resolution |
 | `--cam-pos X Y Z` | Override camera position |
 | `--cam-look X Y Z` | Override camera target |

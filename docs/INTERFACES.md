@@ -25,7 +25,7 @@ General rules:
 - `float` for all scene data and ordinary arithmetic in shared render code, including the CPU reference. **One narrow exception:** the watertight triangle test's `double` fallback when an edge function is exactly zero (see [section 5](#frozen-rules)). It runs identically on CPU and GPU, and fires rarely (on exact edge and vertex hits). No other `double` in render code.
 - No `-ffast-math` / `--use_fast_math` anywhere (NaN comparisons below depend on IEEE semantics).
 - **Header-inline device code.** Every `RT_HOSTDEV` function lives inline in a header (`RT_INLINE`), so each `.cu` and `.cpp` translation unit compiles its own copy. No relocatable device code (`-rdc`) and no device linking. `.cpp` files hold host-only code (parsing, IO, builders).
-- FMA contraction differs between compilers, so CPU and GPU outputs differ slightly. Comparison rules are in [BENCHMARKING.md](BENCHMARKING.md#quality-protocol).
+- No floating-point contraction: all project code is compiled with `-ffp-contract=off` and nvcc `--fmad=false` ([BUILD.md](BUILD.md#compiler-flags)), because GCC and nvcc fuse multiply-adds in different places. Write an explicit `fmaf()` where a fused result is wanted. CPU and GPU outputs can still differ slightly (for example, host and device `tanf` can differ by an ulp), so comparisons follow [BENCHMARKING.md](BENCHMARKING.md#quality-protocol).
 
 ## 0. Code conventions
 

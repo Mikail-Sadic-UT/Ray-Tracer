@@ -31,8 +31,12 @@ else()
   set(RT_ARCH_FLAG -march=native)
 endif()
 
-set(RT_CXX_FLAGS -Wall -Wextra ${RT_ARCH_FLAG})
-set(RT_CUDA_FLAGS -lineinfo "-Xcompiler=-Wall,-Wextra")
+# No floating-point contraction (FMA fusion) on host or device. GCC and nvcc fuse a*b + c in
+# different places, which made CPU and GPU images differ at the ulp level and flip shadow-edge
+# pixels; with contraction off they are byte-identical on the benchmark scenes (C10, Nov 13).
+# Explicit fmaf() calls, such as in the watertight triangle test, are unaffected.
+set(RT_CXX_FLAGS -Wall -Wextra ${RT_ARCH_FLAG} -ffp-contract=off)
+set(RT_CUDA_FLAGS -lineinfo --fmad=false "-Xcompiler=-Wall,-Wextra,-ffp-contract=off")
 
 option(RT_PTXAS_VERBOSE "Pass -Xptxas -v to nvcc (register and local-memory report)" OFF)
 if(RT_PTXAS_VERBOSE)
