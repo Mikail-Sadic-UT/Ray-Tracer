@@ -50,7 +50,7 @@
 ├── scripts/
 │   ├── ci/                     # golden_check.sh, regen_goldens.sh
 │   ├── fetch_scenes.sh         # download a scene set from the release archive and verify hashes
-│   ├── tacc/                   # modules.sh, sbatch templates, sweep generators
+│   ├── tacc/                   # env.sh, build_vista.sh, sweep.py, sweep.sbatch, verify.sh, node_hours.sh
 │   ├── plot/                   # matplotlib scripts
 │   └── blender/                # export_scene.py
 └── docs/
@@ -229,7 +229,7 @@ jobs:
 
 ## sbatch template
 
-`scripts/tacc/run_gh.sbatch` (queue names `gh-dev` and `gh` and the module versions were checked on Oct 28; **verify on Vista** the time limits and the allocation name):
+**Superseded by `scripts/tacc/sweep.sbatch` and `sweep.py` (C12; usage in [BENCHMARKING.md](BENCHMARKING.md#sweeps)).** The original outline is kept below for reference. Queue names `gh-dev` and `gh` and the module versions were checked on Oct 28; **verify on Vista** the time limits and the allocation name:
 
 ```bash
 #!/bin/bash

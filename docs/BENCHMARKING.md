@@ -141,6 +141,17 @@ Core sweeps, varying one dimension at a time around a baseline. Baseline: `bench
 
 Extensions add their own dimensions: memory modes, pipeline, Embree.
 
+**Running them (C12):** `scripts/tacc/sweep.py` turns each row into a preset (`cpu-threads`, `gpu-build-threads`, `size`, `bvh`, `resolution`, `tapp`). `g2` is the first T_app / T_br / T_frame at 3 sizes. `core` is every Core row. `smoke` is the known scene, for checking a node. The size preset also measures the 1-core CPU baseline at each size, which the target ratios need. Light count L isn't automated yet: `rt_render` has no light override, so it needs scene variants with 2 and 4 lights. On Vista, from the repo root in `$WORK`:
+
+```bash
+mkdir -p logs
+sbatch --export=ALL,PRESET=verify scripts/tacc/sweep.sbatch        # G2 correctness checks only
+sbatch scripts/tacc/sweep.sbatch                                   # verify, then the g2 preset
+sbatch -p gh -t 01:00:00 --export=ALL,PRESET=core scripts/tacc/sweep.sbatch
+```
+
+Each job writes `$SCRATCH/rt-results/<preset>-<job id>/`: `identity/` (nvidia-smi, lscpu, gcc, nvcc, modules, ldd, OpenMP environment), `points/<point>/` (results files and the exact command), `verify/summary.txt`, and `sweep.csv`. The CSV has one row per point and quantity, with the components of the median run. Finished points are skipped on resubmission. The laptop runs `g2` in about 1.5 minutes (`--machine laptop`); copy `sweep.csv` and `identity/` out of `$SCRATCH` before it is purged. `python3 scripts/tacc/ratios.py sweep.csv` prints the target ratios (CPU\* and GPU\* chosen by the rule above, with the number of thread counts CPU\* came from) and the T_br breakdown; results so far are in [RESULTS.md](RESULTS.md).
+
 ## Machine identity
 
 Record from the allocated node, not from documentation:
@@ -193,7 +204,7 @@ Comparisons:
 
 ## Node-hour budget
 
-About 50 node-hours. Develop on `gh-dev`. Production sweeps on `gh`. Mikail keeps the log:
+About 50 node-hours. Develop on `gh-dev`. Production sweeps on `gh`. Mikail keeps the log; `bash scripts/tacc/node_hours.sh <job id> --total <running total>` prints a row from `sacct`:
 
 | Date | Who | Queue | Job ID | Nodes × hours | Purpose | Running total |
 |---|---|---|---|---|---|---|
@@ -236,7 +247,7 @@ Float differences legitimately flip a few pixels along silhouettes and shadow bo
 
 Starting values: `τ_abs = 1e-5`, `τ_rel = 1e-4`, `B_px = 0.05%` of pixels (~154 at 640×480, ~1,000 at 1080p). These started as guesses, to be set from real CPU-vs-GPU pairs at G2. If something exceeds tolerance, find the cause (often FMA contraction) before loosening anything.
 
-**G2 calibration (Nov 13, laptop, RTX 4070 Laptop, C10):** the starting values are kept. With the default FMA contraction, GCC and nvcc fused differently, and `rt_compare` failed `bench_1m` at 1080p: 1,407 shading-agreement pixels (at most 1/255 in 8-bit sRGB) and 46 unexplained shadow mismatches (isolated shadow-edge flips). `bench_100k` failed 28 and 9. The cause was fixed instead of loosening the tolerances: with contraction off everywhere ([BUILD.md](BUILD.md#compiler-flags)), CPU and GPU images and AOVs are byte-identical on `bench_10k`, `bench_100k` and `bench_1m` (LBVH, lit) and on the known scenes. Vista calibration is still to do.
+**G2 calibration (Nov 13, laptop, RTX 4070 Laptop, C10):** the starting values are kept. With the default FMA contraction, GCC and nvcc fused differently, and `rt_compare` failed `bench_1m` at 1080p: 1,407 shading-agreement pixels (at most 1/255 in 8-bit sRGB) and 46 unexplained shadow mismatches (isolated shadow-edge flips). `bench_100k` failed 28 and 9. The cause was fixed instead of loosening the tolerances: with contraction off everywhere ([BUILD.md](BUILD.md#compiler-flags)), CPU and GPU images and AOVs are byte-identical on `bench_10k`, `bench_100k` and `bench_1m` (LBVH, lit) and on the known scenes. The same holds on a Vista GH node (Grace + GH200, Nov 13, `verify.sh`): byte-identical on the known scenes and `bench_10k/100k/1m`, so no Vista-specific tolerance is needed ([RESULTS.md](RESULTS.md)).
 
 **Core corruption tests** (`ctest`, with C8). Each corrupted copy of a reference image must fail, by the named check:
 
