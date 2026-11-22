@@ -9,7 +9,7 @@ ECE 379K project. A ray tracer for spheres and triangles that splits work betwee
 | Arek Plate | AWP688 | Member 3 | [AREK.md](docs/members/AREK.md) |
 | Po Han Ai | PA22435 | Member 4 | [PO.md](docs/members/PO.md) |
 
-**Status (Nov 13):** G1 met. The CPU renderer (Lambert + point-light shadows, median BVH, multicore), `rt_gen`, `rt_compare` and CPU timings have landed, and the benchmark scenes are published as `scenes-v1` (`bash scripts/fetch_scenes.sh scenes-v1`). The parallel LBVH builder is available (`--bvh lbvh --build-threads 8`, #38). The CUDA megakernel renders with `--backend cuda` in a CUDA build and matches the CPU byte for byte on the laptop and on a Vista GH node. **G2 met (Nov 13)**; first Vista timings are in [RESULTS.md](docs/RESULTS.md) (1M primitives: 30× multicore over one core, GPU 1.5× over the best CPU for build-and-render and 5× for a prepared frame). See [ROADMAP.md](docs/ROADMAP.md#status).
+**Status (Nov 22):** G1 met. The CPU renderer (Lambert + point-light shadows, median BVH, multicore), `rt_gen`, `rt_compare` and CPU timings have landed, and the benchmark scenes are published as `scenes-v1` (`bash scripts/fetch_scenes.sh scenes-v1`). The parallel LBVH builder is available (`--bvh lbvh --build-threads 8`, #38). The CUDA megakernel renders with `--backend cuda` in a CUDA build and matches the CPU byte for byte on the laptop and on a Vista GH node. **G2 met (Nov 13)**; first Vista timings are in [RESULTS.md](docs/RESULTS.md) (1M primitives: 30× multicore over one core, GPU 1.5× over the best CPU for build-and-render and 5× for a prepared frame). Interfaces are frozen and the workflow rules are relaxed from here on (see [WORKFLOW.md](docs/WORKFLOW.md), "Post-G2 note"); the remaining work is in [PLAN.md](docs/PLAN.md). See [ROADMAP.md](docs/ROADMAP.md#status).
 
 ## Required deliverable
 
@@ -123,7 +123,9 @@ Expect to find gaps during implementation. Fix them where they show up, and keep
 |---|---|
 | [USER_GUIDE.md](docs/USER_GUIDE.md) | Compile, render, change settings, inspect/generate scenes, compare images, collect timings, and troubleshoot |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, ownership vs views, backend lifecycle, GPU pipelines, memory modes, CLI |
-| [INTERFACES.md](docs/INTERFACES.md) | Types, frozen numeric rules, BVH pipeline, file formats, results schema |
+| [INTERFACES.md](docs/INTERFACES.md) | Types, frozen numeric rules, BVH pipeline, file formats, results schema. Frozen at v1.0 (Nov 22) |
+| [PLAN.md](docs/PLAN.md) | Living list of the remaining work after G2: next items, open decisions, what to watch |
+| [INTERFACE_CHANGES.md](docs/INTERFACE_CHANGES.md) | Interface additions and changes since the v1.0 freeze, and the rules for recording them |
 | [CONTRACT_NOTES.md](docs/CONTRACT_NOTES.md) | Known gaps in INTERFACES that don't need a change yet, with triggers and owners |
 | [BUILD.md](docs/BUILD.md) | WSL2 and Vista setup, pinned toolchains, CMake options, flags |
 | [RESULTS.md](docs/RESULTS.md) | Preliminary Vista measurements, ratios against the proposal's targets, and what limits them |

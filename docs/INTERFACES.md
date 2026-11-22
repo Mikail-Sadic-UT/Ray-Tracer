@@ -1,6 +1,6 @@
 # Interfaces (shared contracts)
 
-**Status: v1.0, PROPOSED.** Sign-off at the team meeting (target **Oct 27**). After that, changes follow [Interface changes](#interface-changes).
+**Status: v1.0, FROZEN (Nov 22, post-G2).** This file is no longer edited for new work. Additions and changes are recorded in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md), which says which sections they touch; a section here gets only a short pointer to the entry. Sign-off was targeted for Oct 27; the contract has been in use since, and the freeze records it as accepted.
 
 This file is the contract that lets each member (and each member's agent) build a part independently and have the parts fit together. If something here turns out wrong during implementation, fix it through a small interface PR. Don't work around it locally. Known gaps that don't need a change yet are tracked in [CONTRACT_NOTES.md](CONTRACT_NOTES.md).
 Signatures are sketches. Field order, sizes, and the stated rules are what matter.
@@ -825,6 +825,7 @@ Components are host wall-clock intervals (`steady_clock`) with `cudaDeviceSynchr
 - `median_run_index` identifies the run whose components explain the median total. Medians of individual components are not summed.
 
 ## Interface changes
+> **Post-G2 (frozen):** new changes follow [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md) instead of the multi-owner process below. The text below is kept as the original rule.
 
 1. One PR changes this file and the affected code together.
 2. Every owner whose code is affected approves it (see the owner table at the top). Pure clarifications need only the normal single review.

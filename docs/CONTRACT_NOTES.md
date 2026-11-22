@@ -1,6 +1,6 @@
 # Contract notes
 
-Places where code follows [INTERFACES.md](INTERFACES.md) but the contract itself may need to change later. INTERFACES.md is a working agreement, expected to change during development. These notes record where it is thin or may need adjusting, so the gap is found again when it matters instead of rediscovered.
+Places where code follows [INTERFACES.md](INTERFACES.md) but the contract itself may need to change later. INTERFACES.md was a working agreement during development and is now frozen at v1.0 (Nov 22); changes since then are recorded in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md), and a note whose trigger fires becomes an entry there. These notes record where it is thin or may need adjusting, so the gap is found again when it matters instead of rediscovered.
 
 These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 
