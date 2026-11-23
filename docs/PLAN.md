@@ -44,7 +44,7 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 
 ### Decisions still open
 
-- **Which extensions to run (#71).** Leaning (Nov 23, working solo): camera-path video first (done, see below), then E2 Blinn-Phong (done), then mirror reflections (done), then colored glass (done). Possible follow-up: tinted shadows through glass (shadow rays treat glass as opaque now). All behind material flags, so the benchmark scenes, goldens and CPU/GPU byte equality stay unchanged; mirror images turned out byte-identical between CPU and GPU, so they need no separate comparison category. E1, E3, E4 and E5 are likely cut. Candidates and what the data says. Sizes are the ROADMAP timeboxes; the owners listed there assumed a four-person team, so treat them as sizes only:
+- **Which extensions to run (#71).** Leaning (Nov 23, working solo): camera-path video first (done, see below), then E2 Blinn-Phong (done), then mirror reflections (done), then colored glass with tinted shadows (done), and a showcase scene and orbit video for the slides (done). All behind material flags, so the benchmark scenes, goldens and CPU/GPU byte equality stay unchanged; mirror images turned out byte-identical between CPU and GPU, so they need no separate comparison category. E1, E3, E4 and E5 are likely cut. Candidates and what the data says. Sizes are the ROADMAP timeboxes; the owners listed there assumed a four-person team, so treat them as sizes only:
   - **E3 parallel binned SAH (1 week):** addresses the tree-quality tradeoff. The median tree renders 2× faster than LBVH on the CPU and 2.6× on the GPU, but its serial build makes T_br 8.9× (CPU) and 20× (GPU) slower after #68. The most a better tree can save is about 3.5 ms of GPU render, so SAH helps GPU T_br only if its build costs less than that on top of LBVH; the case rests on T_frame and the CPU render.
   - **E1 memory modes (4 days):** the proposal's data-movement question. With explicit memory on the GH200, transfer is already about 0.3 ms at 1M, so there may be little to show. The comparison could still be informative.
   - **E2 Blinn-Phong (2 days), E4 Embree (4 days), E5 wavefront (1 week), E6 `obj2bin` + Blender export (3 days):** all independent of the above. E4 would strengthen the "best CPU" tier. E5 and E6 start only after G3, and E5 depends on the profile. ROADMAP expected E1 to E3 to fit and the rest to be cut.
@@ -77,6 +77,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 - **Numbers before changes.** Optimizations to Core code must keep CPU and GPU byte-identical and the goldens unchanged. `scripts/tacc/verify.sh` is the quick check on a laptop or Vista node.
 - **Noise.** The sweep records spread. GPU T_app has 13% to 205% spread depending on size. Don't quote a ratio whose spread is above 10% without a rerun.
 - **Contraction is off project-wide.** Any new numeric code is compiled with `-ffp-contract=off` and `--fmad=false`. Write `fmaf()` where a fused result is wanted.
+- **Megakernel registers.** The lit BVH megakernel is at 128 registers on sm_89 and sm_90 (no spills), the most that still fits two 256-thread blocks per SM. Anything more in `shading.hpp` likely halves occupancy and slows every GPU number; check `cuobjdump --dump-resource-usage` (or `RT_PTXAS_VERBOSE`) before adding to it. The Vista numbers in RESULTS.md predate the materials (100 registers); the final runs should confirm T_frame is unchanged there too.
 - **Node hours.** Vista jobs go in the node-hour log ([BENCHMARKING.md](BENCHMARKING.md#node-hour-budget)).
 
 ## Done since G2
@@ -92,6 +93,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 | IC2 overflow flag in `BvhQuery` (closes W8) and IC3 `AABB::empty()` and constants in `math.hpp` | `mikail/lbvh-scaling` (#69, #4) |
 | Thread sweeps at every scene size | `mikail/lbvh-scaling` (#70, first item) |
 | Light-count sweep: `rt_render --lights N` (N copies of light 0 on a ring, 1/N intensity), `lights` sweep preset, `num_lights` CSV column, light table in `ratios.py`. Laptop run works; Vista run still to do | `mikail/lights-orbit` (#70) |
+| Tinted shadows through glass (IC7), absorption measured between surface points, `known_showcase` scene and golden (every material) and its orbit video | `mikail/glass-shadows` |
 | Colored glass: `MAT_GLASS` with Fresnel reflection and refraction and color absorption, `"glass"` / `"ior"` JSON keys, shared bounce stack, `known_glass` scene and golden, oracle case. IC6 | `mikail/glass` |
 | Mirror reflections: `MAT_MIRROR` with reflectance `ks`, up to 4 bounces, `"mirror"` JSON key, `known_mirror` scene and golden, oracle case. IC5 | `mikail/mirror` |
 | E2: Blinn-Phong highlights for `MAT_SPECULAR` and directional lights, deterministic `spec_pow` (CPU and GPU byte-identical), directional lights in scene JSON, `known_specular` scene and golden, oracle case. IC4, closes W3 | `mikail/blinn-phong` |
