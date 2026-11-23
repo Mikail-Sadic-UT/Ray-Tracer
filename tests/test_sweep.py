@@ -26,18 +26,23 @@ SCRIPT = Path(args.scripts) / 'sweep.py'
 
 class Presets(unittest.TestCase):
     def test_thread_lists_follow_benchmarking(self):
-        names = [p.build_threads for p in sweep.preset_points('cpu-threads', 'vista')]
-        self.assertEqual(names, [1, 2, 4, 8, 16, 32, 64, 72])
-        laptop = sweep.preset_points('cpu-threads', 'laptop')
-        self.assertEqual([p.render_threads for p in laptop], [1, 2, 4, 8, 16, 24, 32])
-        gpu = sweep.preset_points('gpu-build-threads', 'vista')
-        self.assertEqual([(p.backend, p.build_threads, p.render_threads) for p in gpu],
-                         [('cuda', 1, 1), ('cuda', 8, 1), ('cuda', 72, 1)])
+        for s in sweep.SIZES:
+            names = [p.build_threads for p in sweep.preset_points('cpu-threads', 'vista')
+                     if p.scene == s]
+            self.assertEqual(names, [1, 2, 4, 8, 16, 32, 64, 72], s)
+            laptop = [p for p in sweep.preset_points('cpu-threads', 'laptop') if p.scene == s]
+            self.assertEqual([p.render_threads for p in laptop], [1, 2, 4, 8, 16, 24, 32], s)
+            gpu = [p for p in sweep.preset_points('gpu-build-threads', 'vista') if p.scene == s]
+            self.assertEqual([(p.backend, p.build_threads, p.render_threads) for p in gpu],
+                             [('cuda', 1, 1), ('cuda', 8, 1), ('cuda', 72, 1)], s)
 
-    def test_baseline_is_1m_full_hd_lbvh(self):
-        for p in sweep.preset_points('cpu-threads', 'vista'):
-            self.assertEqual((p.scene, p.width, p.height, p.bvh, p.mode),
-                             ('bench_1m_s1', 1920, 1080, 'lbvh', 'prepared'))
+    def test_thread_sweeps_cover_every_size_at_full_hd_lbvh(self):
+        for preset in ('cpu-threads', 'gpu-build-threads'):
+            points = sweep.preset_points(preset, 'vista')
+            self.assertEqual({p.scene for p in points}, set(sweep.SIZES), preset)
+            for p in points:
+                self.assertEqual((p.width, p.height, p.bvh, p.mode),
+                                 (1920, 1080, 'lbvh', 'prepared'))
 
     def test_size_includes_one_core_baseline_at_each_size(self):
         points = sweep.preset_points('size', 'vista')
