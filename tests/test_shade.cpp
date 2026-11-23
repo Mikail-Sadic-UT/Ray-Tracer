@@ -707,4 +707,66 @@ TEST(Glass, IndexOneIsInvisible) {
     EXPECT_FLOAT_EQ(r.rgb.z, 0.6f);
 }
 
+/// A floor under a glass sphere with the light straight above: the shadow ray crosses the full
+/// diameter, so the floor gets absorb^2 of the light and the light's bit; clear glass (absorb 1)
+/// casts no shadow at all; black glass and an opaque blocker behind the glass block it fully.
+TEST(GlassShadow, TintsByAbsorptionOverTheChord) {
+    // Glass radius 1 from y = 1.5 to 3.5, so the vertical shadow ray crosses a chord of 2.
+    rt::Sphere spheres[2] = {{{0.0f, 2.5f, 0.0f}, 1.0f, 1u}, {{0.0f, 50.0f, 0.0f}, 0.1f, 2u}};
+    rt::Triangle floor[2];
+    plane(floor, 0.0f, 0u);
+    rt::Material materials[3] = {{{0.5f, 0.5f, 0.5f}, {}, 1.0f, 0u},
+                                 {{0.0f, 0.0f, 0.0f}, {0.5f, 0.8f, 1.0f}, 1.5f, rt::MAT_GLASS},
+                                 {{0.5f, 0.5f, 0.5f}, {}, 1.0f, 0u}};
+    const rt::Light light{rt::LIGHT_POINT, {0.0f, 4.0f, 0.0f}, {16.0f, 16.0f, 16.0f}};
+    rt::Scene scene{spheres, 1u, floor, 2u, materials, 3u, &light, 1u, {}, 0.0f};
+    // Straight down onto the floor point under the sphere, from below the sphere.
+    const rt::Ray ray{{0.0f, 1.0f, 0.0f}, 0.0f, {0.0f, -1.0f, 0.0f}, INFINITY};
+    const auto shade = [&] {
+        const rt::BruteQuery q{scene};
+        return rt::shade_hit(ray, q.closest(ray), scene, q);
+    };
+    const float lit = 0.5f * 16.0f / 16.0f;  // albedo * cos 0 * I / d^2 at distance 4
+    rt::PixelResult r = shade();
+    EXPECT_EQ(r.light_mask, 1u);
+    EXPECT_NEAR(r.rgb.x, lit * 0.25f, 1e-6f);
+    EXPECT_NEAR(r.rgb.y, lit * 0.64f, 1e-6f);
+    EXPECT_NEAR(r.rgb.z, lit, 1e-6f);
+
+    materials[1].ks = {1.0f, 1.0f, 1.0f};
+    r = shade();
+    EXPECT_NEAR(r.rgb.x, lit, 1e-6f);
+
+    materials[1].ks = {0.0f, 0.0f, 0.0f};
+    r = shade();
+    EXPECT_EQ(r.light_mask, 0u);
+    EXPECT_EQ(r.rgb.x, 0.0f);
+
+    // Clear glass, but an opaque sphere between the glass and the light: fully shadowed.
+    materials[1].ks = {1.0f, 1.0f, 1.0f};
+    spheres[1].center = {0.0f, 3.8f, 0.0f};
+    scene.num_spheres = 2u;
+    r = shade();
+    EXPECT_EQ(r.light_mask, 0u);
+    EXPECT_EQ(r.rgb.x, 0.0f);
+}
+
+/// Without glass in the scene, a blocked shadow ray stays fully blocked (the tinted-shadow walk
+/// never runs), so Core scenes shade exactly as before.
+TEST(GlassShadow, OpaqueBlockersUnchanged) {
+    const rt::Sphere sphere{{0.0f, 2.0f, 0.0f}, 0.5f, 1u};
+    rt::Triangle floor[2];
+    plane(floor, 0.0f, 0u);
+    const rt::Material materials[2] = {{{0.5f, 0.5f, 0.5f}, {}, 1.0f, 0u},
+                                       {{0.5f, 0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, 1.5f, 0u}};
+    const rt::Light light{rt::LIGHT_POINT, {0.0f, 4.0f, 0.0f}, {16.0f, 16.0f, 16.0f}};
+    const rt::Scene scene{&sphere, 1u, floor, 2u, materials, 2u, &light, 1u, {}, 0.05f};
+    EXPECT_FALSE(rt::scene_has_glass(scene));
+    const rt::Ray ray{{0.0f, 1.0f, 0.0f}, 0.0f, {0.0f, -1.0f, 0.0f}, INFINITY};
+    const rt::BruteQuery q{scene};
+    const rt::PixelResult r = rt::shade_hit(ray, q.closest(ray), scene, q);
+    EXPECT_EQ(r.light_mask, 0u);
+    EXPECT_FLOAT_EQ(r.rgb.x, 0.5f * 0.05f);
+}
+
 }  // namespace

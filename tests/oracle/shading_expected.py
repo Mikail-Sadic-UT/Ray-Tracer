@@ -11,7 +11,8 @@ directional light uses l = normalize(-dir), d2 = 1 and an unbounded shadow ray. 
 (MAT_MIRROR) adds ks times the shading seen along the reflected ray d - 2 * dot(d, n) * n.
 Glass (MAT_GLASS) splits into a Snell refraction and a reflection weighted by Schlick's Fresnel
 term, absorbs ks^distance inside, and stops after 4 bounces; glass_trace below is a separate
-recursive implementation of those rules for a single sphere.
+recursive implementation of those rules for a single sphere. A shadow ray blocked only by
+glass passes straight through it and keeps ks^chord of the light (tinted shadows).
 
 The printed literals are pasted into tests/test_shade_independent.cpp. Run:
     python3 tests/oracle/shading_expected.py
@@ -182,6 +183,17 @@ def main():
     o, d = (0.3, 0.2, 5.0), (0.0, 0.0, -1.0)
     t = ray_sphere(o, d, (0.0, 0.0, 0.0), 1.0)
     p = tuple(oi + t * di for oi, di in zip(o, d))
+    # Tinted shadow: floor point (0.3, 0, 0.2) under a glass sphere (center (0, 1, 0), radius 0.8,
+    # absorb (0.4, 0.9, 0.6) per unit) lit by a point light at (1.5, 5, 0.5); the shadow ray
+    # crosses the sphere off center, so the light keeps absorb^chord.
+    c, rad, absorb = (0.0, 1.0, 0.0), 0.8, (0.4, 0.9, 0.6)
+    fp, lp, inten = (0.3, 0.0, 0.2), (1.5, 5.0, 0.5), (30.0, 30.0, 30.0)
+    to_l = sub(lp, fp); d2 = dot(to_l, to_l); l = norm(to_l)
+    oc = sub(fp, c); b = dot(oc, l); disc = b * b - (dot(oc, oc) - rad * rad)
+    chord = 2.0 * math.sqrt(disc)
+    print("glass_shadow", [a * AMBIENT + a * l[1] * i / d2 * ab ** chord
+                           for a, i, ab in zip(ALBEDO_FLOOR, inten, absorb)], "chord", chord)
+
     print("glass", glass_split(p, d, [1.0, 1.0, 1.0], 0, False, (0.0, 0.0, 0.0), 1.0, 1.5,
                                (0.5, 0.8, 0.9), (0.2, 0.4, 0.6)))
 
