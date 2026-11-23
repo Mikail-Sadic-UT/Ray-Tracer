@@ -34,10 +34,12 @@ namespace rt {
 
 /// True if at least one CUDA device is visible.
 ///
-/// Returns false only when the runtime reports `cudaErrorNoDevice` (no GPU, or
-/// `CUDA_VISIBLE_DEVICES` is empty). Any other failure, such as a driver too old for the
-/// toolkit, throws rt::Error, so a broken setup on a machine with a GPU is not mistaken for a
-/// missing GPU.
+/// Returns false when the runtime reports `cudaErrorNoDevice` (no GPU, or
+/// `CUDA_VISIBLE_DEVICES` is empty), or when no NVIDIA driver is installed at all (toolkit-only
+/// machines such as a Vista login node, #73). Without a driver the runtime reports
+/// `cudaErrorInsufficientDriver` and `cudaDriverGetVersion` gives 0. A driver that is installed
+/// but too old for the toolkit reports the same error with a nonzero version and still throws
+/// rt::Error, so a broken setup on a machine with a GPU is not mistaken for a missing GPU.
 inline bool cuda_device_available() {
     int devices = 0;
     const cudaError_t err = cudaGetDeviceCount(&devices);
@@ -45,7 +47,14 @@ inline bool cuda_device_available() {
         (void)cudaGetLastError();  // clear the error so later runtime calls are unaffected
         return false;
     }
-    RT_CUDA_CHECK(err);
+    if (err == cudaErrorInsufficientDriver) {
+        int driver = 0;
+        if (cudaDriverGetVersion(&driver) == cudaSuccess && driver == 0) {
+            (void)cudaGetLastError();
+            return false;
+        }
+    }
+    if (err != cudaSuccess) detail::cuda_fail(err, "cudaGetDeviceCount", __FILE__, __LINE__);
     return devices > 0;
 }
 
