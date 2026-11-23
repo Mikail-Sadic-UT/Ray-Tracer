@@ -7,7 +7,8 @@ breakdown, as Markdown tables (docs/BENCHMARKING.md "Targets (from proposal)").
 CPU* is the CPU configuration (B = R) with the lowest median of the quantity being reported,
 chosen per scene and per quantity among the thread counts the sweep measured. GPU* is chosen the
 same way among the measured build-thread counts. A size measured at only two thread counts gets
-a CPU* from those two, and the table says how many were tested. These are preliminary ratios
+a CPU* from those two, and the table says how many were tested. Only one-light rows count toward the
+ratios; the `lights` preset's rows get their own table. These are preliminary ratios
 straight from a sweep; the final report reruns the selected configurations interleaved.
 
 Exit status: 0 on success, 1 for an unreadable or empty file.
@@ -29,12 +30,14 @@ def load(path):
             r[key] = float(r[key])
         for key in ('build_threads', 'render_threads', 'width', 'height', 'num_primitives'):
             r[key] = int(r[key])
+        r['num_lights'] = int(r.get('num_lights') or 1)  # sweeps before the column: 1 light
     return rows
 
 
-def pick(rows, scene, quantity, backend, bvh, width):
+def pick(rows, scene, quantity, backend, bvh, width, lights=1):
     return [r for r in rows if r['scene'] == scene and r['quantity'] == quantity
-            and r['backend'] == backend and r['bvh'] == bvh and r['width'] == width]
+            and r['backend'] == backend and r['bvh'] == bvh and r['width'] == width
+            and r['num_lights'] == lights]
 
 
 def best(points):
@@ -91,9 +94,31 @@ def breakdown_table(rows, scene, bvh, width):
     return out
 
 
+def lights_table(rows, scene, bvh, width):
+    """T_frame and T_br against light count, at the thread count the `lights` preset used."""
+    counts = sorted({r['num_lights'] for r in rows if r['scene'] == scene})
+    if len(counts) < 2:
+        return []
+    out = ['| Backend | Quantity | ' + ' | '.join(f'L = {n} (ms)' for n in counts) + ' |',
+           '|---|---|' + '---:|' * len(counts)]
+    for backend in ('cpu', 'cuda'):
+        for q in ('T_frame', 'T_br'):
+            # The thread count measured at every light count (the preset's top count).
+            by_count = [{r['build_threads']: r for r in pick(rows, scene, q, backend, bvh, width, n)}
+                        for n in counts]
+            common = set.intersection(*(set(d) for d in by_count))
+            if not common:
+                continue
+            b = max(common)
+            out.append(f'| {backend} B{b} | {q} | ' +
+                       ' | '.join(f"{d[b]['median_ms']:.1f}" for d in by_count) + ' |')
+    return out
+
+
 def spread_warnings(rows):
     return [f"{r['scene']} {r['quantity']} {r['backend']} B{r['build_threads']} "
-            f"{r['bvh']} {r['width']}: spread {r['spread']:.0%}"
+            f"{r['bvh']} {r['width']}{' L' + str(r['num_lights']) if r['num_lights'] != 1 else ''}"
+            f": spread {r['spread']:.0%}"
             for r in rows if r['spread'] > 0.10]
 
 
@@ -114,6 +139,11 @@ def main(argv=None):
         if len(pick(rows, s, 'T_br', 'cpu', args.bvh, args.width)) > 2:
             print(f'\n### T_br breakdown, {s} (ms, median run)\n')
             print('\n'.join(breakdown_table(rows, s, args.bvh, args.width)))
+    for s in scenes(rows, args.bvh, args.width):
+        table = lights_table(rows, s, args.bvh, args.width)
+        if table:
+            print(f'\n### Light count, {s} (ms, median)\n')
+            print('\n'.join(table))
     warnings = spread_warnings(rows)
     if warnings:
         print('\n### Spread above 10%\n')

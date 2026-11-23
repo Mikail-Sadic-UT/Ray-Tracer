@@ -47,6 +47,7 @@ BASELINE_SCENE = 'bench_1m_s1'
 FULL_HD = (1920, 1080)
 VGA = (640, 480)
 SPREAD_WARNING = 0.10
+LIGHT_COUNTS = [1, 2, 4]  # BENCHMARKING "Sweeps": light count L
 
 
 class SweepError(Exception):
@@ -55,7 +56,11 @@ class SweepError(Exception):
 
 @dataclass(frozen=True)
 class Point:
-    """One rt_render configuration. `mode` is `prepared` (T_br, T_frame) or `app` (T_app)."""
+    """One rt_render configuration. `mode` is `prepared` (T_br, T_frame) or `app` (T_app).
+
+    `lights` other than 1 runs `rt_render --lights N` (N copies of the scene's light) and adds
+    `_L<N>` to the name; one-light points keep their names, so earlier sweeps still resume.
+    """
     backend: str
     scene: str
     bvh: str
@@ -64,22 +69,24 @@ class Point:
     width: int
     height: int
     mode: str = 'prepared'
+    lights: int = 1
 
     @property
     def name(self):
         threads = (f'B{self.build_threads}' if self.backend == 'cuda' else
                    f'B{self.build_threads}R{self.render_threads}')
+        lights = f'_L{self.lights}' if self.lights != 1 else ''
         return (f'{self.mode}_{self.backend}_{self.scene}_{self.bvh}_{threads}_'
-                f'{self.width}x{self.height}')
+                f'{self.width}x{self.height}{lights}')
 
 
-def cpu(scene, threads, bvh='lbvh', res=FULL_HD, mode='prepared'):
-    return Point('cpu', scene, bvh, threads, threads, res[0], res[1], mode)
+def cpu(scene, threads, bvh='lbvh', res=FULL_HD, mode='prepared', lights=1):
+    return Point('cpu', scene, bvh, threads, threads, res[0], res[1], mode, lights)
 
 
-def gpu(scene, build_threads, bvh='lbvh', res=FULL_HD, mode='prepared'):
+def gpu(scene, build_threads, bvh='lbvh', res=FULL_HD, mode='prepared', lights=1):
     # The GPU renders; R is not used (BENCHMARKING "Threads") and is recorded as 1.
-    return Point('cuda', scene, bvh, build_threads, 1, res[0], res[1], mode)
+    return Point('cuda', scene, bvh, build_threads, 1, res[0], res[1], mode, lights)
 
 
 def preset_points(preset, machine):
@@ -101,6 +108,10 @@ def preset_points(preset, machine):
         'resolution': lambda: [p for r in (VGA, FULL_HD)
                                for p in (cpu(BASELINE_SCENE, top, res=r),
                                          gpu(BASELINE_SCENE, gpu_top, res=r))],
+        # Light count L at the baseline; L = 1 is the same point as in `size`.
+        'lights': lambda: [p for n in LIGHT_COUNTS
+                           for p in (cpu(BASELINE_SCENE, top, lights=n),
+                                     gpu(BASELINE_SCENE, gpu_top, lights=n))],
         # T_app: fresh processes, at every size.
         'tapp': lambda: [p for s in SIZES
                          for p in (cpu(s, 1, mode='app'), cpu(s, top, mode='app'),
@@ -116,7 +127,7 @@ def preset_points(preset, machine):
     presets['g2'] = lambda: presets['size']() + presets['tapp']()
     presets['core'] = lambda: (presets['cpu-threads']() + presets['gpu-build-threads']() +
                                presets['size']() + presets['bvh']() + presets['resolution']() +
-                               presets['tapp']())
+                               presets['lights']() + presets['tapp']())
     if preset not in presets:
         raise SweepError(f'unknown preset {preset!r}; choose from {", ".join(sorted(presets))}')
     seen, points = set(), []
@@ -128,7 +139,7 @@ def preset_points(preset, machine):
 
 
 PRESETS = ('core', 'g2', 'cpu-threads', 'gpu-build-threads', 'size', 'bvh', 'resolution',
-           'tapp', 'smoke')
+           'lights', 'tapp', 'smoke')
 
 
 KNOWN_SCENES = Path(__file__).resolve().parent.parent.parent / 'scenes' / 'known'
@@ -151,6 +162,8 @@ def render_args(point, scenes, runs=None, images_dir=None):
             '--width', str(point.width), '--height', str(point.height), '--shade', 'lit']
     if point.backend == 'cuda':
         args += ['--pipeline', 'mega']
+    if point.lights != 1:
+        args += ['--lights', str(point.lights)]
     if runs is not None:
         args += ['--runs', str(runs)]
     if images_dir is not None:
@@ -273,7 +286,7 @@ def measure(point, args, out, log):
 COMPONENT_COLUMNS = ('args', 'load', 'cuda_init', 'bounds', 'build', 'layout', 'convert',
                      'alloc', 'upload', 'render', 'download')
 CSV_COLUMNS = (['point', 'quantity', 'backend', 'pipeline', 'scene', 'scene_hash',
-                'num_primitives', 'bvh', 'build_threads', 'render_threads', 'width', 'height',
+                'num_primitives', 'num_lights', 'bvh', 'build_threads', 'render_threads', 'width', 'height',
                 'runs', 'median_ms', 'min_ms', 'max_ms', 'spread', 'median_run_index'] +
                [f'{c}_ms' for c in COMPONENT_COLUMNS] +
                ['render_kernel_ms', 'unattributed_ms', 'host', 'cpu_model', 'gpu_name',
@@ -287,6 +300,7 @@ def _row(point_name, quantity, doc, stats, runs, median_run):
         'point': point_name, 'quantity': quantity, 'backend': c['backend'],
         'pipeline': c['pipeline'], 'scene': Path(doc['scene']['json']).stem,
         'scene_hash': doc['scene']['hash'], 'num_primitives': doc['scene']['num_primitives'],
+        'num_lights': doc['scene']['num_lights'],
         'bvh': c['bvh'], 'build_threads': c['build_threads'],
         'render_threads': c['render_threads'], 'width': c['width'], 'height': c['height'],
         'runs': runs, 'median_ms': stats['median_ms'], 'min_ms': stats['min_ms'],
