@@ -87,11 +87,6 @@ struct StageClock {
 using Prim = detail::BuildPrim;
 using detail::LbvhNode;
 
-AABB empty_box() {
-    const float inf = std::numeric_limits<float>::infinity();
-    return {{inf, inf, inf}, {-inf, -inf, -inf}};
-}
-
 /// Rounds `center ± radius` outward by one ulp, so rounding never clips the sphere.
 AABB sphere_bounds(const Sphere& s) {
     const float inf = std::numeric_limits<float>::infinity();
@@ -340,8 +335,8 @@ void rebuild_median_subtree(const Prim* prims, uint32_t* order, LbvhNode* nodes,
     node = {};
     node.first = first;
     node.last = last;
-    node.bounds = empty_box();
-    AABB centroids = empty_box();
+    node.bounds = AABB::empty();
+    AABB centroids = AABB::empty();
     for (uint32_t i = first; i <= last; ++i) {
         node.bounds.grow(prims[order[i]].bounds);
         centroids.grow(prims[order[i]].centroid);
@@ -461,7 +456,7 @@ struct Builder {
     void build(std::vector<uint32_t>& order, uint32_t node_index, uint32_t begin, uint32_t end,
                uint32_t depth) {
         max_depth = std::max(max_depth, depth);
-        AABB bounds = empty_box();
+        AABB bounds = AABB::empty();
         for (uint32_t i = begin; i < end; ++i) bounds.grow(prims[order[i]].bounds);
 
         const uint32_t count = end - begin;
@@ -473,7 +468,7 @@ struct Builder {
             return;
         }
 
-        AABB centroid_bounds = empty_box();
+        AABB centroid_bounds = AABB::empty();
         for (uint32_t i = begin; i < end; ++i) centroid_bounds.grow(prims[order[i]].centroid);
         const vec3 extent = centroid_bounds.extent();
         int axis = extent.y > extent.x ? 1 : 0;
@@ -486,8 +481,8 @@ struct Builder {
                              return ca < cb || (ca == cb && prims[a].ref < prims[b].ref);
                          });
         const uint32_t left = static_cast<uint32_t>(out.nodes.size());
-        out.nodes.push_back({empty_box(), 0, 0});
-        out.nodes.push_back({empty_box(), 0, 0});
+        out.nodes.push_back({AABB::empty(), 0, 0});
+        out.nodes.push_back({AABB::empty(), 0, 0});
         build(order, left, begin, middle, depth + 1);
         build(order, left + 1, middle, end, depth + 1);
         out.nodes[node_index] = {bounds, left, 0};
@@ -548,10 +543,10 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
         // Min and max are exact, so the reduction order cannot change the box. The only
         // order-dependent case is the sign of a zero bound, and morton_code() maps both
         // signs to the same code.
-        AABB centroid_bounds = empty_box();
+        AABB centroid_bounds = AABB::empty();
 #pragma omp parallel num_threads(teams)
         {
-            AABB local = empty_box();
+            AABB local = AABB::empty();
 #pragma omp for schedule(static) nowait
             for (int64_t i = 0; i < count; ++i) local.grow(prims[i].centroid);
 #pragma omp critical(rt_bvh_centroids)
@@ -627,7 +622,7 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
     std::vector<uint32_t> order(prims.size());
     std::iota(order.begin(), order.end(), 0u);
     const auto build_start = std::chrono::steady_clock::now();
-    result.nodes.push_back({empty_box(), 0, 0});
+    result.nodes.push_back({AABB::empty(), 0, 0});
     Builder builder{prims.data(), params, result};
     builder.build(order, 0, 0, static_cast<uint32_t>(order.size()), 0);
     const auto build_end = std::chrono::steady_clock::now();

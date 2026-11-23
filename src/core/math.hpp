@@ -10,6 +10,13 @@
 
 namespace rt {
 
+/// Unit roundoff for float, 2^-24. Lives here, not in aabb.hpp, so error bounds can use it
+/// without the box header (INTERFACE_CHANGES IC3).
+constexpr float RT_EPS = 5.9604645e-8f;
+
+/// gamma(3) = 3u / (1 - 3u): relative error bound after three float roundings (PBRT).
+constexpr float RT_GAMMA3 = (3.0f * RT_EPS) / (1.0f - 3.0f * RT_EPS);
+
 /// 3-component float vector (12 bytes, POD).
 struct vec3 {
     float x;
