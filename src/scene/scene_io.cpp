@@ -2,6 +2,7 @@
 /// @brief Strict version 2 inline JSON reader and scene validation.
 #include "scene/scene_io.hpp"
 
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -34,6 +35,26 @@ void validate_counts(size_t spheres, size_t triangles, size_t materials, size_t 
 /// Formats an indexed path once for both parse and validation errors.
 std::string indexed(const char* array, size_t index) {
     return std::string(array) + "[" + std::to_string(index) + "]";
+}
+
+/// True when world_vec3() would accept @p value: finite and within RT_MAX_COORD per component.
+bool world_vec3_ok(vec3 value) {
+    for (int i = 0; i < 3; ++i)
+        if (!std::isfinite(value[i]) || std::fabs(value[i]) > RT_MAX_COORD) return false;
+    return true;
+}
+
+/// True when the sphere checks in validate_scene() would all pass. Lets the common case skip
+/// building error paths, which cost several string allocations per primitive (#67).
+bool sphere_ok(const Sphere& sphere, size_t num_materials) {
+    return world_vec3_ok(sphere.center) && std::isfinite(sphere.radius) && sphere.radius > 0.0f &&
+           std::fabs(sphere.radius) <= RT_MAX_COORD && sphere.material_id < num_materials;
+}
+
+/// True when the triangle checks in validate_scene() would all pass.
+bool triangle_ok(const Triangle& triangle, size_t num_materials) {
+    return world_vec3_ok(triangle.v0) && world_vec3_ok(triangle.v1) && world_vec3_ok(triangle.v2) &&
+           triangle.material_id < num_materials;
 }
 
 /// Rejects a material index outside the material table, naming the JSON key `material`.
@@ -73,8 +94,11 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
         if ((material.flags & ~uint32_t{MAT_SPECULAR}) != 0)
             scene_error(path + ".flags", "unknown or reserved material flags");
     }
+    // Primitives: a cheap exact predicate first; the path-naming checks below run only for a
+    // primitive that fails it, so error messages are unchanged.
     for (size_t i = 0; i < scene.spheres.size(); ++i) {
         const Sphere& sphere = scene.spheres[i];
+        if (sphere_ok(sphere, scene.materials.size())) continue;
         const std::string path = indexed("spheres", i);
         world_vec3(sphere.center, path + ".center");
         finite_float(sphere.radius, path + ".radius");
@@ -84,6 +108,7 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
     }
     for (size_t i = 0; i < scene.triangles.size(); ++i) {
         const Triangle& triangle = scene.triangles[i];
+        if (triangle_ok(triangle, scene.materials.size())) continue;
         const std::string path = indexed("triangles", i);
         world_vec3(triangle.v0, path + ".v[0]");
         world_vec3(triangle.v1, path + ".v[1]");
