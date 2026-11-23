@@ -190,6 +190,22 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
     assert doc['scene']['generator_command'] == command, doc['scene']
     assert doc['scene']['num_primitives'] == 200
 
+    # --lights: N copies of light 0. One light on a one-light scene changes nothing; more lights
+    # change the image and the scene hash, and the results record the count.
+    run([args.render, '--scene', args.scene, *lit, '--lights', '1', '--pfm', str(root / 'lights1.pfm')])
+    same_files(root / 'lit_default.pfm', root / 'lights1.pfm')
+    run([args.render, '--scene', args.scene, *lit, '--lights', '3', '--pfm', str(root / 'lights3.pfm'),
+         '--results', str(root / 'lights3.json')])
+    run([args.render, '--scene', args.scene, *lit, '--lights', '3', '--bvh', 'none',
+         '--pfm', str(root / 'lights3_none.pfm')])
+    same_files(root / 'lights3.pfm', root / 'lights3_none.pfm')
+    assert (root / 'lights3.pfm').read_bytes() != (root / 'lit_default.pfm').read_bytes()
+    lights_doc = check_results(root / 'lights3.json', ['app'])
+    assert lights_doc['scene']['num_lights'] == 3, lights_doc['scene']
+    assert lights_doc['scene']['hash'] != json.loads((root / 'app.json').read_text())['scene']['hash']
+    masks = (root / 'lights3.lightmask.u32img').read_bytes()
+    assert any(b & 0b110 for b in masks), 'lights 1 and 2 should light some pixels'
+
     # Errors exit non-zero with a message on stderr.
     failures = {
         '--runs applies only': ['--runs', '3'],
@@ -198,6 +214,7 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
         'only Median': ['--bvh', 'sah', '--shade', 'normal'],
         'vfov_deg': ['--shade', 'normal', '--cam-vfov', '180'],
         '--pfm': ['--shade', 'normal', '--aov', 'primid'],
+        '--lights': ['--lights', '0'],
     }
     for text, extra in failures.items():
         result = run([args.render, '--scene', args.scene, *extra], ok=False)
