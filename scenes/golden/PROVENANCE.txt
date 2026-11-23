@@ -1,15 +1,18 @@
-commit: 9671e83c6fe6f792baadfeb0a1ad85234edfd653
+commit: 3e25f11f78fd60720e0f3e8478d1c81e784641ee
 renderer: rt_render --backend cpu --bvh median --shade lit --build-threads 1 --render-threads 1 --aov primid,lightmask
 compiler: g++-13: g++-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
 build type: Release
-reason: add known_specular (E2: Blinn-Phong and a directional light); the three existing goldens are re-rendered byte-identical
+reason: add known_mirror (mirror reflections); the four existing goldens are re-rendered byte-identical
 sha256:
 d8e6a7ec1b1dbc0a5f366a35fc053e73add70f97bc673ea0c11bedc7b6c7e533  known_degenerate_triangle.pfm
+4ea5353fdc4f7579b2525f19febfae3aba1242f07ad8e84e560ca83681f193a0  known_mirror.pfm
 3144ac8d0b8bee2867359f8fc5179a5c4f9d9a1297da880c746ed7bfc51c2629  known_single_sphere.pfm
 50187055bb09cf10ce3631a8e2b7b8e2ac172dc9c0d3bc3cc817804f6e4a3e27  known_specular.pfm
 d8e6a7ec1b1dbc0a5f366a35fc053e73add70f97bc673ea0c11bedc7b6c7e533  known_two_spheres.pfm
 01a591d1cc951dc32cf84158de0a30ad1ef90f8bcfc75969f1f3e7a1dae3943c  known_degenerate_triangle.lightmask.u32img
 9e138d03deba0d2a61894edec09d0a6e79aa2f63bc450e3a9cc1808be4b3cfde  known_degenerate_triangle.primid.u32img
+464542f0c4cc35a8b0309b601653efd915644e022389105701f13bf6b1a87195  known_mirror.lightmask.u32img
+feec2b931be8bd3700d7231a2c06300cfe3c432eff092b592117521797ea5b81  known_mirror.primid.u32img
 2687aead70bc49619b6ad78ad20d2b9da74f17a4aab8d5b3c0a584833a93a273  known_single_sphere.lightmask.u32img
 b5fd8eb1db6277b5d47cd0bbfc5f224b627219828a929946ad065d0267e4d5e7  known_single_sphere.primid.u32img
 2ee9ecf84c6015d8501e0c88d7b55427a2208d82f7d8ff453a2e440690e476f0  known_specular.lightmask.u32img
