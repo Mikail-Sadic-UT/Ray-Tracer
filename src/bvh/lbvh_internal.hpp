@@ -2,6 +2,7 @@
 /// @brief Host-only temporary LBVH data and depth recovery; not a public interface.
 #pragma once
 
+#include <cstddef>
 #include <vector>
 
 #include "bvh/bvh_types.hpp"
@@ -29,8 +30,16 @@ struct LbvhNode {
 /// Rebuilds only depth-32 subtrees whose edge height exceeds 32; returns rebuild count.
 /// `heights_ready` requires valid edge heights from the bottom-up refit.
 /// Synthetic trees may omit heights and let recovery compute them.
-uint32_t recover_lbvh_depth(const std::vector<BuildPrim>& prims, std::vector<uint32_t>& order,
-                            std::vector<LbvhNode>& nodes, bool heights_ready = false);
+uint32_t recover_lbvh_depth(const BuildPrim* prims, uint32_t* order, LbvhNode* nodes,
+                            size_t node_count, bool heights_ready = false);
+
+/// Vector form of recover_lbvh_depth for tests.
+inline uint32_t recover_lbvh_depth(const std::vector<BuildPrim>& prims,
+                                   std::vector<uint32_t>& order, std::vector<LbvhNode>& nodes,
+                                   bool heights_ready = false) {
+    return recover_lbvh_depth(prims.data(), order.data(), nodes.data(), nodes.size(),
+                              heights_ready);
+}
 
 }  // namespace detail
 }  // namespace rt
