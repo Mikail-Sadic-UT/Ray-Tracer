@@ -16,7 +16,7 @@ Preliminary, Vista GH200, 1M primitives, 1080p, LBVH (T_br, median of 5; [detail
 | ~2×: best CPU / GPU | 1.46× | Not met at 1M; met at 10K and 100K, from two thread counts only |
 | ~20×: 1 core / GPU | 43.4× | Met |
 
-The gap to 2× is preparation, not rendering. CPU preparation (bounds, build, layout) is about 47 ms of the GPU's 53.8 ms. The ratio is (P + 29.7) / (P + 6.3) for preparation time P, so P has to fall to about 17 ms. A faster kernel alone cannot get there (a free render still gives 1.65× at the current P).
+The gap to 2× is preparation, not rendering. CPU preparation (bounds, build, layout) is about 47 ms of the GPU's 53.8 ms. The ratio is (P + 29.7) / (P + 6.3) for preparation time P, so P has to fall to about 17 ms. A faster kernel alone cannot get there (a free render still gives 1.65× at the current P). On the laptop, the #68 work cut 1M preparation from about 111 ms to 29 ms at B = 24 and from 306 ms to 156 ms at B = 1, so all three ratios will move once Vista is rerun ([RESULTS.md](RESULTS.md#changes-since-these-runs-laptop-only-vista-rerun-pending)).
 
 ## G3 checklist
 
@@ -39,10 +39,9 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 
 | Item | Issue | Why | Done when | Notes |
 |---|---|---|---|---|
-| LBVH build and layout scaling | #68 | Biggest lever on the 2× target. Build speeds up 6.7× from 1 to 72 threads; about 30 ms does not parallelize. Layout is fastest at 16 threads (9.1 ms) and slower at 72 (12.5 ms) | T_br at 1M drops toward ~17 ms of preparation, or the data says why it can't | First add per-stage timing inside the builder to name the 30 ms. Output must stay byte-identical at B = 1, 8, 72 and BVH = brute force must hold |
-| T_app unattributed time | #67 | About 0.4 s of T_app at 1M is in no component; likely a second `validate_scene` per primitive path string | `unattributed_ms` at 1M is a few ms; images, hashes and error messages unchanged | Time the call first to confirm. Touches `scene_io` |
-| Device tests without a driver | #73 | Toolkit-only machines (such as the Vista login node) fail instead of skipping | Device tests skip with no driver; a too-old driver still fails | Small |
-| Measurement gaps | #70 | Ratios at 10K and 100K rest on two thread counts; no profiling; light-count sweep missing; GPU T_app is unstable at small sizes | Checklist in the issue | Profiling first checks whether the 5.6 ms kernel is worth tuning at all |
+| Vista rerun of the branch | #68, #67, #73, #70 | The #68 and #67 changes are measured only on the laptop | `verify.sh` passes, `core` sweep rerun, RESULTS updated with the new ratios | Check on Vista: T_br at 1M (target P near 17 ms at B = 72), the device tests skip on the login node (#73), and T_app unattributed time is a few ms (#67). The `core` preset now has 46 points |
+| More LBVH preparation, if Vista needs it | #68 | Depends on the Vista numbers | P near 17 ms, or the data says why not | At B = 24 on the laptop the remaining time is emit 9 to 14 ms (it includes the serial zero fill of `Bvh::nodes`), refit 6, freeing scratch 5 to 7, hierarchy 3.5. Ideas: a fused bottom-up (Apetrei-style) hierarchy + refit, a smaller temporary node, reusing scratch |
+| Measurement gaps | #70 | Light-count sweep missing; GPU T_app is unstable at small sizes; no profiling | Checklist in the issue | Thread sweep at 10K and 100K is now in the `core` preset. Profiling first checks whether the kernel is worth tuning at all |
 
 ### Decisions still open
 
@@ -53,7 +52,6 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
   - **Core optimization only.** A valid choice if time is short.
   - Extensions must not block final runs and the report.
 - **Light-count sweep (#70):** scene variants or a `--lights` override in `rt_render`. Decide before starting.
-- **Interface additions** ([INTERFACE_CHANGES.md](INTERFACE_CHANGES.md)): IC2 (overflow flag in `BvhQuery`, #69) and IC3 (`AABB::empty()`, #4) are decided but not done. Do them when a PR touches the same code, or as one small PR.
 
 ### Later
 
@@ -89,3 +87,8 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 |---|---|
 | CUDA megakernel backend, `DeviceScene`, contraction off project-wide | #65 |
 | Vista sweep, verification and node-hour scripts; first Vista results | #66 |
+| LBVH preparation: parallel centroids, Morton codes and radix sort, uninitialized scratch, intrinsic leading-zero count, layout counts in the refit; per-stage timing with `RT_BVH_STAGES=1`. Bytes unchanged (laptop) | `mikail/lbvh-scaling` (#68) |
+| `validate_scene` builds error paths only on failure; `rt_render` re-checks only camera and light limit; scratch freed inside `layout` | `mikail/lbvh-scaling` (#67) |
+| Device tests and `rt_render_cuda_cli` skip when no NVIDIA driver is installed (checked with a stand-in `libcuda`) | `mikail/lbvh-scaling` (#73) |
+| IC2 overflow flag in `BvhQuery` (closes W8) and IC3 `AABB::empty()` and constants in `math.hpp` | `mikail/lbvh-scaling` (#69, #4) |
+| Thread sweeps at every scene size | `mikail/lbvh-scaling` (#70, first item) |

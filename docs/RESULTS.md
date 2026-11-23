@@ -82,11 +82,29 @@ For a loaded, prepared scene (T_frame) the GPU is 5.1× faster than the best CPU
 7. **Resolution shifts the balance.** At 640×480 (1M, B = R = 72) T_br is 54.6 ms on the CPU and 49.6 ms on the GPU (1.10×), and T_frame is 6.9 ms and 1.5 ms (4.6×). Less rendering work leaves preparation as almost the whole T_br.
 8. **T_app is mostly scene load and unattributed time, not rendering.** At 1M on the CPU with 72 threads, T_app is 991 ms: load 492 ms, unattributed 419 ms, and preparation and render about 80 ms. The unattributed time matches `validate_scene` running a second time in `rt_render` outside the `load` timer (it is also called inside `load_scene`); each call builds a path string per primitive. I read this from the code and have not timed that call by itself (#67). On the laptop at 10M primitives the unattributed time was about 5 s. The GPU adds 239 ms of `cuda_init` at 1M (1212 ms total).
 
+## Changes since these runs (laptop only, Vista rerun pending)
+
+The numbers above are from commit 14db51d. Branch `mikail/lbvh-scaling` (Nov 22) changes the preparation and the T_app accounting; output bytes are unchanged. These laptop numbers (RTX 4070 Laptop, i9-13980HX, WSL2) are only an indication. They need a Vista rerun before they replace anything above.
+
+- **Finding 3 had a name (#68).** Per-stage timing (`RT_BVH_STAGES=1`) showed the serial part of the LBVH build: centroid bounds, Morton codes and the radix sort ran on one thread, the 2N-1 temporary nodes were zero-filled on one thread (about 22 ms at 1M), and the Karras prefix counted leading zeros one bit at a time. All of these are now parallel or gone. Bounds + build + layout at 1M (ms, median of 7):
+
+  | B | before | after |
+  |---:|---:|---:|
+  | 1 | 306 | 156 |
+  | 8 | 114 | 44 |
+  | 16 | 115 | 35 |
+  | 24 | 111 | 29 |
+
+  At B = 24 the stages are now about: centroids 0.4, Morton 0.9, sort 2, hierarchy 3.5, refit 6, emit 9 to 14, SAH 1, and freeing the scratch 5 to 7 (now counted in `layout`).
+- **T_br at 1M, 1080p (prepared, median of 5):** CUDA with B = 24 went from 137 ms to 63 ms; CPU with B = R = 24 from 298 ms to 221 ms; CPU with B = 1, R = 24 from 470 ms to 339 ms. Images are byte-identical before and after, and CPU and CUDA still match byte for byte.
+- **The 1-core baseline is faster too.** At B = 1 preparation roughly halves (the bit-by-bit leading-zero count was the largest single cost). The 10× and 20× ratios use the 1-core T_br as numerator, so they will fall on Vista, and the 2× ratio should rise.
+- **Finding 8 was `validate_scene` (#67), confirmed by timing.** It took about 450 ms per call at 1M, because it built path strings for every check. It now builds them only for a failing primitive (3.6 ms per call), and `rt_render` re-checks only the camera and the light limit after CLI overrides. The builder's scratch is freed inside `layout`. On the laptop at 1M, `load` fell from 514 ms to 75 ms and T_app unattributed time from about 450 ms to 0.04 ms.
+
 ## Limits of these numbers
 
 Tracked in #70 (measurement gaps), #67 (unattributed time) and #68 (build scaling); the extension choice is #71.
 
-- CPU\* at 10K and 100K comes from two thread counts (above). The `core` preset's thread sweep covers only 1M.
+- CPU\* at 10K and 100K comes from two thread counts (above). The `core` preset's thread sweep covered only 1M in these runs; `sweep.py` now runs it at all three sizes (rerun pending).
 - GPU T_app is unstable at small sizes (spread 205% at 10K, 37% at 100K; 13% at 1M). Run-to-run variation in `cuda_init` is the likely cause. The CSV keeps only the median run, so the per-process totals are in `points/app_cuda_*/tapp_*.json` on Vista.
 - GPU\* for T_frame at 1M is B = 8 only because the three B values (1, 8, 72) differ by noise; T_frame does not depend on B.
 - The light-count dimension, clustered scenes and seed 2 are not measured. There is no profiling data yet (`-Xptxas -v`, Nsight).

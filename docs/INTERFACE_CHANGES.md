@@ -16,19 +16,18 @@
 | ID | Version | Date | Section | Kind | Summary | PR / issue |
 |---|---|---|---|---|---|---|
 | IC1 | v1.0 | Nov 13 | General rules | Behavior | FMA contraction is off for all project code (`-ffp-contract=off`, nvcc `--fmad=false`). The wording change is already in INTERFACES.md's general rules. CPU and GPU images are now byte-identical on the known and benchmark scenes. Explicit `fmaf()` calls are unaffected | #65 |
+| IC2 | v1.1 | Nov 22 | §6 `BvhQuery`, §5 `traverse_*` | Additive | `BvhQuery` gains `uint32_t* overflow = nullptr`, forwarded to `traverse_closest` / `traverse_any` (which already took the trailing pointer). `CpuBackend` and `CudaBackend` use `BvhQuery` and their private `CheckedBvhQuery` copies are gone. The backend still owns the flag. A two-member initializer keeps compiling and reports nothing, as before. Closes [CONTRACT_NOTES W8](CONTRACT_NOTES.md#w8-where-the-traversal-overflow-flag-lives) | #69 |
+| IC3 | v1.2 | Nov 22 | §1 `AABB`, constants | Additive | `static AABB empty()` (host and device) returns `{{inf,inf,inf},{-inf,-inf,-inf}}`; the builder and generator use it. `RT_EPS` and `RT_GAMMA3` moved from `aabb.hpp` to `math.hpp`; `aabb.hpp` still includes `math.hpp`, so existing code compiles unchanged | #4 |
 
 ## Pending (decided to add, not yet done)
 
 These are not part of the frozen contract yet. Each becomes a log entry when it lands.
 
-| ID | Section | Proposal | Kind | Issue |
-|---|---|---|---|---|
-| IC2 | §6 `BvhQuery`, §5 `traverse_*` | Add `uint32_t* overflow = nullptr` to `BvhQuery` and forward it, so `CpuBackend` and `CudaBackend` can drop their private `CheckedBvhQuery` copies and an overflow through the public query is reported. Closes [CONTRACT_NOTES W8](CONTRACT_NOTES.md#w8-where-the-traversal-overflow-flag-lives). `traverse_*` already take the pointer | Additive | #69 |
-| IC3 | §1 `AABB`, constants | `static AABB empty()` returning `{{inf,inf,inf},{-inf,-inf,-inf}}`; move `RT_EPS` / `RT_GAMMA3` from `aabb.hpp` to `math.hpp` (existing includes keep compiling) | Additive | #4 |
+None.
 
 ## Open questions
 
 Interface questions that came up but have no proposal yet go here, so they are not rediscovered. Other known gaps stay in [CONTRACT_NOTES.md](CONTRACT_NOTES.md).
 
-- Results schema: the schema has no slot for builder sub-stage timings, which #68 wants. A temporary stderr report is enough to start. If the stages should appear in results files, that is a new entry (additive, new optional field).
+- Results schema: the schema has no slot for builder sub-stage timings (#68). `RT_BVH_STAGES=1` prints them to stderr for LBVH builds ([BUILD.md](BUILD.md#runtime-diagnostics)), which has been enough so far. If the stages should appear in results files, that is a new entry (additive, new optional field).
 - `--mem managed|system|system-reuse` (E1, if chosen): `MemConfig` is defined in `backend.hpp` but not in INTERFACES (W9). Defining it would be an entry here.
