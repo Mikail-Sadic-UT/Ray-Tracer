@@ -200,10 +200,9 @@ int main(int argc, char** argv) {
         const uint32_t aovs = parse_aovs(aov_names);
         // load_scene() validated everything else; overrides change only the camera, and the
         // AOV choice only the light limit. A full second validate_scene() pass cost ~0.4 s
-        // of T_app at 1M primitives (#67). Same checks and messages as validate_scene().
+        // of T_app at 1M primitives (#67).
         rt::validate_camera(cam);
-        if ((aovs & rt::AOV_LIGHT_MASK) != 0 && scene.lights.size() > 32)
-            throw rt::Error("scene_io: lights: light-mask AOV requires at most 32 lights");
+        if ((aovs & rt::AOV_LIGHT_MASK) != 0) rt::validate_light_mask_limit(scene);
         const rt::RenderSettings settings{
             cam.width, cam.height, aovs,
             shade_name == "normal" ? rt::ShadeMode::Normal : rt::ShadeMode::Lit};

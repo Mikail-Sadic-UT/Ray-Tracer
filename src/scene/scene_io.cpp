@@ -76,6 +76,11 @@ void write_document(const std::string& path, const json& document) {
 
 }  // namespace
 
+void validate_light_mask_limit(const SceneHost& scene) {
+    if (scene.lights.size() > 32)
+        scene_error("lights", "light-mask AOV requires at most 32 lights");
+}
+
 void validate_scene(const SceneHost& scene, bool require_light_mask) {
     validate_counts(scene.spheres.size(), scene.triangles.size(), scene.materials.size(),
                     scene.lights.size());
@@ -115,8 +120,7 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
         world_vec3(triangle.v2, path + ".v[2]");
         check_material(triangle.material_id, scene.materials.size(), path);
     }
-    if (require_light_mask && scene.lights.size() > 32)
-        scene_error("lights", "light-mask AOV requires at most 32 lights");
+    if (require_light_mask) validate_light_mask_limit(scene);
     for (size_t i = 0; i < scene.lights.size(); ++i) {
         const Light& light = scene.lights[i];
         const std::string path = indexed("lights", i);
