@@ -58,34 +58,10 @@ class Scratch {
 /// Below this many primitives the LBVH stages run on one thread; team startup costs more.
 constexpr int64_t kParallelMin = 4096;
 
-/// Optional per-stage LBVH timing on stderr, enabled by `RT_BVH_STAGES=1`. Diagnostic only:
-/// the results schema has no slot for builder sub-stages (#68).
-struct StageClock {
-    bool enabled = false;
-    std::chrono::steady_clock::time_point last{};
-    char text[512] = {};
-    int used = 0;
-
-    StageClock() {
-        const char* value = std::getenv("RT_BVH_STAGES");
-        enabled = value != nullptr && value[0] != '\0' && value[0] != '0';
-        last = std::chrono::steady_clock::now();
-    }
-    void mark(const char* name) {
-        if (!enabled) return;
-        const auto now = std::chrono::steady_clock::now();
-        const double ms = std::chrono::duration<double, std::milli>(now - last).count();
-        last = now;
-        if (used < static_cast<int>(sizeof(text)))
-            used += std::snprintf(text + used, sizeof(text) - used, " %s=%.2f", name, ms);
-    }
-    void report(int threads) const {
-        if (enabled) std::fprintf(stderr, "bvh stages (B=%d):%s\n", threads, text);
-    }
-};
-
 using Prim = detail::BuildPrim;
+using detail::LayoutInfo;
 using detail::LbvhNode;
+using detail::StageClock;
 
 /// Rounds `center ± radius` outward by one ulp, so rounding never clips the sphere.
 AABB sphere_bounds(const Sphere& s) {
@@ -209,14 +185,6 @@ uint32_t lbvh_split(const uint32_t* sorted_keys, uint32_t first, uint32_t last) 
     }
     return split;
 }
-
-/// Output size of a collapsed subtree: a node with at most `max_leaf_size` primitives is one
-/// leaf. `nodes` counts output nodes, `depth` is the output edge height.
-struct LayoutInfo {
-    uint32_t nodes = 1;
-    uint32_t leaves = 1;
-    uint32_t depth = 0;
-};
 
 LayoutInfo combine_layout(const LbvhNode& node, uint32_t max_leaf_size, const LayoutInfo& left,
                           const LayoutInfo& right) {
@@ -503,6 +471,42 @@ uint32_t detail::recover_lbvh_depth(const BuildPrim* prims, uint32_t* order, Lbv
     return recover_subtrees(prims, order, nodes, 0, 0);
 }
 
+void detail::layout_lbvh(const BuildPrim* prims, uint32_t* order, LbvhNode* nodes,
+                         size_t node_count, LayoutInfo* counts, bool heights_ready,
+                         bool counts_ready, uint32_t max_leaf_size, int threads, Bvh& result,
+                         StageClock* clock) {
+    const auto mark = [&](const char* name) {
+        if (clock != nullptr) clock->mark(name);
+    };
+    const int64_t count = static_cast<int64_t>((node_count + 1) / 2);
+    result.stats.fallbacks = recover_lbvh_depth(prims, order, nodes, node_count, heights_ready);
+    // The refit's counts describe the tree as built. A rebuilt subtree invalidates them.
+    if (!counts_ready || result.stats.fallbacks != 0) count_layout(nodes, 0, max_leaf_size, counts);
+    mark("recover");
+    const uint32_t task_min = layout_task_min(count, threads);
+    result.prim_refs.resize(static_cast<size_t>(count));
+    PrimRef* refs = result.prim_refs.data();
+#pragma omp parallel num_threads(threads)
+    {
+        // The node vector's zero fill is serial; one thread does it while the others gather
+        // prim_refs. Leaves cover sorted ranges, so prim_refs is the sorted order mapped to
+        // refs. Dynamic chunks let the resizing thread skip its share.
+#pragma omp single nowait
+        result.nodes.resize(counts[0].nodes);
+        // This loop's implicit barrier also orders the resize before emit.
+#pragma omp for schedule(dynamic, 16384)
+        for (int64_t i = 0; i < count; ++i) refs[i] = prims[order[i]].ref;
+#pragma omp single
+        emit_lbvh(nodes, counts, 0, 0, 1, max_leaf_size, result.nodes.data(), task_min);
+    }
+    mark("emit");
+    result.stats.nodes = counts[0].nodes;
+    result.stats.leaves = counts[0].leaves;
+    result.stats.depth = counts[0].depth;
+    result.stats.sah_cost = sah_cost(result, threads);
+    mark("sah");
+}
+
 Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
     if (params.method != BvhMethod::Median && params.method != BvhMethod::LBVH)
         throw Error("bvh: only Median and LBVH are implemented");
@@ -575,34 +579,8 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
         timings.build = std::chrono::duration<double, std::milli>(build_end - build_start).count();
 
         const auto layout_start = std::chrono::steady_clock::now();
-        result.stats.fallbacks =
-            detail::recover_lbvh_depth(prims.data(), order.data(), temp.data(), node_count, true);
-        if (result.stats.fallbacks != 0)
-            count_layout(temp.data(), 0, params.max_leaf_size, counts.data());
-        clock.mark("recover");
-        const uint32_t task_min = layout_task_min(count, teams);
-        result.prim_refs.resize(primitive_count);
-        PrimRef* refs = result.prim_refs.data();
-#pragma omp parallel num_threads(teams)
-        {
-            // The node vector's zero fill is serial; one thread does it while the others
-            // gather prim_refs. Leaves cover sorted ranges, so prim_refs is the sorted order
-            // mapped to refs. Dynamic chunks let the resizing thread skip its share.
-#pragma omp single nowait
-            result.nodes.resize(counts[0].nodes);
-#pragma omp for schedule(dynamic, 16384)
-            for (int64_t i = 0; i < count; ++i) refs[i] = prims[order[i]].ref;
-                // The loop's implicit barrier also orders the resize before emit.
-#pragma omp single
-            emit_lbvh(temp.data(), counts.data(), 0, 0, 1, params.max_leaf_size,
-                      result.nodes.data(), task_min);
-        }
-        clock.mark("emit");
-        result.stats.nodes = counts[0].nodes;
-        result.stats.leaves = counts[0].leaves;
-        result.stats.depth = counts[0].depth;
-        result.stats.sah_cost = sah_cost(result, teams);
-        clock.mark("sah");
+        detail::layout_lbvh(prims.data(), order.data(), temp.data(), node_count, counts.data(),
+                            true, true, params.max_leaf_size, teams, result, &clock);
         // Release the scratch here so freeing ~200 MB at 1M counts as layout, not as time
         // outside every component (#67).
         temp.reset();
@@ -615,7 +593,7 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
         const auto layout_end = std::chrono::steady_clock::now();
         timings.layout =
             std::chrono::duration<double, std::milli>(layout_end - layout_start).count();
-        clock.report(params.threads);
+        clock.report(teams, params.threads);
         return result;
     }
 
