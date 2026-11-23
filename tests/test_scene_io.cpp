@@ -151,7 +151,14 @@ TEST_F(SceneIo, RejectsInvalidSceneValues) {
         {[&](auto& s) { s.materials[0].ks.y = inf; }, "materials[0].ks[1]"},
         {[](auto& s) { s.materials[0].shininess = 0; }, "materials[0].shininess"},
         {[&](auto& s) { s.materials[0].shininess = inf; }, "materials[0].shininess"},
-        {[](auto& s) { s.materials[0].flags = 4; }, "materials[0].flags"},
+        {[](auto& s) { s.materials[0].flags = 8; }, "materials[0].flags"},
+        {[](auto& s) { s.materials[0].flags = rt::MAT_GLASS | rt::MAT_MIRROR; },
+         "materials[0].glass"},
+        {[](auto& s) {
+             s.materials[0].flags = rt::MAT_GLASS;
+             s.materials[0].shininess = 0.5f;
+         },
+         "materials[0].ior"},
         {[](auto& s) { s.lights[0].type = 2; }, "lights[0].type"},
         {[](auto& s) {
              s.lights[0].type = rt::LIGHT_DIRECTIONAL;
@@ -241,6 +248,49 @@ TEST_F(SceneIo, MirrorMaterials) {
 
     document["materials"][1]["mirror"] = 1;
     expect_error([&] { rt::parse_scene(document); }, "materials[1].mirror");
+}
+
+/// Glass: "glass": true with "ior" in place of "shininess" (stored there), written back the same
+/// way, and the key rules enforced.
+TEST_F(SceneIo, GlassMaterials) {
+    json& m = document["materials"][1];
+    m.erase("shininess");
+    m["glass"] = true;
+    m["ior"] = 1.5;
+    m["ks"] = {0.6, 0.9, 0.7};
+    const rt::SceneHost scene = rt::parse_scene(document);
+    EXPECT_EQ(scene.materials[1].flags, uint32_t{rt::MAT_GLASS});
+    EXPECT_EQ(scene.materials[1].shininess, 1.5f);
+
+    const auto path = directory / "glass.json";
+    rt::save_scene(path.string(), scene);
+    const rt::SceneHost loaded = rt::load_scene(path.string());
+    EXPECT_EQ(loaded.hash, scene.hash);
+    std::ifstream saved(path);
+    const json written = json::parse(saved);
+    EXPECT_EQ(written["materials"][1]["glass"], true);
+    EXPECT_EQ(written["materials"][1]["ior"], 1.5);
+    EXPECT_FALSE(written["materials"][1].contains("shininess"));
+    EXPECT_FALSE(written["materials"][0].contains("glass"));
+
+    auto bad = document;
+    bad["materials"][1]["shininess"] = 1;
+    expect_error([&] { rt::parse_scene(bad); }, "materials[1].shininess");
+    bad = document;
+    bad["materials"][1].erase("ior");
+    expect_error([&] { rt::parse_scene(bad); }, "materials[1].ior");
+    bad = document;
+    bad["materials"][1]["ior"] = 0.9;
+    expect_error([&] { rt::parse_scene(bad); }, "materials[1].ior");
+    bad = document;
+    bad["materials"][1]["specular"] = true;
+    expect_error([&] { rt::parse_scene(bad); }, "materials[1].glass");
+    bad = document;
+    bad["materials"][1]["glass"] = "yes";
+    expect_error([&] { rt::parse_scene(bad); }, "materials[1].glass");
+    bad = document;
+    bad["materials"][0]["ior"] = 1.5;
+    expect_error([&] { rt::parse_scene(bad); }, "materials[0].ior");
 }
 
 TEST_F(SceneIo, CoordinateBoundAtLoadReportsValue) {

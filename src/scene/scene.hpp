@@ -26,14 +26,16 @@ struct Triangle {
 enum MaterialFlags : uint32_t {
     MAT_SPECULAR = 1u << 0,  ///< Enable the specular extension (Blinn-Phong highlight, E2).
     MAT_MIRROR = 1u << 1,    ///< Reflect like a mirror with reflectance `ks` (after E2).
+    MAT_GLASS = 1u << 2,     ///< Glass: refracts with index `shininess`, absorbs to `ks` per unit.
 };
 
 /// Surface parameters. Lambert shading uses `albedo`; the flags add highlights and reflection.
 struct Material {
     color albedo;     ///< Nonnegative linear diffuse reflectance.
     color ks;         ///< Nonnegative linear specular reflectance: highlight color for
-                      ///< MAT_SPECULAR, reflection color for MAT_MIRROR.
-    float shininess;  ///< Specular exponent, at least 1.
+                      ///< MAT_SPECULAR, reflection color for MAT_MIRROR, and for MAT_GLASS the
+                      ///< fraction of light left after one unit of distance inside.
+    float shininess;  ///< Specular exponent, at least 1; for MAT_GLASS, the index of refraction.
     uint32_t flags;   ///< MaterialFlags bit set.
 };
 

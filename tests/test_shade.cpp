@@ -603,7 +603,7 @@ TEST(Mirror, SeesTheObjectAboveIt) {
 }
 
 /// Two parallel mirrors bounce a vertical ray forever; shading stops after
-/// RT_MAX_MIRROR_BOUNCES reflections, so the sum is a * (1 + k + k^2 + k^3 + k^4).
+/// RT_MAX_BOUNCES reflections, so the sum is a * (1 + k + k^2 + k^3 + k^4).
 TEST(Mirror, StopsAfterTheBounceLimit) {
     rt::Triangle planes[4];
     plane(planes, 0.0f, 0u);
@@ -614,7 +614,7 @@ TEST(Mirror, StopsAfterTheBounceLimit) {
     const rt::Ray ray{{0.25f, 0.5f, 0.25f}, 0.0f, {0.0f, -1.0f, 0.0f}, INFINITY};
     const rt::BruteQuery q{scene};
     const rt::PixelResult r = rt::shade_hit(ray, q.closest(ray), scene, q);
-    static_assert(rt::RT_MAX_MIRROR_BOUNCES == 4u, "the expected sum below assumes 4 bounces");
+    static_assert(rt::RT_MAX_BOUNCES == 4u, "the expected sum below assumes 4 bounces");
     const float want = 0.4f * (1.0f + 0.5f + 0.25f + 0.125f + 0.0625f);
     EXPECT_FLOAT_EQ(r.rgb.x, want);
     EXPECT_FLOAT_EQ(r.rgb.z, want);
@@ -634,6 +634,77 @@ TEST(Mirror, ZeroReflectanceAndNonMirrorAddNothing) {
     material.ks = {1.0f, 1.0f, 1.0f};
     material.flags = 0u;
     EXPECT_FLOAT_EQ(rt::shade_hit(ray, q.closest(ray), scene, q).rgb.x, 0.1f);
+}
+
+/// A sphere of glass with index 1.5, absorbing to @p absorb per unit, alone in front of a
+/// background; albedo 0 and no lights, so only reflection, refraction and absorption show.
+struct GlassRig {
+    rt::Sphere sphere{{0.0f, 0.0f, 0.0f}, 1.0f, 0u};
+    rt::Material glass;
+    rt::Scene scene;
+    explicit GlassRig(rt::color absorb, float ior = 1.5f)
+        : glass{{0.0f, 0.0f, 0.0f}, absorb, ior, rt::MAT_GLASS},
+          scene{&sphere, 1u, nullptr, 0u, &glass, 1u, nullptr, 0u, {0.2f, 0.4f, 0.6f}, 0.05f} {}
+    rt::PixelResult shade(rt::vec3 from, rt::vec3 dir) const {
+        const rt::Ray ray{from, 0.0f, rt::normalize(dir), INFINITY};
+        const rt::BruteQuery q{scene};
+        return rt::shade_hit(ray, q.closest(ray), scene, q);
+    }
+};
+
+/// Straight through the center: R = ((1 - 1.5) / 2.5)^2 = 0.04 at every surface, and each
+/// crossing of the diameter absorbs absorb^2. Within the 4-bounce limit the paths that reach the
+/// background are: reflect at the front (0.04); in, out the back (0.96 * a^2 * 0.96); in, reflect
+/// inside, out the front (0.96 * a^2 * 0.04 * a^2 * 0.96); and in, reflect inside twice, out the
+/// back (0.96 * a^2 * 0.04 * a^2 * 0.04 * a^2 * 0.96). Each sum multiplies the background.
+TEST(Glass, NormalIncidenceFresnelAndAbsorption) {
+    const GlassRig rig({0.5f, 1.0f, 0.8f});
+    const rt::PixelResult r = rig.shade({0.0f, 0.0f, 5.0f}, {0.0f, 0.0f, -1.0f});
+    EXPECT_EQ(r.prim_id, 0u);
+    EXPECT_EQ(r.light_mask, 0u);
+    const double bg[3] = {0.2, 0.4, 0.6};
+    const double a[3] = {0.5, 1.0, 0.8};
+    const float got[3] = {r.rgb.x, r.rgb.y, r.rgb.z};
+    for (int c = 0; c < 3; ++c) {
+        const double a2 = a[c] * a[c];
+        const double want = (0.04 + 0.96 * a2 * 0.96 + 0.96 * a2 * 0.04 * a2 * 0.96 +
+                             0.96 * a2 * 0.04 * a2 * 0.04 * a2 * 0.96) *
+                            bg[c];
+        EXPECT_NEAR(got[c], want, 1e-5 * want) << "channel " << c;
+    }
+}
+
+/// A ray inside glass meeting the surface past the critical angle (sin > 1 / 1.5) is reflected
+/// completely: its full weight comes back as background, with no refracted part.
+TEST(Glass, TotalInternalReflection) {
+    rt::Triangle floor[2];
+    plane(floor, 0.0f, 0u);  // outward normal +y, so a ray from below leaves the glass
+    const rt::Material glass{{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, 1.5f, rt::MAT_GLASS};
+    const rt::Scene scene{nullptr, 0u, floor, 2u, &glass, 1u, nullptr, 0u, {0.2f, 0.4f, 0.6f},
+                          0.0f};
+    const rt::BruteQuery q{scene};
+    // 60 degrees from the normal: sin 60 * 1.5 = 1.3 > 1.
+    const rt::Ray steep{
+        {0.0f, -1.0f, 0.0f}, 0.0f, rt::normalize(rt::vec3{std::sqrt(3.0f), 1.0f, 0.0f}), INFINITY};
+    const rt::PixelResult tir = rt::shade_hit(steep, q.closest(steep), scene, q);
+    EXPECT_FLOAT_EQ(tir.rgb.x, 0.2f);
+    EXPECT_FLOAT_EQ(tir.rgb.z, 0.6f);
+    // 20 degrees: below the critical angle, both rays leave, and with no absorption and only
+    // the background to see, their weights still add up to 1.
+    const rt::Ray shallow{
+        {0.0f, -1.0f, 0.0f}, 0.0f, rt::normalize(rt::vec3{0.36397f, 1.0f, 0.0f}), INFINITY};
+    const rt::PixelResult part = rt::shade_hit(shallow, q.closest(shallow), scene, q);
+    EXPECT_NEAR(part.rgb.x, 0.2f, 1e-6f);
+}
+
+/// Index 1 bends nothing and reflects nothing (Schlick's R0 is 0), so clear glass of index 1
+/// shows the background unchanged at normal incidence.
+TEST(Glass, IndexOneIsInvisible) {
+    const GlassRig rig({1.0f, 1.0f, 1.0f}, 1.0f);
+    const rt::PixelResult r = rig.shade({0.0f, 0.0f, 5.0f}, {0.0f, 0.0f, -1.0f});
+    EXPECT_FLOAT_EQ(r.rgb.x, 0.2f);
+    EXPECT_FLOAT_EQ(r.rgb.y, 0.4f);
+    EXPECT_FLOAT_EQ(r.rgb.z, 0.6f);
 }
 
 }  // namespace

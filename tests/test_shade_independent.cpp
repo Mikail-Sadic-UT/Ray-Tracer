@@ -5,8 +5,8 @@
 /// The expected numbers come from a separate double-precision implementation of the frozen rules
 /// in INTERFACES section 6, not from src/shade. They cover cases test_shade.cpp doesn't:
 /// an off-axis sphere normal, a tilted triangle normal with unequal channels, the color of
-/// a multi-light sum, an E2 specular point under point and directional lights, and a mirror
-/// floor reflecting a lit sphere.
+/// a multi-light sum, an E2 specular point under point and directional lights, a mirror
+/// floor reflecting a lit sphere, and an off-center ray through a colored glass sphere.
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -118,6 +118,23 @@ TEST(ShadeIndependent, MirrorFloorReflectsLitSphere) {
     const rt::PixelResult r = rt::shade_hit(ray, hit, scene, q);
     expect_rel(r.rgb, 0.3173421754758055, 0.11320063820130652, 0.10961920772280653);
     EXPECT_EQ(r.light_mask, 1u);
+}
+
+/// Colored glass sphere (index 1.5, absorbing to (0.5, 0.8, 0.9) per unit) hit off center from
+/// (0.3, 0.2, 5) along -z, in front of the background only. The oracle traces the same
+/// reflection and refraction tree recursively in double precision.
+TEST(ShadeIndependent, OffCenterRayThroughColoredGlass) {
+    const rt::Sphere sphere{{0.0f, 0.0f, 0.0f}, 1.0f, 0u};
+    const rt::Material glass{{0.0f, 0.0f, 0.0f}, {0.5f, 0.8f, 0.9f}, 1.5f, rt::MAT_GLASS};
+    const rt::Scene scene{&sphere, 1u, nullptr, 0u, &glass, 1u, nullptr, 0u, {0.2f, 0.4f, 0.6f},
+                          0.05f};
+    const rt::Ray ray{{0.3f, 0.2f, 5.0f}, 0.0f, {0.0f, 0.0f, -1.0f}, INFINITY};
+    const rt::BruteQuery q{scene};
+    const rt::PixelResult r = rt::shade_hit(ray, q.closest(ray), scene, q);
+    // Four refractions and reflections in float drift about 1e-5 from the double oracle (measured
+    // 1.03e-5 on red), so this case allows 5e-5; a wrong formula is off by orders of magnitude.
+    expect_rel(r.rgb, 0.056496648088896595, 0.2613977344942609, 0.4898446183163686, 5e-5);
+    EXPECT_EQ(r.light_mask, 0u);
 }
 
 }  // namespace

@@ -95,10 +95,15 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
         const std::string path = indexed("materials", i);
         nonnegative_vec3(material.albedo, path + ".albedo");
         nonnegative_vec3(material.ks, path + ".ks");
-        finite_float(material.shininess, path + ".shininess");
-        if (material.shininess < 1.0f) scene_error(path + ".shininess", "must be at least 1");
-        if ((material.flags & ~uint32_t{MAT_SPECULAR | MAT_MIRROR}) != 0)
+        // Glass keeps its index of refraction in `shininess` and names it "ior" in JSON.
+        const bool glass = (material.flags & MAT_GLASS) != 0;
+        const std::string shininess_path = path + (glass ? ".ior" : ".shininess");
+        finite_float(material.shininess, shininess_path);
+        if (material.shininess < 1.0f) scene_error(shininess_path, "must be at least 1");
+        if ((material.flags & ~uint32_t{MAT_SPECULAR | MAT_MIRROR | MAT_GLASS}) != 0)
             scene_error(path + ".flags", "unknown or reserved material flags");
+        if (glass && (material.flags & (MAT_SPECULAR | MAT_MIRROR)) != 0)
+            scene_error(path + ".glass", "cannot be combined with specular or mirror");
     }
     // Primitives: a cheap exact predicate first; the path-naming checks below run only for a
     // primitive that fails it, so error messages are unchanged.
@@ -175,12 +180,23 @@ static SceneHost parse_scene_impl(const json& document, const std::filesystem::p
         if (mirror != value.end() && !mirror->is_boolean())
             scene_error(path + ".mirror", "expected a boolean");
         const bool is_mirror = mirror != value.end() && mirror->get<bool>();
-        scene.materials.push_back(
-            {read_vec3(member(value, "albedo", path), path + ".albedo"),
-             read_vec3(member(value, "ks", path), path + ".ks"),
-             read_float(member(value, "shininess", path), path + ".shininess"),
-             (specular.get<bool>() ? uint32_t{MAT_SPECULAR} : 0u) |
-                 (is_mirror ? uint32_t{MAT_MIRROR} : 0u)});
+        // Optional as well. Glass takes "ior" in place of "shininess" and stores it there.
+        const auto glass = value.find("glass");
+        if (glass != value.end() && !glass->is_boolean())
+            scene_error(path + ".glass", "expected a boolean");
+        const bool is_glass = glass != value.end() && glass->get<bool>();
+        if (is_glass && value.contains("shininess"))
+            scene_error(path + ".shininess", "glass materials set \"ior\" instead");
+        if (!is_glass && value.contains("ior"))
+            scene_error(path + ".ior", "only glass materials have an index of refraction");
+        const float shininess =
+            is_glass ? read_float(member(value, "ior", path), path + ".ior")
+                     : read_float(member(value, "shininess", path), path + ".shininess");
+        scene.materials.push_back({read_vec3(member(value, "albedo", path), path + ".albedo"),
+                                   read_vec3(member(value, "ks", path), path + ".ks"), shininess,
+                                   (specular.get<bool>() ? uint32_t{MAT_SPECULAR} : 0u) |
+                                       (is_mirror ? uint32_t{MAT_MIRROR} : 0u) |
+                                       (is_glass ? uint32_t{MAT_GLASS} : 0u)});
     }
     scene.lights.reserve(lights.size());
     for (size_t i = 0; i < lights.size(); ++i) {
@@ -275,12 +291,14 @@ json scene_to_json(const SceneHost& scene) {
                      {"lights", json::array()},
                      {"geometry", {{"spheres", json::array()}, {"triangles", json::array()}}}};
     for (const auto& material : scene.materials) {
+        const bool glass = (material.flags & MAT_GLASS) != 0;
         json entry = {{"albedo", vector(material.albedo)},
                       {"ks", vector(material.ks)},
-                      {"shininess", number(material.shininess)},
+                      {glass ? "ior" : "shininess", number(material.shininess)},
                       {"specular", (material.flags & MAT_SPECULAR) != 0}};
-        // Written only when set, so scenes without mirrors save exactly as before.
+        // Written only when set, so scenes without mirrors or glass save exactly as before.
         if ((material.flags & MAT_MIRROR) != 0) entry["mirror"] = true;
+        if (glass) entry["glass"] = true;
         document["materials"].push_back(std::move(entry));
     }
     for (const auto& light : scene.lights) {

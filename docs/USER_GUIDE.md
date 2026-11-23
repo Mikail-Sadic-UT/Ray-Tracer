@@ -221,6 +221,14 @@ Materials are diffuse (Lambert) unless `"specular": true`, which adds a Blinn-Ph
 
 Add `"mirror": true` to a material to make it reflect. Its `ks` is then the reflection color: `[0.9, 0.9, 0.9]` is chrome, `[0.9, 0.7, 0.3]` gold, and a dark `albedo` keeps the surface's own color from washing out the reflection. A material can be both specular and a mirror. Reflections follow at most 4 bounces, so two mirrors facing each other end in a dark reflection after that. `scenes/known/known_mirror.json` has a mirror wall and mirror spheres.
 
+For glass, set `"glass": true` and give `"ior"` (index of refraction: 1.5 for window glass, 1.33 for water) instead of `"shininess"`, with `"specular": false`:
+
+```json
+{"name": "green glass", "albedo": [0, 0, 0], "ks": [0.45, 0.85, 0.5], "ior": 1.5, "specular": false, "glass": true}
+```
+
+`ks` is the glass color: the fraction of red, green and blue that remains after one unit of distance through it, so thick glass is deeper in color than thin glass, and `[1, 1, 1]` is perfectly clear. Keep `albedo` at zero for clear-looking glass. Light both reflects off and refracts through the surface, more of it reflecting at grazing angles. Glass and mirror rays together follow at most 4 bounces. Glass spheres and closed triangle meshes work; a triangle's outside is the side its vertices wind counterclockwise around. Shadows of glass are solid, as if it were opaque. `scenes/known/known_glass.json` has three colored glass spheres in front of a striped wall.
+
 Version-2 scenes may store geometry inline or reference a `.bin` file. Binary paths resolve relative to the scene JSON, so keep the JSON and referenced geometry together. Full format and validation rules: [INTERFACES.md §2](INTERFACES.md#2-scene-image-and-file-formats).
 
 ## Generate larger scenes
