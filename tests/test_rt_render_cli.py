@@ -206,6 +206,17 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
     masks = (root / 'lights3.lightmask.u32img').read_bytes()
     assert any(b & 0b110 for b in masks), 'lights 1 and 2 should light some pixels'
 
+    # --orbit: one preparation, N frames on a turn around the target; frame 0 is the plain image.
+    run([args.render, '--scene', args.scene, '--width', '48', '--height', '32',
+         '--out', str(root / 'orbit_ref.png')])
+    run([args.render, '--scene', args.scene, '--width', '48', '--height', '32', '--bvh', 'lbvh',
+         '--orbit', '4', '--frames', str(root / 'orbit')])
+    frames = sorted(p.name for p in (root / 'orbit').iterdir())
+    assert frames == [f'frame_{i:04d}.png' for i in range(4)], frames
+    first = (root / 'orbit' / 'frame_0000.png').read_bytes()
+    assert first == (root / 'orbit_ref.png').read_bytes()
+    assert (root / 'orbit' / 'frame_0002.png').read_bytes() != first
+
     # Errors exit non-zero with a message on stderr.
     failures = {
         '--runs applies only': ['--runs', '3'],
@@ -215,6 +226,10 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
         'vfov_deg': ['--shade', 'normal', '--cam-vfov', '180'],
         '--pfm': ['--shade', 'normal', '--aov', 'primid'],
         '--lights': ['--lights', '0'],
+        '--orbit requires --frames': ['--orbit', '3'],
+        '--frames applies only': ['--frames', str(root / 'unused')],
+        'writes only frame PNGs': ['--orbit', '3', '--frames', str(root / 'o2'),
+                                   '--results', str(root / 'o2.json')],
     }
     for text, extra in failures.items():
         result = run([args.render, '--scene', args.scene, *extra], ok=False)
