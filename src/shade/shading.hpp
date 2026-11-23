@@ -203,22 +203,18 @@ RT_INLINE bool light_sample(const SurfacePoint& sp, vec3 wo, const Scene& s, uin
     return true;
 }
 
-/// Shades a primary hit with Lambert lighting, Blinn-Phong highlights for `MAT_SPECULAR`
-/// materials, and hard shadows (INTERFACES section 6).
-///
-/// A miss returns the background color, `RT_MISS_PRIM` and a zero mask. A hit starts from
-/// `albedo * ambient`, then adds each light in index order whose shadow ray is unoccluded
-/// according to `q.any`, setting bit `i` of `light_mask` for it (lights `i < 32`). The order is
-/// fixed so every backend sums the same floats in the same sequence.
-/// @tparam Query Provides `bool any(const Ray&) const`.
-/// @pre `h` is a miss or identifies a primitive of `s`.
+/// Most reflection rays one pixel follows through `MAT_MIRROR` surfaces. A mirror seen at the
+/// last bounce contributes its direct light but not its own reflection.
+constexpr uint32_t RT_MAX_MIRROR_BOUNCES = 4u;
+
+/// Direct light at a surface point: `albedo * ambient`, then each light in index order whose
+/// shadow ray is unoccluded according to `q.any`, setting bit `i` of @p mask for it (lights
+/// `i < 32`). The order is fixed so every backend sums the same floats in the same sequence.
 template <class Query>
-RT_INLINE PixelResult shade_hit(const Ray& r, const Hit& h, const Scene& s, const Query& q) {
-    if (h.prim == RT_MISS_PRIM) return {s.background, RT_MISS_PRIM, 0u};
-    const SurfacePoint sp = surface_at(r, h, s);
-    const vec3 wo = -r.dir;
+RT_INLINE color direct_light(const SurfacePoint& sp, vec3 wo, const Scene& s, const Query& q,
+                             uint32_t& mask) {
     color rgb = s.materials[sp.material_id].albedo * s.ambient;
-    uint32_t mask = 0u;
+    mask = 0u;
     for (uint32_t i = 0; i < s.num_lights; ++i) {
         color contrib;
         Ray shadow_ray;
@@ -227,11 +223,62 @@ RT_INLINE PixelResult shade_hit(const Ray& r, const Hit& h, const Scene& s, cons
             if (i < 32u) mask |= (1u << i);
         }
     }
+    return rgb;
+}
+
+/// Light reflected by the `MAT_MIRROR` surface at @p sp, seen along @p dir (unit).
+///
+/// Follows up to `RT_MAX_MIRROR_BOUNCES` reflection rays. Each one starts at the offset origin
+/// on the viewer's side, along `normalize(dir - 2 * dot(dir, ng) * ng)`. The throughput is
+/// multiplied by the mirror's `ks` before each reflection, and every surface it reaches adds
+/// `throughput * direct_light`; a miss adds `throughput * background` and ends the path, and so
+/// does a surface without `MAT_MIRROR` or a throughput of zero.
+/// @tparam Query Provides `closest` and `any`.
+template <class Query>
+RT_INLINE color mirror_light(vec3 dir, SurfacePoint sp, const Scene& s, const Query& q) {
+    color sum{0.0f, 0.0f, 0.0f};
+    color throughput{1.0f, 1.0f, 1.0f};
+    for (uint32_t bounce = 0; bounce < RT_MAX_MIRROR_BOUNCES; ++bounce) {
+        const Material& material = s.materials[sp.material_id];
+        if ((material.flags & MAT_MIRROR) == 0u) break;
+        throughput = throughput * material.ks;
+        if (!(throughput.x > 0.0f || throughput.y > 0.0f || throughput.z > 0.0f)) break;
+        dir = normalize(dir - 2.0f * dot(dir, sp.ng) * sp.ng);
+        const Ray ray{offset_ray_origin(sp.p, sp.ng), 0.0f, dir, INFINITY};
+        const Hit hit = q.closest(ray);
+        if (hit.prim == RT_MISS_PRIM) {
+            sum += throughput * s.background;
+            break;
+        }
+        sp = surface_at(ray, hit, s);
+        uint32_t unused_mask;
+        sum += throughput * direct_light(sp, -dir, s, q, unused_mask);
+    }
+    return sum;
+}
+
+/// Shades a primary hit with Lambert lighting, Blinn-Phong highlights for `MAT_SPECULAR`
+/// materials, mirror reflections for `MAT_MIRROR` materials, and hard shadows (INTERFACES
+/// section 6).
+///
+/// A miss returns the background color, `RT_MISS_PRIM` and a zero mask. A hit returns its
+/// direct light (see `direct_light`) plus, for a mirror, `mirror_light`. `prim_id` and
+/// `light_mask` always describe the primary hit, so reflections leave the AOVs unchanged.
+/// @tparam Query Provides `Hit closest(const Ray&) const` and `bool any(const Ray&) const`.
+/// @pre `h` is a miss or identifies a primitive of `s`.
+template <class Query>
+RT_INLINE PixelResult shade_hit(const Ray& r, const Hit& h, const Scene& s, const Query& q) {
+    if (h.prim == RT_MISS_PRIM) return {s.background, RT_MISS_PRIM, 0u};
+    const SurfacePoint sp = surface_at(r, h, s);
+    uint32_t mask;
+    color rgb = direct_light(sp, -r.dir, s, q, mask);
+    if ((s.materials[sp.material_id].flags & MAT_MIRROR) != 0u)
+        rgb += mirror_light(r.dir, sp, s, q);
     return {rgb, h.prim, mask};
 }
 
-/// Lambert (plus Blinn-Phong for `MAT_SPECULAR`) shading with point and directional lights and
-/// hard shadows; the default policy for `render_pixel`.
+/// Lambert (plus Blinn-Phong for `MAT_SPECULAR` and reflections for `MAT_MIRROR`) shading with
+/// point and directional lights and hard shadows; the default policy for `render_pixel`.
 struct LitShading {
     template <class Q>
     RT_INLINE PixelResult operator()(const Ray& r, const Hit& h, const Scene& s, const Q& q) const {

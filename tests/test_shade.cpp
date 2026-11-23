@@ -551,4 +551,89 @@ TEST(LitShading, IsRenderPixelDefault) {
     }
 }
 
+/// Two big floor-like triangles at height @p y with material @p m, for the mirror tests.
+void plane(rt::Triangle* out, float y, uint32_t m) {
+    const float big = 100.0f;
+    out[0] = {{-big, y, -big}, {-big, y, big}, {big, y, big}, m};
+    out[1] = {{-big, y, -big}, {big, y, big}, {big, y, -big}, m};
+}
+
+/// A mirror whose reflection misses everything shows ks * background on top of its own direct
+/// light; the AOVs describe the mirror itself.
+TEST(Mirror, ReflectionThatMissesShowsTintedBackground) {
+    rt::Triangle floor[2];
+    plane(floor, 0.0f, 0u);
+    const rt::Material mirror{{0.0f, 0.0f, 0.0f}, {0.5f, 0.25f, 1.0f}, 1.0f, rt::MAT_MIRROR};
+    const rt::Scene scene{nullptr, 0u, floor, 2u, &mirror, 1u, nullptr, 0u, {0.2f, 0.4f, 0.6f},
+                          0.05f};
+    const rt::vec3 from{0.0f, 1.0f, 1.0f};
+    const rt::Ray ray{from, 0.0f, rt::normalize(rt::vec3{0.0f, 0.0f, 0.0f} - from), INFINITY};
+    const rt::BruteQuery q{scene};
+    const rt::Hit hit = q.closest(ray);
+    const rt::PixelResult r = rt::shade_hit(ray, hit, scene, q);
+    EXPECT_EQ(r.prim_id, hit.prim);
+    EXPECT_NE(r.prim_id & rt::PRIM_TRIANGLE_BIT, 0u);
+    EXPECT_EQ(r.light_mask, 0u);
+    EXPECT_FLOAT_EQ(r.rgb.x, 0.5f * 0.2f);
+    EXPECT_FLOAT_EQ(r.rgb.y, 0.25f * 0.4f);
+    EXPECT_FLOAT_EQ(r.rgb.z, 1.0f * 0.6f);
+}
+
+/// Looking straight down at a mirror floor under a sphere shows the sphere's underside, which
+/// the light above cannot reach: ks * albedo_sphere * ambient, plus the floor's own ambient.
+TEST(Mirror, SeesTheObjectAboveIt) {
+    const rt::Sphere sphere{{0.0f, 2.0f, 0.0f}, 0.5f, 1u};
+    rt::Triangle floor[2];
+    plane(floor, 0.0f, 0u);
+    const rt::Material materials[2] = {
+        {{0.1f, 0.1f, 0.1f}, {0.8f, 0.8f, 0.8f}, 1.0f, rt::MAT_MIRROR},
+        {{0.9f, 0.3f, 0.1f}, {}, 1.0f, 0u}};
+    const rt::Light light{rt::LIGHT_POINT, {0.0f, 10.0f, 0.0f}, {1.0f, 1.0f, 1.0f}};
+    const rt::Scene scene{&sphere, 1u, floor, 2u, materials, 2u, &light, 1u, {}, 0.05f};
+    // Starts between the sphere and the floor so the primary ray hits the floor at the origin.
+    const rt::Ray ray{{0.0f, 1.0f, 0.0f}, 0.0f, {0.0f, -1.0f, 0.0f}, INFINITY};
+    const rt::BruteQuery q{scene};
+    const rt::PixelResult r = rt::shade_hit(ray, q.closest(ray), scene, q);
+    // The floor point is shadowed by the sphere, so its own light is ambient only.
+    EXPECT_EQ(r.light_mask, 0u);
+    const float floor_ambient = 0.1f * 0.05f;
+    EXPECT_FLOAT_EQ(r.rgb.x, floor_ambient + 0.8f * (0.9f * 0.05f));
+    EXPECT_FLOAT_EQ(r.rgb.y, floor_ambient + 0.8f * (0.3f * 0.05f));
+    EXPECT_FLOAT_EQ(r.rgb.z, floor_ambient + 0.8f * (0.1f * 0.05f));
+}
+
+/// Two parallel mirrors bounce a vertical ray forever; shading stops after
+/// RT_MAX_MIRROR_BOUNCES reflections, so the sum is a * (1 + k + k^2 + k^3 + k^4).
+TEST(Mirror, StopsAfterTheBounceLimit) {
+    rt::Triangle planes[4];
+    plane(planes, 0.0f, 0u);
+    plane(planes + 2, 1.0f, 0u);
+    const rt::Material mirror{{0.4f, 0.4f, 0.4f}, {0.5f, 0.5f, 0.5f}, 1.0f, rt::MAT_MIRROR};
+    const rt::Scene scene{nullptr, 0u, planes, 4u, &mirror, 1u, nullptr, 0u, {9.0f, 9.0f, 9.0f},
+                          1.0f};
+    const rt::Ray ray{{0.25f, 0.5f, 0.25f}, 0.0f, {0.0f, -1.0f, 0.0f}, INFINITY};
+    const rt::BruteQuery q{scene};
+    const rt::PixelResult r = rt::shade_hit(ray, q.closest(ray), scene, q);
+    static_assert(rt::RT_MAX_MIRROR_BOUNCES == 4u, "the expected sum below assumes 4 bounces");
+    const float want = 0.4f * (1.0f + 0.5f + 0.25f + 0.125f + 0.0625f);
+    EXPECT_FLOAT_EQ(r.rgb.x, want);
+    EXPECT_FLOAT_EQ(r.rgb.z, want);
+}
+
+/// A black mirror (ks = 0) traces no reflection ray, and a non-mirror material ignores ks.
+TEST(Mirror, ZeroReflectanceAndNonMirrorAddNothing) {
+    rt::Triangle floor[2];
+    plane(floor, 0.0f, 0u);
+    rt::Material material{{0.2f, 0.2f, 0.2f}, {0.0f, 0.0f, 0.0f}, 1.0f, rt::MAT_MIRROR};
+    const rt::Scene scene{nullptr, 0u, floor, 2u, &material, 1u, nullptr, 0u, {1.0f, 1.0f, 1.0f},
+                          0.5f};
+    const rt::Ray ray{
+        {0.0f, 1.0f, 1.0f}, 0.0f, rt::normalize(rt::vec3{0.0f, -1.0f, -1.0f}), INFINITY};
+    const rt::BruteQuery q{scene};
+    EXPECT_FLOAT_EQ(rt::shade_hit(ray, q.closest(ray), scene, q).rgb.x, 0.1f);
+    material.ks = {1.0f, 1.0f, 1.0f};
+    material.flags = 0u;
+    EXPECT_FLOAT_EQ(rt::shade_hit(ray, q.closest(ray), scene, q).rgb.x, 0.1f);
+}
+
 }  // namespace
