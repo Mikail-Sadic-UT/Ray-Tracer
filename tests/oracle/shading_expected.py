@@ -9,6 +9,9 @@ where l = (L - p) / |L - p|, d2 = |L - p|^2 and ng faces the viewer. E2 adds, fo
 materials, ks * max(0, dot(ng, h))^shininess * I_i / d2 with h = normalize(l + wo); a
 directional light uses l = normalize(-dir), d2 = 1 and an unbounded shadow ray. A mirror
 (MAT_MIRROR) adds ks times the shading seen along the reflected ray d - 2 * dot(d, n) * n.
+Glass (MAT_GLASS) splits into a Snell refraction and a reflection weighted by Schlick's Fresnel
+term, absorbs ks^distance inside, and stops after 4 bounces; glass_trace below is a separate
+recursive implementation of those rules for a single sphere.
 
 The printed literals are pasted into tests/test_shade_independent.cpp. Run:
     python3 tests/oracle/shading_expected.py
@@ -81,6 +84,48 @@ def ray_sphere(o, d, center, radius):
     return None
 
 
+def glass_trace(o, d, weight, depth, inside, center, radius, ior, absorb, background):
+    """Recursive Whitted trace through one glass sphere (albedo 0, nothing else in the scene).
+
+    Same rules as src/shade, written independently: Snell refraction, Schlick reflectance with
+    the outside cosine, Beer-Lambert absorb^t inside, at most 4 rays after the primary hit.
+    """
+    t = ray_sphere(o, d, center, radius)
+    if t is None:
+        return [w * b for w, b in zip(weight, background)]
+    if inside:
+        weight = [w * a ** t for w, a in zip(weight, absorb)]
+    p = tuple(oi + t * di for oi, di in zip(o, d))
+    return glass_split(p, d, weight, depth, inside, center, radius, ior, absorb, background)
+
+
+def glass_split(p, d, weight, depth, inside, center, radius, ior, absorb, background):
+    """The reflected and refracted rays leaving glass surface point p (albedo 0 adds nothing)."""
+    total = [0.0, 0.0, 0.0]
+    if depth >= 4:
+        return total
+    n = norm(sub(p, center))
+    front = dot(n, d) < 0
+    ng = n if front else tuple(-x for x in n)
+    eta = 1.0 / ior if front else ior
+    cos_i = -dot(d, ng)
+    k = 1.0 - eta * eta * (1.0 - cos_i * cos_i)
+    refl_w = 1.0
+    if k > 0:
+        cos_t = math.sqrt(k)
+        c = cos_i if front else cos_t
+        r0 = ((1.0 - ior) / (1.0 + ior)) ** 2
+        refl_w = r0 + (1.0 - r0) * (1.0 - c) ** 5
+        tdir = norm(tuple(eta * di + (eta * cos_i - cos_t) * ni for di, ni in zip(d, ng)))
+        part = glass_trace(p, tdir, [w * (1.0 - refl_w) for w in weight], depth + 1, front,
+                           center, radius, ior, absorb, background)
+        total = [a + b for a, b in zip(total, part)]
+    rdir = norm(tuple(di - 2.0 * dot(d, ng) * ni for di, ni in zip(d, ng)))
+    part = glass_trace(p, rdir, [w * refl_w for w in weight], depth + 1, inside,
+                       center, radius, ior, absorb, background)
+    return [a + b for a, b in zip(total, part)]
+
+
 def main():
     sphere = ((0.0, 1.0, 0.0), 1.0)
     light0 = ((0.0, 4.0, 0.0), (20.0, 20.0, 20.0))
@@ -131,6 +176,14 @@ def main():
     q = tuple(pi + t * ri for pi, ri in zip(start, r))
     sphere_rgb, _ = shade(q, norm(sub(q, sphere[0])), ALBEDO_SPHERE, [mirror_light], [sphere])
     print("mirror", [f + k * c for f, k, c in zip(floor_rgb, floor_ks, sphere_rgb)], floor_mask)
+
+    # Glass sphere (ior 1.5, absorb (0.5, 0.8, 0.9) per unit) hit off center by a ray from
+    # (0.3, 0.2, 5) along -z, against background (0.2, 0.4, 0.6); albedo 0 and no lights.
+    o, d = (0.3, 0.2, 5.0), (0.0, 0.0, -1.0)
+    t = ray_sphere(o, d, (0.0, 0.0, 0.0), 1.0)
+    p = tuple(oi + t * di for oi, di in zip(o, d))
+    print("glass", glass_split(p, d, [1.0, 1.0, 1.0], 0, False, (0.0, 0.0, 0.0), 1.0, 1.5,
+                               (0.5, 0.8, 0.9), (0.2, 0.4, 0.6)))
 
 
 if __name__ == "__main__":
