@@ -253,13 +253,93 @@ TEST(LightSample, CoincidentOrDegenerateDistanceIsRejected) {
     }
 }
 
-/// Core shading ignores directional lights.
-TEST(LightSample, DirectionalLightIsNotCoreShaded) {
-    const LightRig rig({{rt::LIGHT_DIRECTIONAL, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}}});
+/// A directional light gives albedo * cos * I with no distance falloff, and an unbounded shadow
+/// ray along -dir from the offset origin.
+TEST(LightSample, DirectionalLightHasNoFalloffAndUnboundedShadowRay) {
+    const float c45 = 1.0f / std::sqrt(2.0f);
+    // Travels down and toward -x, so the surface sees it from +x at 45 degrees.
+    const LightRig rig({{rt::LIGHT_DIRECTIONAL, {-c45, -c45, 0.0f}, {2.0f, 2.0f, 2.0f}}});
+    for (rt::vec3 p : {rt::vec3{0.0f, 0.0f, 0.0f}, rt::vec3{100.0f, 0.0f, -50.0f}}) {
+        const rt::SurfacePoint sp{p, {0.0f, 1.0f, 0.0f}, 0u};
+        rt::color c{};
+        rt::Ray ray{};
+        ASSERT_TRUE(rt::light_sample(sp, {0.0f, 1.0f, 0.0f}, rig.scene(), 0u, c, ray));
+        EXPECT_FLOAT_EQ(c.x, 0.5f * c45 * 2.0f);
+        EXPECT_FLOAT_EQ(c.z, 1.0f * c45 * 2.0f);
+        EXPECT_EQ(ray.tmin, 0.0f);
+        EXPECT_EQ(ray.tmax, INFINITY);
+        EXPECT_FLOAT_EQ(ray.dir.x, c45);
+        EXPECT_FLOAT_EQ(ray.dir.y, c45);
+        EXPECT_GT(ray.origin.y, p.y);
+    }
+    // From below the surface it adds nothing.
+    const LightRig up({{rt::LIGHT_DIRECTIONAL, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}}});
     const rt::SurfacePoint sp{{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0u};
     rt::color c{};
     rt::Ray ray{};
-    EXPECT_FALSE(rt::light_sample(sp, {}, rig.scene(), 0u, c, ray));
+    EXPECT_FALSE(rt::light_sample(sp, {0.0f, 1.0f, 0.0f}, up.scene(), 0u, c, ray));
+}
+
+/// An unknown light type contributes nothing.
+TEST(LightSample, UnknownLightTypeIsIgnored) {
+    const LightRig rig({{7u, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}}});
+    const rt::SurfacePoint sp{{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0u};
+    rt::color c{};
+    rt::Ray ray{};
+    EXPECT_FALSE(rt::light_sample(sp, {0.0f, 1.0f, 0.0f}, rig.scene(), 0u, c, ray));
+}
+
+/// spec_pow agrees with pow in double for integer, fractional and huge exponents, is exact for
+/// small integer powers of exactly representable values, and clamps its base.
+TEST(SpecPow, MatchesPowAndClampsBase) {
+    EXPECT_EQ(rt::spec_pow(0.5f, 1.0f), 0.5f);
+    EXPECT_EQ(rt::spec_pow(0.5f, 8.0f), 1.0f / 256.0f);
+    EXPECT_EQ(rt::spec_pow(0.0f, 4.0f), 0.0f);
+    EXPECT_EQ(rt::spec_pow(-0.3f, 4.0f), 0.0f);
+    EXPECT_EQ(rt::spec_pow(1.0f, 1000.0f), 1.0f);
+    EXPECT_EQ(rt::spec_pow(NAN, 2.0f), 0.0f);
+    const float xs[] = {0.01f, 0.3f, 0.7f, 0.9f, 0.99f, 0.999f, 0.99999f};
+    const float ns[] = {1.0f, 1.5f, 2.25f, 7.0f, 10.3f, 32.0f, 64.0f, 128.7f, 1000.0f, 3e7f};
+    for (float x : xs) {
+        for (float n : ns) {
+            const double want = std::pow(static_cast<double>(x), static_cast<double>(n));
+            const float got = rt::spec_pow(x, n);
+            if (want < 1e-30) {
+                EXPECT_LT(got, 1e-25f) << x << "^" << n;
+                continue;
+            }
+            // Each multiply rounds once; 1e-4 relative covers ~30 roundings plus the 16-bit
+            // fraction (n * |log x| * 2^-16 at most).
+            const double tol = 1e-4 + static_cast<double>(n) * std::fabs(std::log(x)) / 65536.0;
+            EXPECT_NEAR(got / want, 1.0, tol) << x << "^" << n;
+        }
+    }
+}
+
+/// MAT_SPECULAR adds ks * (n.h)^shininess * I / d2; with the viewer on the mirror direction the
+/// half vector is the normal, so the highlight is exactly ks * I / d2.
+TEST(LightSample, BlinnPhongHighlight) {
+    rt::Material spec{{0.5f, 0.25f, 1.0f}, {0.4f, 0.4f, 0.4f}, 16.0f, rt::MAT_SPECULAR};
+    rt::Light light{rt::LIGHT_POINT, {1.0f, 1.0f, 0.0f}, {4.0f, 4.0f, 4.0f}};
+    const rt::Scene scene{nullptr, 0u, nullptr, 0u, &spec, 1u, &light, 1u, {}, 0.0f};
+    const rt::SurfacePoint sp{{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0u};
+    const float c45 = 1.0f / std::sqrt(2.0f);
+    rt::color c{};
+    rt::Ray ray{};
+    // Mirror direction of l = (c45, c45, 0) about +y.
+    ASSERT_TRUE(rt::light_sample(sp, {-c45, c45, 0.0f}, scene, 0u, c, ray));
+    const float diffuse = 0.5f * c45 * 4.0f / 2.0f;
+    EXPECT_NEAR(c.x, diffuse + 0.4f * 4.0f / 2.0f, 1e-5f);
+
+    // Viewer straight above: h is 22.5 degrees off the normal.
+    ASSERT_TRUE(rt::light_sample(sp, {0.0f, 1.0f, 0.0f}, scene, 0u, c, ray));
+    const double nh = std::cos(3.14159265358979323846 / 8.0);
+    EXPECT_NEAR(c.x, diffuse + 0.4 * std::pow(nh, 16.0) * 2.0, 1e-5);
+
+    // Without the flag, ks is ignored (Core behavior, unchanged).
+    spec.flags = 0u;
+    ASSERT_TRUE(rt::light_sample(sp, {-c45, c45, 0.0f}, scene, 0u, c, ray));
+    EXPECT_FLOAT_EQ(c.x, diffuse);
 }
 
 /// Sphere above a floor with one point light, for the analytic shade_hit cases.

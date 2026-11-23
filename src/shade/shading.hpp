@@ -106,42 +106,105 @@ RT_INLINE vec3 offset_ray_origin(vec3 p, vec3 ng) {
     return out;
 }
 
+/// `x^n` for the specular lobe, computed the same way on every backend (E2, IC4).
+///
+/// `powf` differs between glibc and CUDA in the last bits, which would break the byte equality
+/// of CPU and GPU images. This uses only multiplication and `sqrtf`, both correctly rounded on
+/// the host and the device, in a fixed order: the integer part of the exponent by repeated
+/// squaring, then its first 16 fractional bits as a product of `x^(2^-j)` (repeated square
+/// roots). Exponents of `2^24` and above are halved first and the result squared back. Relative
+/// error is a few units in the last place plus at most `x^(2^-16)` from the truncated fraction.
+/// @param x Base; values at or below 0 give 0 and values at or above 1 give 1.
+/// @param n Exponent (`shininess`), finite and at least 1.
+RT_INLINE float spec_pow(float x, float n) {
+    if (!(x > 0.0f)) return 0.0f;
+    if (x >= 1.0f) return 1.0f;
+    int squarings = 0;
+    while (n >= 16777216.0f) {  // 2^24: past here floats have no fractional part
+        n *= 0.5f;
+        ++squarings;
+    }
+    const float whole = ::floorf(n);
+    float frac = n - whole;  // exact
+    uint32_t k = static_cast<uint32_t>(whole);
+    float result = 1.0f;
+    float base = x;
+    while (k != 0u) {
+        if ((k & 1u) != 0u) result *= base;
+        k >>= 1;
+        if (k != 0u) base *= base;
+    }
+    float root = x;
+    for (int j = 0; j < 16 && frac > 0.0f; ++j) {
+        root = ::sqrtf(root);
+        frac *= 2.0f;  // exact
+        if (frac >= 1.0f) {
+            result *= root;
+            frac -= 1.0f;
+        }
+    }
+    for (int j = 0; j < squarings; ++j) result *= result;
+    return result;
+}
+
 /// Evaluates light @p i at surface point @p sp and builds its shadow ray (INTERFACES section 6,
-/// "Shadow-ray construction").
+/// "Shadow-ray construction" and "Shading model").
 ///
 /// Lighting terms use the unit direction `l` and squared distance `d2` from `sp.p`; the shadow
-/// ray starts at the offset origin. Core shading supports point lights only, so any other
-/// light type contributes nothing.
+/// ray starts at the offset origin. A point light uses `l = normalize(pos - p)` and its shadow
+/// ray ends at the light. A directional light (E2) uses `l = normalize(-dir)` and `d2 = 1`, and
+/// its shadow ray is unbounded. Any other light type contributes nothing.
 /// @param sp          Surface point, with a unit normal that faces the viewer.
-/// @param wo          Unit direction to the viewer (reserved for specular shading).
+/// @param wo          Unit direction to the viewer; used by `MAT_SPECULAR` materials.
 /// @param s           Scene view.
 /// @param i           Light index, below `s.num_lights`.
-/// @param[out] contrib      `albedo * max(0, dot(ng, l)) * intensity / d2`; set only on success.
-/// @param[out] shadow_ray   Ray from the offset origin to the light, `tmin = 0`; set only on
+/// @param[out] contrib      `albedo * max(0, dot(ng, l)) * intensity / d2`, plus, for
+///                          `MAT_SPECULAR`, `ks * max(0, dot(ng, h))^shininess * intensity / d2`
+///                          with `h = normalize(l + wo)`; set only on success.
+/// @param[out] shadow_ray   Ray from the offset origin toward the light, `tmin = 0`; set only on
 ///                          success.
-/// @return False when the light adds nothing and needs no shadow ray: it coincides with the
-///         point (`d2` zero or not normal), is behind the surface, or is not a point light.
-RT_INLINE bool light_sample(const SurfacePoint& sp, vec3 /*wo*/, const Scene& s, uint32_t i,
+/// @return False when the light adds nothing and needs no shadow ray: a point light that
+///         coincides with the point (`d2` zero or not normal), a light behind the surface, or
+///         an unknown light type.
+RT_INLINE bool light_sample(const SurfacePoint& sp, vec3 wo, const Scene& s, uint32_t i,
                             color& contrib, Ray& shadow_ray) {
     const Light& light = s.lights[i];
-    if (light.type != LIGHT_POINT) return false;
-    const vec3 to_light = light.pos_or_dir - sp.p;
-    const float d2 = dot(to_light, to_light);
-    if (!(d2 >= FLT_MIN && d2 <= FLT_MAX)) return false;
-    const vec3 l = to_light / ::sqrtf(d2);
+    vec3 l;
+    float d2;
+    if (light.type == LIGHT_POINT) {
+        const vec3 to_light = light.pos_or_dir - sp.p;
+        d2 = dot(to_light, to_light);
+        if (!(d2 >= FLT_MIN && d2 <= FLT_MAX)) return false;
+        l = to_light / ::sqrtf(d2);
+    } else if (light.type == LIGHT_DIRECTIONAL) {
+        l = normalize(-light.pos_or_dir);
+        d2 = 1.0f;
+    } else {
+        return false;
+    }
     const float cos_theta = dot(sp.ng, l);
     if (cos_theta <= 0.0f) return false;
     const vec3 origin = offset_ray_origin(sp.p, sp.ng);
-    const vec3 to_light_from_origin = light.pos_or_dir - origin;
-    const float o2 = dot(to_light_from_origin, to_light_from_origin);
-    if (!(o2 >= FLT_MIN && o2 <= FLT_MAX)) return false;
+    if (light.type == LIGHT_POINT) {
+        const vec3 to_light_from_origin = light.pos_or_dir - origin;
+        const float o2 = dot(to_light_from_origin, to_light_from_origin);
+        if (!(o2 >= FLT_MIN && o2 <= FLT_MAX)) return false;
+        shadow_ray = {origin, 0.0f, to_light_from_origin / ::sqrtf(o2), ::sqrtf(o2)};
+    } else {
+        shadow_ray = {origin, 0.0f, l, INFINITY};
+    }
     const Material& material = s.materials[sp.material_id];
     contrib = material.albedo * cos_theta * light.intensity / d2;
-    shadow_ray = {origin, 0.0f, to_light_from_origin / ::sqrtf(o2), ::sqrtf(o2)};
+    if ((material.flags & MAT_SPECULAR) != 0u) {
+        const vec3 h = normalize(l + wo);
+        const float spec = spec_pow(dot(sp.ng, h), material.shininess);
+        contrib += material.ks * spec * light.intensity / d2;
+    }
     return true;
 }
 
-/// Shades a primary hit with Lambert lighting and hard shadows (INTERFACES section 6).
+/// Shades a primary hit with Lambert lighting, Blinn-Phong highlights for `MAT_SPECULAR`
+/// materials, and hard shadows (INTERFACES section 6).
 ///
 /// A miss returns the background color, `RT_MISS_PRIM` and a zero mask. A hit starts from
 /// `albedo * ambient`, then adds each light in index order whose shadow ray is unoccluded
@@ -167,7 +230,8 @@ RT_INLINE PixelResult shade_hit(const Ray& r, const Hit& h, const Scene& s, cons
     return {rgb, h.prim, mask};
 }
 
-/// Lambert shading with point lights and hard shadows; the default policy for `render_pixel`.
+/// Lambert (plus Blinn-Phong for `MAT_SPECULAR`) shading with point and directional lights and
+/// hard shadows; the default policy for `render_pixel`.
 struct LitShading {
     template <class Q>
     RT_INLINE PixelResult operator()(const Ray& r, const Hit& h, const Scene& s, const Q& q) const {
