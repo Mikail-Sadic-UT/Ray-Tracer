@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 
 #include "core/error.hpp"
 #include "scene/hash.hpp"
@@ -15,8 +14,7 @@
 namespace rt {
 
 AABB scene_bounds(const SceneHost& scene) {
-    const float inf = std::numeric_limits<float>::infinity();
-    AABB bounds{{inf, inf, inf}, {-inf, -inf, -inf}};
+    AABB bounds = AABB::empty();
     for (const auto& sphere : scene.spheres) {
         const vec3 radius{sphere.radius, sphere.radius, sphere.radius};
         bounds.grow(sphere.center - radius);

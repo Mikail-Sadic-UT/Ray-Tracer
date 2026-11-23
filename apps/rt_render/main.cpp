@@ -25,6 +25,7 @@
 #include "bench/results.hpp"
 #include "bench/timer.hpp"
 #include "bvh/bvh.hpp"
+#include "camera/camera_io.hpp"
 #include "core/error.hpp"
 #include "cpu/cpu_backend.hpp"
 #include "image/image_io.hpp"
@@ -197,7 +198,11 @@ int main(int argc, char** argv) {
             overridden.push_back("vfov_deg");
         }
         const uint32_t aovs = parse_aovs(aov_names);
-        rt::validate_scene(scene, (aovs & rt::AOV_LIGHT_MASK) != 0);
+        // load_scene() validated everything else; overrides change only the camera, and the
+        // AOV choice only the light limit. A full second validate_scene() pass cost ~0.4 s
+        // of T_app at 1M primitives (#67).
+        rt::validate_camera(cam);
+        if ((aovs & rt::AOV_LIGHT_MASK) != 0) rt::validate_light_mask_limit(scene);
         const rt::RenderSettings settings{
             cam.width, cam.height, aovs,
             shade_name == "normal" ? rt::ShadeMode::Normal : rt::ShadeMode::Lit};
@@ -206,7 +211,20 @@ int main(int argc, char** argv) {
         const bool cuda = backend_name == "cuda";
 #ifdef RT_HAVE_CUDA_BACKEND
         // Context creation lands in `cuda_init` (T_app only), not in the first alloc or launch.
-        if (cuda) startup.cuda_init = rt::cuda_init_ms();
+        if (cuda) {
+            try {
+                startup.cuda_init = rt::cuda_init_ms();
+            } catch (const rt::Error&) {
+                // Name a missing GPU or a missing driver the same way, so callers (and the
+                // ctest probe) can tell "no device" from a broken setup (#73). A driver that
+                // is too old still throws from cuda_device_available().
+                if (!rt::cuda_device_available())
+                    throw rt::Error(
+                        "rt_render: --backend cuda: no CUDA-capable device is detected (no GPU, "
+                        "no NVIDIA driver, or CUDA_VISIBLE_DEVICES is empty)");
+                throw;
+            }
+        }
 #endif
         const bool use_bvh = backend->needs_bvh() && bvh_name != "none";
         rt::BvhParams params;

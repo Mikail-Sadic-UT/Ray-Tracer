@@ -15,17 +15,6 @@
 namespace rt {
 namespace {
 
-/// BvhQuery plus the traversal overflow flag. §6's BvhQuery has no member for the flag
-/// (CONTRACT_NOTES W8), so the backend keeps its own query type with the same two calls.
-struct CheckedBvhQuery {
-    Scene s;
-    BvhView bvh;
-    uint32_t* overflow;  ///< Shared by all render threads; set with a relaxed atomic OR.
-
-    Hit closest(const Ray& r) const { return traverse_closest(r, s, bvh, overflow); }
-    bool any(const Ray& r) const { return traverse_any(r, s, bvh, overflow); }
-};
-
 /// Runs the tile loop with the Shading policy that @p mode selects. prepare() has already
 /// rejected any other mode.
 template <class Query>
@@ -88,7 +77,7 @@ void CpuBackend::render(const Camera& cam, Image& out, Timings& t) {
     uint32_t overflow = 0;
     const auto begin = std::chrono::steady_clock::now();
     if (use_bvh_) {
-        render_shaded(cam, scene_, CheckedBvhQuery{scene_, bvh_, &overflow}, settings_.shade, out,
+        render_shaded(cam, scene_, BvhQuery{scene_, bvh_, &overflow}, settings_.shade, out,
                       threads_);
     } else {
         render_shaded(cam, scene_, BruteQuery{scene_}, settings_.shade, out, threads_);

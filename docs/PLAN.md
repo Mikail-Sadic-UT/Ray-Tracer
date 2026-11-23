@@ -1,6 +1,6 @@
 # Plan (living)
 
-What is known about the remaining work after G2, as of **Nov 22**. This is a working list, not a commitment: items get added, reordered, dropped, and expanded as results come in. The fixed parts are the deadlines in [ROADMAP.md](ROADMAP.md#gates-and-schedule) and the Core deliverable in the [README](../README.md#required-deliverable). Everything else here can change.
+What is known about the remaining work after G2, as of **Nov 23**. This is a working list, not a commitment: items get added, reordered, dropped, and expanded as results come in. The fixed parts are the deadlines in [ROADMAP.md](ROADMAP.md#gates-and-schedule) and the Core deliverable in the [README](../README.md#required-deliverable). Everything else here can change.
 
 Where things stand: Core is built and verified. The CPU renderer, median and LBVH builders, and the CUDA megakernel are in, CPU and GPU images are byte-identical on the known and benchmark scenes, and there are first Vista measurements ([RESULTS.md](RESULTS.md)). What is left is making the numbers good, filling measurement gaps, and the final runs and report.
 
@@ -8,15 +8,15 @@ Rules for this file: edit it freely, keep it short, and move finished items to t
 
 ## Where the headline ratios stand
 
-Preliminary, Vista GH200, 1M primitives, 1080p, LBVH (T_br, median of 5; [details](RESULTS.md)):
+Preliminary, Vista GH200, 1M primitives, 1080p, LBVH (T_br, median of 5; commit `13321a5`, job 1164735; [details](RESULTS.md)):
 
 | Target | Now | Note |
 |---|---:|---|
-| ~10×: 1 core / best CPU | 29.8× | Met |
-| ~2×: best CPU / GPU | 1.46× | Not met at 1M; met at 10K and 100K, from two thread counts only |
-| ~20×: 1 core / GPU | 43.4× | Met |
+| ~10×: 1 core / best CPU | 56.3× | Met (was 29.8× at G2) |
+| ~2×: best CPU / GPU | 2.40× | **Met at 1M** (was 1.46×); 5.9× at 10K and 3.7× at 100K, whose GPU rows have spread above 10% |
+| ~20×: 1 core / GPU | 135× | Met (was 43.4×) |
 
-The gap to 2× is preparation, not rendering. CPU preparation (bounds, build, layout) is about 47 ms of the GPU's 53.8 ms. The ratio is (P + 29.7) / (P + 6.3) for preparation time P, so P has to fall to about 17 ms. A faster kernel alone cannot get there (a free render still gives 1.65× at the current P).
+The 2× target was missed at G2 because of preparation, not rendering (47 ms of the GPU's 53.8 ms). PR #75 (#68, #67) cut preparation to 10.0 ms at B = 72, and the Nov 23 Vista rerun measures 2.40× at 1M ([RESULTS.md](RESULTS.md#after-the-preparation-work-commit-13321a5-nov-23)). Layout (6.8 ms, grows past 16 threads) is now the largest preparation stage; at about 2 ms the ratio would be near 3×.
 
 ## G3 checklist
 
@@ -24,11 +24,11 @@ G3 is an internal checkpoint (target Nov 18, now past; [ROADMAP](ROADMAP.md#gate
 
 | Criterion | Status | Left to do |
 |---|---|---|
-| Preparation scaling, B = 1 to 72 | Done at 1M ([RESULTS.md](RESULTS.md)) | 10K and 100K have only 1 and 72 threads (#70) |
-| CPU render scaling | Done at 1M (69× on 72 threads) | Same gap at 10K and 100K (#70) |
+| Preparation scaling, B = 1 to 72 | Done at all three sizes ([RESULTS.md](RESULTS.md)) | |
+| CPU render scaling | Done at all three sizes (70× on 72 threads at 1M) | |
 | GPU breakdown | T_br components measured (alloc, upload, render, download, kernel) | Kernel-level view needs profiling |
 | Profiling (`-Xptxas -v`, Nsight) | Not started | #70 |
-| Preliminary 10× / 2× / 20× ratios, with spread | Done, preliminary | Rerun after any optimization; final numbers come from C14 |
+| Preliminary 10× / 2× / 20× ratios, with spread | Done, all three met at 1M (Nov 23) | 10K and 100K GPU T_br rows need a rerun (spread above 10%); final numbers come from C14 |
 | Scope and extensions reviewed | Open | #71 |
 
 ## Work items
@@ -39,27 +39,24 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 
 | Item | Issue | Why | Done when | Notes |
 |---|---|---|---|---|
-| LBVH build and layout scaling | #68 | Biggest lever on the 2× target. Build speeds up 6.7× from 1 to 72 threads; about 30 ms does not parallelize. Layout is fastest at 16 threads (9.1 ms) and slower at 72 (12.5 ms) | T_br at 1M drops toward ~17 ms of preparation, or the data says why it can't | First add per-stage timing inside the builder to name the 30 ms. Output must stay byte-identical at B = 1, 8, 72 and BVH = brute force must hold |
-| T_app unattributed time | #67 | About 0.4 s of T_app at 1M is in no component; likely a second `validate_scene` per primitive path string | `unattributed_ms` at 1M is a few ms; images, hashes and error messages unchanged | Time the call first to confirm. Touches `scene_io` |
-| Device tests without a driver | #73 | Toolkit-only machines (such as the Vista login node) fail instead of skipping | Device tests skip with no driver; a too-old driver still fails | Small |
-| Measurement gaps | #70 | Ratios at 10K and 100K rest on two thread counts; no profiling; light-count sweep missing; GPU T_app is unstable at small sizes | Checklist in the issue | Profiling first checks whether the 5.6 ms kernel is worth tuning at all |
+| Layout stage of the LBVH build | #68 | Now the largest preparation stage: 6.8 ms at B = 72, up from 3.6 ms at B = 16 | Optional: P near 5.6 ms (ratio near 3×) | Mostly emit and freeing the scratch. Emit is probably bound by the serial zero fill of `Bvh::nodes` (review of #75: emit 7.0 ms at B = 3, 9.3 at 8, 9.3 to 10.8 at 24 on the laptop); avoiding it means `Bvh::nodes` stops being a value-initialized `std::vector`, which is an interface change (an IC entry). Other ideas: a fused bottom-up (Apetrei-style) hierarchy + refit, a smaller temporary node, reusing scratch. The 2× target is already met, so this is only worth doing if time is left |
+| Measurement gaps | #70 | Light-count sweep missing; GPU T_app is unstable (spread 39% to 207%); no profiling; 10K and 100K GPU T_br rows have spread above 10% | Checklist in the issue | The thread sweeps at 10K and 100K are done. Profiling first checks whether the kernel is worth tuning at all (5.6 ms of the GPU's 16.4 ms) |
 
 ### Decisions still open
 
 - **Which extensions to run (#71).** Candidates and what the data says. Sizes are the ROADMAP timeboxes; the owners listed there assumed a four-person team, so treat them as sizes only:
-  - **E3 parallel binned SAH (1 week):** addresses the tree-quality tradeoff. The median tree renders 2× faster than LBVH on the CPU and 2.6× on the GPU, but its serial build makes T_br 4.5× to 6× slower. Most directly tied to the findings.
+  - **E3 parallel binned SAH (1 week):** addresses the tree-quality tradeoff. The median tree renders 2× faster than LBVH on the CPU and 2.6× on the GPU, but its serial build makes T_br 8.9× (CPU) and 20× (GPU) slower after #68. The most a better tree can save is about 3.5 ms of GPU render, so SAH helps GPU T_br only if its build costs less than that on top of LBVH; the case rests on T_frame and the CPU render.
   - **E1 memory modes (4 days):** the proposal's data-movement question. With explicit memory on the GH200, transfer is already about 0.3 ms at 1M, so there may be little to show. The comparison could still be informative.
   - **E2 Blinn-Phong (2 days), E4 Embree (4 days), E5 wavefront (1 week), E6 `obj2bin` + Blender export (3 days):** all independent of the above. E4 would strengthen the "best CPU" tier. E5 and E6 start only after G3, and E5 depends on the profile. ROADMAP expected E1 to E3 to fit and the rest to be cut.
   - **Core optimization only.** A valid choice if time is short.
   - Extensions must not block final runs and the report.
 - **Light-count sweep (#70):** scene variants or a `--lights` override in `rt_render`. Decide before starting.
-- **Interface additions** ([INTERFACE_CHANGES.md](INTERFACE_CHANGES.md)): IC2 (overflow flag in `BvhQuery`, #69) and IC3 (`AABB::empty()`, #4) are decided but not done. Do them when a PR touches the same code, or as one small PR.
 
 ### Later
 
 - **Scenes (#72):** download without `gh`, Vista mirror path, cross-platform hash check.
 - **Profiling and tuning for G3:** `-Xptxas -v` (`RT_PTXAS_VERBOSE`), Nsight Compute, Nsight Systems.
-- **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 runs each, on the laptop and Vista. Node-hour log rows for the jobs so far (1142824, 1142829, 1142842) through `scripts/tacc/node_hours.sh`.
+- **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 runs each, on the laptop and Vista. Node-hour log rows for the jobs so far (1142824, 1142829, 1142842, 1164735) through `scripts/tacc/node_hours.sh`.
 - **Quality review:** side-by-side review by 2 or more people ([BENCHMARKING.md](BENCHMARKING.md#quality-protocol)) and the report's validation section.
 - **Report, slides, release:** reproducible release with the scene archive, commit hash, and exact commands. Dates in the ROADMAP schedule.
 
@@ -89,3 +86,9 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 |---|---|
 | CUDA megakernel backend, `DeviceScene`, contraction off project-wide | #65 |
 | Vista sweep, verification and node-hour scripts; first Vista results | #66 |
+| Vista rerun of the branch: `verify.sh` 0 failures, ctest 307/307, `core` sweep at 46 points (job 1164735, data in `docs/data/`) | #75 |
+| LBVH preparation: parallel centroids, Morton codes and radix sort, uninitialized scratch, intrinsic leading-zero count, layout counts in the refit; per-stage timing with `RT_BVH_STAGES=1`. Bytes unchanged (laptop) | `mikail/lbvh-scaling` (#68) |
+| `validate_scene` builds error paths only on failure; `rt_render` re-checks only camera and light limit; scratch freed inside `layout` | `mikail/lbvh-scaling` (#67) |
+| Device tests and `rt_render_cuda_cli` skip when no NVIDIA driver is installed (checked with a stand-in `libcuda`) | `mikail/lbvh-scaling` (#73) |
+| IC2 overflow flag in `BvhQuery` (closes W8) and IC3 `AABB::empty()` and constants in `math.hpp` | `mikail/lbvh-scaling` (#69, #4) |
+| Thread sweeps at every scene size | `mikail/lbvh-scaling` (#70, first item) |

@@ -200,8 +200,17 @@ TEST(Math, NormalizeWidelySeparatedMagnitudes) {
 /// AABB members: empty box, grow, centroid, extent, surface area, and is_empty.
 TEST(Math, AabbMembers) {
     const float inf = std::numeric_limits<float>::infinity();
-    rt::AABB box{{inf, inf, inf}, {-inf, -inf, -inf}};
+    rt::AABB box = rt::AABB::empty();
     EXPECT_TRUE(box.is_empty()) << "empty AABB sentinel";
+    for (int a = 0; a < 3; ++a) {
+        EXPECT_EQ(box.lo[a], inf) << "AABB::empty() lo";
+        EXPECT_EQ(box.hi[a], -inf) << "AABB::empty() hi";
+    }
+    rt::AABB single = rt::AABB::empty();
+    single.grow(rt::vec3{0.5f, -2.0f, 7.0f});
+    EXPECT_TRUE(single.lo.x == 0.5f && single.hi.x == 0.5f && single.lo.y == -2.0f &&
+                single.hi.z == 7.0f)
+        << "growing the empty box by a point gives that point";
     box.grow(rt::vec3{0.0f, 1.0f, 2.0f});
     box.grow(rt::vec3{2.0f, 3.0f, 4.0f});
     EXPECT_TRUE(!box.is_empty()) << "grow point makes AABB non-empty";

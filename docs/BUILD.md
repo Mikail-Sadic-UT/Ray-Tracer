@@ -109,7 +109,7 @@ Interactive GPU session for development:
 idev -p gh-dev -N 1 -n 1 -t 1:00:00
 ```
 
-Batch jobs use `sbatch` on `gh-dev` (testing, 20 nodes) or `gh` (production, 576 nodes). Use `scripts/tacc/sweep.sbatch` ([BENCHMARKING.md](BENCHMARKING.md#sweeps)). Allocation: `TRA25006` (check the balance with `/usr/local/etc/taccinfo`). The login node is also aarch64 and accepts `-mcpu=native`, but build on a compute node: `-march`/`-mcpu=native` targets the CPU the build runs on, and only compute nodes have the GPU for `hello_cuda` and tests. Keep build trees and large scenes in `$WORK` or `$SCRATCH`, not `$HOME`.
+Batch jobs use `sbatch` on `gh-dev` (testing, 20 nodes) or `gh` (production, 576 nodes). Use `scripts/tacc/sweep.sbatch` ([BENCHMARKING.md](BENCHMARKING.md#sweeps)). Allocation: `TRA25006` (check the balance with `/usr/local/etc/taccinfo`). The login node is also aarch64 and accepts `-mcpu=native`, but build on a compute node (the login node has no NVIDIA driver, so its device tests skip rather than run): `-march`/`-mcpu=native` targets the CPU the build runs on, and only compute nodes have the GPU for `hello_cuda` and tests. Keep build trees and large scenes in `$WORK` or `$SCRATCH`, not `$HOME`.
 
 Fallback if Vista GPU access fails: Lonestar6 A100 nodes, `RT_CUDA_ARCH=80`, x86 host.
 
@@ -218,6 +218,10 @@ by these tools alone; reference-platform and integrated-renderer checks are stil
 
 A CPU-only build must always work. CI uses it.
 
+### Runtime diagnostics
+
+- `RT_BVH_STAGES=1` prints one line per LBVH build to stderr, with the thread count the stages used (1 below 4096 primitives, whatever B is) and the requested B, then the time of each builder stage in ms (`centroids`, `morton`, `sort`, `hierarchy`, `refit`, `recover`, `emit`, `sah`, `free`). The first five make up the `build` component and the rest `layout`. Diagnostic only: the results schema has no slot for them (#68).
+
 ### Adding tests
 
 Keep your test targets in your own `tests/<module>.cmake` and don't edit `tests/CMakeLists.txt`. It includes every `*.cmake` file in `tests/` automatically, so two people adding tests never conflict there.
@@ -229,7 +233,9 @@ rt_add_gtest(test_scene SOURCES test_scene.cpp LIBS rt_scene)   # LIBS: your mod
 
 `rt_add_gtest` links `rt_core` and `GTest::gtest_main` and registers the cases with `ctest`. Wrap CUDA-only tests in `if(RT_ENABLE_CUDA)`. After adding a new `.cmake` file, rebuild or re-run `cmake` and it is picked up.
 
-Start every test case that launches a kernel or allocates device memory with `RT_SKIP_WITHOUT_CUDA_DEVICE();` from `tests/cuda_test_util.hpp`. On a machine with the CUDA toolkit but no GPU, or with `CUDA_VISIBLE_DEVICES=` empty, `ctest` then reports those cases as skipped and exits 0. It skips only on `cudaErrorNoDevice`; any other CUDA error, such as a driver too old for the toolkit, still fails the test.
+Start every test case that launches a kernel or allocates device memory with `RT_SKIP_WITHOUT_CUDA_DEVICE();` from `tests/cuda_test_util.hpp`. On a machine with the CUDA toolkit but no GPU, with no NVIDIA driver at all (a Vista login node), or with `CUDA_VISIBLE_DEVICES=` empty, `ctest` then reports those cases as skipped and exits 0. It skips on `cudaErrorNoDevice`, and on `cudaErrorInsufficientDriver` when `cudaDriverGetVersion` reports 0 (no driver installed, #73). Any other CUDA error, including a driver that is installed but too old for the toolkit (nonzero version), still fails the test. `rt_render --backend cuda` reports both no-device cases as `no CUDA-capable device is detected`, which `rt_render_cuda_cli` treats as a skip (exit 77).
+
+The no-driver case was checked on the laptop by putting a stand-in `libcuda.so.1` first on `LD_LIBRARY_PATH`: an empty shared library makes the runtime report error 35 with driver version 0 (as on the login node), and all device tests skip; one whose `cuDriverGetVersion` returns 11000 makes 16 tests fail with "CUDA driver version is insufficient".
 
 ### Golden images
 

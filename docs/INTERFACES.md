@@ -164,6 +164,8 @@ constexpr float RT_EPS    = 5.9604645e-8f;                      // 2^-24
 constexpr float RT_GAMMA3 = (3 * RT_EPS) / (1 - 3 * RT_EPS);    // PBRT gamma(3)
 ```
 
+> Changed: `AABB::empty()` was added and the two constants moved to `math.hpp`; see IC3 in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md).
+
 ### Ray-box slab test (frozen)
 
 `inv_dir = 1.0f / dir` per component, computed once per ray. A zero component gives `+inf` for `+0` and `-inf` for `-0`. When the origin lies exactly on a slab plane, `0 * ±inf = NaN`.
@@ -650,6 +652,8 @@ struct BruteQuery {               // Core: --bvh none (first image, tests). Loop
 //   EmbreeQuery (host only): rtcIntersect1 / rtcOccluded1, geomID+primID -> PrimRef
 //   OptixQuery  (device only, used inside raygen): optixTrace with closest-hit / terminate-on-first-hit
 ```
+
+> Changed: `BvhQuery` has a third member, `uint32_t* overflow = nullptr`, forwarded to `traverse_*`; see IC2 in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md).
 
 - An empty BVH stays an empty scene (`num_nodes == 0` → miss). Brute force is a different query type, not a special BVH.
 - `BvhQuery` and `BruteQuery` follow every frozen rule in [section 5](#5-intersection-and-traversal), so they return identical hits.

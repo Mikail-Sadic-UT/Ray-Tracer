@@ -88,10 +88,11 @@ def preset_points(preset, machine):
     top = threads[-1]
     gpu_top = GPU_BUILD_THREADS[machine][-1]
     presets = {
-        # B = R together on the CPU; T = 1 is the 1-core baseline.
-        'cpu-threads': lambda: [cpu(BASELINE_SCENE, t) for t in threads],
-        # B alone for GPU runs.
-        'gpu-build-threads': lambda: [gpu(BASELINE_SCENE, b)
+        # B = R together on the CPU; T = 1 is the 1-core baseline. Every size, so CPU* comes
+        # from a real thread sweep at each size, not only from 1 and the top count (#70).
+        'cpu-threads': lambda: [cpu(s, t) for s in SIZES for t in threads],
+        # B alone for GPU runs, at every size for the same reason.
+        'gpu-build-threads': lambda: [gpu(s, b) for s in SIZES
                                       for b in GPU_BUILD_THREADS[machine]],
         # Scene size, with the 1-core baseline at each size for the target ratios.
         'size': lambda: [p for s in SIZES for p in (cpu(s, 1), cpu(s, top), gpu(s, gpu_top))],

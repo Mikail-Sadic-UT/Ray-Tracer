@@ -587,6 +587,101 @@ TEST(Bvh, LbvhRecoveryPreservesDepth64AndRepairsOnlyDepth32Subtree) {
     }
 }
 
+/// The layout stage recounts the collapsed layout after depth recovery rebuilt a subtree. Real
+/// Morton trees cannot get deeper than 64, so build_bvh never reaches this branch; drive the
+/// internal layout stage with a synthetic depth-65 chain and deliberately stale counts.
+TEST(Bvh, LbvhLayoutRecountsAfterDepthFallback) {
+    constexpr uint32_t depth = 65;
+    constexpr uint32_t count = depth + 1;
+    for (uint32_t leaf_size : {1u, 4u}) {
+        for (int threads : {1, 4}) {
+            std::vector<rt::detail::BuildPrim> prims(count);
+            std::vector<uint32_t> order(count);
+            std::iota(order.begin(), order.end(), 0u);
+            // Same chain as LbvhRecoveryPreservesDepth64AndRepairsOnlyDepth32Subtree: internal
+            // node 2i covers [i, count - 1], with leaf i on the left.
+            std::vector<rt::detail::LbvhNode> nodes(2 * count - 1);
+            for (uint32_t i = 0; i < count; ++i) {
+                const float x = static_cast<float>(count - i);
+                prims[i] = {i, {{x, 0, 0}, {x + 0.5f, 1, 1}}, {x + 0.25f, 0.5f, 0.5f}};
+                if (i < depth) {
+                    auto& node = nodes[2 * i];
+                    node.first = i;
+                    node.last = count - 1;
+                    node.left = 2 * i + 1;
+                    node.right = 2 * i + 2;
+                    node.bounds = {{0, 0, 0}, {static_cast<float>(count + 1), 1, 1}};
+                    auto& leaf = nodes[2 * i + 1];
+                    leaf.first = leaf.last = i;
+                    leaf.leaf = true;
+                    leaf.bounds = prims[i].bounds;
+                }
+            }
+            nodes.back().first = nodes.back().last = count - 1;
+            nodes.back().leaf = true;
+            nodes.back().bounds = prims.back().bounds;
+            const auto fresh_nodes = nodes;
+            const auto fresh_order = order;
+
+            // Stale (all-zero) counts: a layout that used them after the fallback would size
+            // the output as empty and write out of bounds (checked: the test then crashes).
+            std::vector<rt::detail::LayoutInfo> stale(nodes.size(),
+                                                      rt::detail::LayoutInfo{0, 0, 0});
+            rt::Bvh tree;
+            tree.stats.max_leaf_size = leaf_size;
+            rt::detail::layout_lbvh(prims.data(), order.data(), nodes.data(), nodes.size(),
+                                    stale.data(), false, true, leaf_size, threads, tree);
+            EXPECT_EQ(tree.stats.fallbacks, 1u);
+            EXPECT_LE(tree.stats.depth, 64u);
+            ASSERT_EQ(tree.nodes.size(), tree.stats.nodes);
+            ASSERT_EQ(tree.prim_refs.size(), count);
+
+            // Structure: adjacent siblings, every node reached once, every reference once,
+            // leaves within the size limit, depth within the stack.
+            std::vector<bool> reached(tree.nodes.size(), false), seen(count, false);
+            uint32_t leaves = 0, max_depth = 0;
+            const auto walk = [&](const auto& self, uint32_t index, uint32_t level) -> void {
+                ASSERT_LT(index, tree.nodes.size());
+                ASSERT_FALSE(reached[index]);
+                reached[index] = true;
+                max_depth = std::max(max_depth, level);
+                const rt::BvhNode& node = tree.nodes[index];
+                if (node.count != 0) {
+                    ++leaves;
+                    EXPECT_LE(node.count, leaf_size);
+                    ASSERT_LE(node.left_or_first + node.count, count);
+                    for (uint32_t k = 0; k < node.count; ++k) {
+                        const uint32_t ref = tree.prim_refs[node.left_or_first + k];
+                        ASSERT_LT(ref, count);
+                        EXPECT_FALSE(seen[ref]);
+                        seen[ref] = true;
+                    }
+                    return;
+                }
+                self(self, node.left_or_first, level + 1);
+                self(self, node.left_or_first + 1, level + 1);
+            };
+            walk(walk, 0, 0);
+            EXPECT_EQ(std::count(reached.begin(), reached.end(), true), tree.nodes.size());
+            EXPECT_EQ(std::count(seen.begin(), seen.end(), true), count);
+            EXPECT_EQ(leaves, tree.stats.leaves);
+            EXPECT_EQ(max_depth, tree.stats.depth);
+
+            // Same bytes as a layout that counts from scratch.
+            auto nodes2 = fresh_nodes;
+            auto order2 = fresh_order;
+            std::vector<rt::detail::LayoutInfo> counts2(nodes2.size());
+            rt::Bvh reference;
+            rt::detail::layout_lbvh(prims.data(), order2.data(), nodes2.data(), nodes2.size(),
+                                    counts2.data(), false, false, leaf_size, threads, reference);
+            EXPECT_EQ(tree.prim_refs, reference.prim_refs);
+            ASSERT_EQ(tree.nodes.size(), reference.nodes.size());
+            EXPECT_EQ(std::memcmp(tree.nodes.data(), reference.nodes.data(),
+                                  tree.nodes.size() * sizeof(rt::BvhNode)),
+                      0);
+        }
+    }
+}
 /// Empty/small inputs, equal Morton codes, and collapse boundaries stay deterministic.
 TEST(Bvh, LbvhEdgeCasesAndLeafCollapse) {
     for (uint32_t count : {0u, 1u, 2u, 3u, 31u, 32u, 33u, 1025u, 4096u}) {

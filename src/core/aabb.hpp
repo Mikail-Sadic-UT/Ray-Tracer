@@ -10,12 +10,6 @@
 
 namespace rt {
 
-/// Unit roundoff for float, 2^-24.
-constexpr float RT_EPS = 5.9604645e-8f;
-
-/// gamma(3) = 3u / (1 - 3u): relative error bound after three float roundings (PBRT).
-constexpr float RT_GAMMA3 = (3.0f * RT_EPS) / (1.0f - 3.0f * RT_EPS);
-
 /// Largest allowed magnitude of any world coordinate or sphere radius (INTERFACES section 2,
 /// enforced at load). Keeps `plane - origin` in intersect_aabb() from overflowing float.
 constexpr float RT_MAX_COORD = 1.0e18f;
@@ -27,6 +21,12 @@ constexpr float RT_MAX_COORD = 1.0e18f;
 struct AABB {
     vec3 lo;  ///< Minimum corner.
     vec3 hi;  ///< Maximum corner.
+
+    /// The empty box `{+inf, +inf, +inf}`-`{-inf, -inf, -inf}` (INTERFACE_CHANGES IC3). Growing
+    /// it by a point or box gives exactly that point or box. A plain `AABB b;` is uninitialized.
+    RT_INLINE static AABB empty() {
+        return {{INFINITY, INFINITY, INFINITY}, {-INFINITY, -INFINITY, -INFINITY}};
+    }
 
     /// Expands the box to contain point @p p.
     RT_INLINE void grow(vec3 p) {

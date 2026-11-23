@@ -40,4 +40,9 @@ void save_binary_scene(const std::string& path, const SceneHost& scene,
 /// @throws Error naming the invalid field and index.
 void validate_scene(const SceneHost& scene, bool require_light_mask = false);
 
+/// Checks the light-mask AOV limit: at most 32 lights. validate_scene() applies it when
+/// `require_light_mask` is set; rt_render calls it directly after CLI overrides (#67).
+/// @throws Error naming `lights`.
+void validate_light_mask_limit(const SceneHost& scene);
+
 }  // namespace rt
