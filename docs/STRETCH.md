@@ -35,9 +35,11 @@ Embree fills the "best possible CPU" role instead (E4).
 
 ## Mirror reflections
 
-- `MAT_MIRROR` is reserved in [INTERFACES.md](INTERFACES.md#primitive-and-material-types). Max depth around 4.
-- Megakernel: a bounded loop per thread. Wavefront: loop the stages with compaction, keeping fixed per-pixel slots so the output stays deterministic.
-- Small float differences compound per bounce, so reflections need their own comparison category and are reported separately.
+*Landed after G2* (IC5): `MAT_MIRROR` with reflectance `ks`, up to 4 bounces, in the shared `shade_hit`, so the CPU backend and the megakernel both run it. `scenes/known/known_mirror.json` has a golden.
+
+- `MAT_MIRROR` was reserved in [INTERFACES.md](INTERFACES.md#primitive-and-material-types). Max depth around 4.
+- Megakernel: a bounded loop per thread. Wavefront (not built): loop the stages with compaction, keeping fixed per-pixel slots so the output stays deterministic.
+- Small float differences compound per bounce, so reflections were expected to need their own comparison category. With contraction off (IC1) CPU and GPU images of mirror scenes are byte-identical, so the normal comparison applies.
 
 ## GPU-side LBVH build
 

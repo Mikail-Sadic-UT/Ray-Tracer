@@ -55,7 +55,7 @@ Definitions: [BENCHMARKING.md](BENCHMARKING.md#timing-quantities).
 | `camera` | Jett | Camera model and `camera_ray` | Core |
 | `bvh` | Jett | Bounds stage, median, LBVH, layout conversion, validator; SAH | Core; SAH Extension |
 | `trace` | Mikail | Intersection, closest/any-hit traversal, brute force | Core |
-| `shade` | Arek | Lambert, shadow rays, accumulation; Blinn-Phong | Core; Blinn-Phong Extension |
+| `shade` | Arek | Lambert, shadow rays, accumulation; Blinn-Phong; mirror reflections | Core; Blinn-Phong Extension; mirrors after G2 (IC5) |
 | `image` | Po | `Image`, PNG/PFM IO | Core |
 | `cpu` | Po | CPU backend | Core |
 | `gpu` | Mikail, Arek | `DeviceScene`, megakernel; memory modes; wavefront | Core; modes and wavefront Extension |

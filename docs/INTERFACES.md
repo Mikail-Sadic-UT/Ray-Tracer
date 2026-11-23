@@ -249,6 +249,8 @@ enum LightType : uint32_t { LIGHT_POINT = 0 /* Core */, LIGHT_DIRECTIONAL = 1 /*
 struct Light { uint32_t type; vec3 pos_or_dir; color intensity; float pad = 0.0f; };  // 32 B
 ```
 
+> Changed: `MAT_MIRROR` is no longer reserved, and materials take an optional `"mirror"` JSON key; see IC5 in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md).
+
 Every padding or reserved field is default-initialized to zero and written as zero in files. Hashes never read padding (see [Scene hash](#scene-hash)).
 
 Coordinates: right-handed, **Y-up**.
@@ -722,6 +724,8 @@ Core: `contrib_i = albedo * max(0, dot(ng, l)) * I_i / d2`.
 Extension (`MAT_SPECULAR`): adds `ks * max(0, dot(ng, h))^shininess * I_i / d2`, where `h = normalize(l + wo)`.
 
 > Changed: implemented in every build, with the power computed by `spec_pow`, not `powf`; see IC4 in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md).
+
+> Changed: `MAT_MIRROR` is defined and `shade_hit` adds bounded mirror reflections after the direct light; see IC5 in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md).
 
 ### Accumulation order (frozen)
 

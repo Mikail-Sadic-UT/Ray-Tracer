@@ -219,6 +219,8 @@ Materials are diffuse (Lambert) unless `"specular": true`, which adds a Blinn-Ph
 
 `direction` is the way the light travels; it is normalized at load. A directional light has no distance falloff, so its intensity is the irradiance it gives a surface facing it, and its shadows are cast from infinitely far away. `scenes/known/known_specular.json` uses both features.
 
+Add `"mirror": true` to a material to make it reflect. Its `ks` is then the reflection color: `[0.9, 0.9, 0.9]` is chrome, `[0.9, 0.7, 0.3]` gold, and a dark `albedo` keeps the surface's own color from washing out the reflection. A material can be both specular and a mirror. Reflections follow at most 4 bounces, so two mirrors facing each other end in a dark reflection after that. `scenes/known/known_mirror.json` has a mirror wall and mirror spheres.
+
 Version-2 scenes may store geometry inline or reference a `.bin` file. Binary paths resolve relative to the scene JSON, so keep the JSON and referenced geometry together. Full format and validation rules: [INTERFACES.md §2](INTERFACES.md#2-scene-image-and-file-formats).
 
 ## Generate larger scenes
