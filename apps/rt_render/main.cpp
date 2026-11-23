@@ -7,10 +7,17 @@
 /// with the rt_bench harness: one discarded warm-up, then `--runs` runs of each
 /// (BENCHMARKING "Timing quantities"). Image and results files are written after timing, so
 /// `write` is in no total.
+///
+/// `--orbit N --frames DIR` prepares once and renders N frames on one turn around the camera
+/// target, writing `DIR/frame_NNNN.png` (for a video) and reporting T_frame over the path.
+/// `--lights N` replaces the lights with N copies of light 0 for the light-count sweep.
 #include <CLI/CLI.hpp>
 #include <array>
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -29,6 +36,7 @@
 #include "core/error.hpp"
 #include "cpu/cpu_backend.hpp"
 #include "image/image_io.hpp"
+#include "scene/hash.hpp"
 #include "scene/scene_io.hpp"
 #ifdef RT_HAVE_CUDA_BACKEND
 #include "bench/gpu_timer.hpp"
@@ -75,6 +83,48 @@ std::array<float, 3> to_array(rt::vec3 v) {
     return {v.x, v.y, v.z};
 }
 
+/// Rotates @p p by @p angle radians about the vertical axis through @p center.
+/// Computed in double so the result does not depend on contraction settings.
+rt::vec3 rotate_about_y(rt::vec3 p, rt::vec3 center, double angle) {
+    const double c = std::cos(angle), s = std::sin(angle);
+    const double dx = static_cast<double>(p.x) - center.x;
+    const double dz = static_cast<double>(p.z) - center.z;
+    return {static_cast<float>(center.x + dx * c + dz * s), p.y,
+            static_cast<float>(center.z - dx * s + dz * c)};
+}
+
+/// Light-count sweep (BENCHMARKING "Sweeps", L = 1, 2, 4): replaces the scene's lights with
+/// @p count copies of light 0, spaced evenly about the world Y axis, each with 1/count of its
+/// intensity so the total power stays the same. Light 0 is kept unchanged, so `--lights 1` on
+/// a one-light scene renders the same bytes as no override. Recomputes the scene hash.
+/// @throws rt::Error if the scene has no light.
+void replace_lights(rt::SceneHost& scene, uint32_t count) {
+    if (scene.lights.empty()) throw rt::Error("rt_render: --lights needs a scene with a light");
+    const rt::Light base = scene.lights[0];
+    scene.lights.assign(count, base);
+    const float share = 1.0f / static_cast<float>(count);
+    constexpr double kTwoPi = 6.283185307179586;
+    for (uint32_t i = 0; i < count; ++i) {
+        rt::Light& light = scene.lights[i];
+        if (i != 0)
+            light.pos_or_dir = rotate_about_y(base.pos_or_dir, {0, 0, 0}, kTwoPi * i / count);
+        if (count != 1) {
+            light.intensity = {base.intensity.x * share, base.intensity.y * share,
+                               base.intensity.z * share};
+        }
+    }
+    scene.hash = rt::scene_hash(scene.view());
+}
+
+/// Camera @p index of @p count on one turn around the camera target, starting at @p cam.
+rt::Camera orbit_camera(const rt::Camera& cam, uint32_t index, uint32_t count) {
+    rt::Camera out = cam;
+    constexpr double kTwoPi = 6.283185307179586;
+    if (index != 0)
+        out.position = rotate_about_y(cam.position, cam.look_at, kTwoPi * index / count);
+    return out;
+}
+
 /// The `generator.command` that `rt_gen` recorded in @p path, or empty for a hand-written scene.
 /// `SceneHost` doesn't keep it (CONTRACT_NOTES W11), so the JSON is read a second time.
 std::string generator_command(const std::string& path) {
@@ -107,7 +157,8 @@ int main(int argc, char** argv) {
         std::string out_png, out_pfm, results_path, mode = "app";
         std::vector<std::string> aov_names;
         int build_threads = 1, render_threads = 1, runs = 5;
-        uint32_t width = 0, height = 0, max_leaf_size = 4;
+        uint32_t width = 0, height = 0, max_leaf_size = 4, num_lights = 0, orbit = 0;
+        std::string frames_dir;
         std::vector<float> cam_pos, cam_look;
         float cam_vfov = 0.0f;
         {
@@ -150,6 +201,17 @@ int main(int argc, char** argv) {
             app.add_option("--runs", runs, "Measured runs of T_br and T_frame (--mode prepared)")
                 ->check(CLI::PositiveNumber)
                 ->capture_default_str();
+            app.add_option("--lights", num_lights,
+                           "Replace the lights with N copies of light 0 on a ring about the Y "
+                           "axis, each with 1/N of its intensity (light-count sweep)")
+                ->check(CLI::Range(1u, 32u));
+            auto* frames_opt =
+                app.add_option("--frames", frames_dir, "Directory for the --orbit frame PNGs");
+            app.add_option("--orbit", orbit,
+                           "Prepare once, then render N frames on one turn around the camera "
+                           "target; reports T_frame over the path")
+                ->check(CLI::Range(1u, 100000u))
+                ->needs(frames_opt);
             auto* pfm_opt = app.add_option("--pfm", out_pfm, "Write linear RGB PFM");
             app.add_option("--aov", aov_names, "AOVs written next to the PFM: primid,lightmask")
                 ->delimiter(',')
@@ -162,6 +224,16 @@ int main(int argc, char** argv) {
             }
             if (backend_name != "cuda" && app.count("--pipeline") != 0) {
                 throw rt::Error("rt_render: --pipeline applies only to --backend cuda");
+            }
+            if (orbit != 0 && (app.count("--mode") != 0 || app.count("--runs") != 0 ||
+                               app.count("--results") != 0 || app.count("--pfm") != 0 ||
+                               app.count("--out") != 0)) {
+                throw rt::Error(
+                    "rt_render: --orbit writes only frame PNGs; it does not combine with --mode, "
+                    "--runs, --results, --pfm or --out");
+            }
+            if (orbit == 0 && app.count("--frames") != 0) {
+                throw rt::Error("rt_render: --frames applies only to --orbit");
             }
             if (pipeline == "wavefront") {
                 throw rt::Error("rt_render: --pipeline wavefront is Extension E5, not implemented");
@@ -197,6 +269,7 @@ int main(int argc, char** argv) {
             cam.vfov_deg = cam_vfov;
             overridden.push_back("vfov_deg");
         }
+        if (num_lights != 0) replace_lights(scene, num_lights);
         const uint32_t aovs = parse_aovs(aov_names);
         // load_scene() validated everything else; overrides change only the camera, and the
         // AOV choice only the light limit. A full second validate_scene() pass cost ~0.4 s
@@ -244,6 +317,36 @@ int main(int argc, char** argv) {
             backend->prepare(input, t);
             backend->render(cam, image, t);
         };
+
+        if (orbit != 0) {
+            std::filesystem::create_directories(frames_dir);
+            rt::Timings prep;
+            build_and_render(prep);  // untimed preparation; frame 0 is rendered again below
+            std::vector<double> totals;
+            for (uint32_t i = 0; i < orbit; ++i) {
+                const rt::Camera frame_cam = orbit_camera(cam, i, orbit);
+                const rt::RunSet one = rt::measure_frame(
+                    rt::HarnessOptions{0, 1},
+                    [&](rt::Timings& t) { backend->render(frame_cam, image, t); });
+                totals.push_back(one.runs[0].total_ms);
+                char name[32];
+                std::snprintf(name, sizeof name, "frame_%04u.png", i);
+                rt::write_png((std::filesystem::path(frames_dir) / name).string(), image);
+            }
+            const rt::RunStats stats = rt::summarize(totals);
+            backend->release();
+            std::cerr << "rt_render: " << backend->name() << ", bvh " << bvh_name << ", "
+                      << cam.width << 'x' << cam.height << ", " << shade_name << ", lights "
+                      << scene.lights.size() << ", B=" << build_threads << " R=" << render_threads
+                      << ", orbit " << orbit << " frames -> " << frames_dir << '\n';
+            std::cerr << "  preparation: bounds " << prep.bounds << " ms, build " << prep.build
+                      << " ms, layout " << prep.layout << " ms, convert " << prep.convert
+                      << " ms, alloc " << prep.alloc << " ms, upload " << prep.upload << " ms\n";
+            std::cerr << "  T_frame over the path: median " << stats.median_ms << " ms (min "
+                      << stats.min_ms << ", max " << stats.max_ms << ", spread " << stats.spread
+                      << ", " << totals.size() << " frames)\n";
+            return 0;
+        }
 
         rt::ResultsDoc doc;
         if (mode == "app") {
@@ -323,8 +426,9 @@ int main(int argc, char** argv) {
         backend->release();
 
         std::cerr << "rt_render: " << backend->name() << ", bvh " << bvh_name << ", " << cam.width
-                  << 'x' << cam.height << ", " << shade_name << ", B=" << build_threads
-                  << " R=" << render_threads << ", mode " << mode << '\n';
+                  << 'x' << cam.height << ", " << shade_name << ", lights " << scene.lights.size()
+                  << ", B=" << build_threads << " R=" << render_threads << ", mode " << mode
+                  << '\n';
         if (use_bvh) {
             std::cerr << "  bvh: " << bvh.stats.nodes << " nodes, " << bvh.stats.leaves
                       << " leaves, depth " << bvh.stats.depth << '\n';

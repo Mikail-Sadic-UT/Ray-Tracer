@@ -40,17 +40,16 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 | Item | Issue | Why | Done when | Notes |
 |---|---|---|---|---|
 | Layout stage of the LBVH build | #68 | Now the largest preparation stage: 6.8 ms at B = 72, up from 3.6 ms at B = 16 | Optional: P near 5.6 ms (ratio near 3×) | Mostly emit and freeing the scratch. Emit is probably bound by the serial zero fill of `Bvh::nodes` (review of #75: emit 7.0 ms at B = 3, 9.3 at 8, 9.3 to 10.8 at 24 on the laptop); avoiding it means `Bvh::nodes` stops being a value-initialized `std::vector`, which is an interface change (an IC entry). Other ideas: a fused bottom-up (Apetrei-style) hierarchy + refit, a smaller temporary node, reusing scratch. The 2× target is already met, so this is only worth doing if time is left |
-| Measurement gaps | #70 | Light-count sweep missing; GPU T_app is unstable (spread 39% to 207%); no profiling; 10K and 100K GPU T_br rows have spread above 10% | Checklist in the issue | The thread sweeps at 10K and 100K are done. Profiling first checks whether the kernel is worth tuning at all (5.6 ms of the GPU's 16.4 ms) |
+| Measurement gaps | #70 | GPU T_app is unstable (spread 39% to 207%); no profiling; 10K and 100K GPU T_br rows have spread above 10% | Checklist in the issue | The thread sweeps at 10K and 100K are done. Profiling first checks whether the kernel is worth tuning at all (5.6 ms of the GPU's 16.4 ms) |
 
 ### Decisions still open
 
-- **Which extensions to run (#71).** Candidates and what the data says. Sizes are the ROADMAP timeboxes; the owners listed there assumed a four-person team, so treat them as sizes only:
+- **Which extensions to run (#71).** Leaning (Nov 23, working solo): camera-path video first (done, see below), then E2 Blinn-Phong, then mirror reflections (`MAT_MIRROR` is reserved), then colored glass if time is left. All behind material flags, so the benchmark scenes, goldens and CPU/GPU byte equality stay unchanged; reflective images get their own comparison category. E1, E3, E4 and E5 are likely cut. Candidates and what the data says. Sizes are the ROADMAP timeboxes; the owners listed there assumed a four-person team, so treat them as sizes only:
   - **E3 parallel binned SAH (1 week):** addresses the tree-quality tradeoff. The median tree renders 2× faster than LBVH on the CPU and 2.6× on the GPU, but its serial build makes T_br 8.9× (CPU) and 20× (GPU) slower after #68. The most a better tree can save is about 3.5 ms of GPU render, so SAH helps GPU T_br only if its build costs less than that on top of LBVH; the case rests on T_frame and the CPU render.
   - **E1 memory modes (4 days):** the proposal's data-movement question. With explicit memory on the GH200, transfer is already about 0.3 ms at 1M, so there may be little to show. The comparison could still be informative.
   - **E2 Blinn-Phong (2 days), E4 Embree (4 days), E5 wavefront (1 week), E6 `obj2bin` + Blender export (3 days):** all independent of the above. E4 would strengthen the "best CPU" tier. E5 and E6 start only after G3, and E5 depends on the profile. ROADMAP expected E1 to E3 to fit and the rest to be cut.
   - **Core optimization only.** A valid choice if time is short.
   - Extensions must not block final runs and the report.
-- **Light-count sweep (#70):** scene variants or a `--lights` override in `rt_render`. Decide before starting.
 
 ### Later
 
@@ -92,3 +91,5 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 | Device tests and `rt_render_cuda_cli` skip when no NVIDIA driver is installed (checked with a stand-in `libcuda`) | `mikail/lbvh-scaling` (#73) |
 | IC2 overflow flag in `BvhQuery` (closes W8) and IC3 `AABB::empty()` and constants in `math.hpp` | `mikail/lbvh-scaling` (#69, #4) |
 | Thread sweeps at every scene size | `mikail/lbvh-scaling` (#70, first item) |
+| Light-count sweep: `rt_render --lights N` (N copies of light 0 on a ring, 1/N intensity), `lights` sweep preset, `num_lights` CSV column, light table in `ratios.py`. Laptop run works; Vista run still to do | `mikail/lights-orbit` (#70) |
+| Camera orbit: `rt_render --orbit N --frames DIR` (one preparation, N frames, T_frame over the path) and `scripts/make_video.sh` (MP4 via ffmpeg) | `mikail/lights-orbit` |

@@ -118,6 +118,28 @@ You can change the view without editing the JSON:
 
 `--cam-pos` sets the camera position; `--cam-look` sets its target. Each takes three coordinates. `--cam-vfov` sets the vertical field of view in degrees. Coordinates use Y-up. The camera position and target must differ, and the field of view must lie strictly between 0 and 180 degrees.
 
+### Light count
+
+`--lights N` (1 to 32) replaces the scene's lights with N copies of its first light, spaced evenly around the world Y axis, each with 1/N of the intensity, so the total power stays the same. `--lights 1` on a one-light scene renders exactly the same image. The scene hash in a results file changes with N, and `scene.num_lights` records it. The `lights` sweep preset uses this for the light-count sweep (L = 1, 2, 4).
+
+```bash
+./build-cpu/apps/rt_render/rt_render \
+  --scene scenes/known/known_two_spheres.json --lights 4 --out out/practice/four_lights.png
+```
+
+### Camera orbit and video
+
+`--orbit N --frames DIR` prepares the scene once, then renders N frames on one full turn around the camera target (about the vertical axis) and writes them as `DIR/frame_0000.png` and so on. Frame 0 is the scene's own view. It prints the preparation stages and T_frame over the path, a camera-path version of the prepared-frame time. It does not combine with `--mode`, `--runs`, `--results`, `--out` or `--pfm`.
+
+`scripts/make_video.sh` wraps this and encodes the frames as an MP4 (needs `ffmpeg`, `sudo apt install ffmpeg`):
+
+```bash
+bash scripts/make_video.sh --scene scenes/generated/bench_1m_s1.json --out out/orbit.mp4 \
+  --frames 120 --fps 30 -- --backend cuda --bvh lbvh --build-threads 16 --width 1280 --height 720
+```
+
+Options after `--` go to `rt_render`. `--keep-frames DIR` keeps the PNGs.
+
 ### Normal visualization
 
 Use `--shade normal` instead of `--shade lit` to show surface normals as colors. This skips lights and shadows, making it useful for inspecting geometry and tracing. Use lit shading for performance comparisons.
@@ -296,7 +318,7 @@ python3 scripts/tacc/sweep.py run --preset g2 --machine laptop --scenes scenes/g
   --rt-render build/apps/rt_render/rt_render --out out/sweep-g2
 ```
 
-The results are in `out/sweep-g2/sweep.csv`. Summarize it with `python3 scripts/tacc/ratios.py out/sweep-g2/sweep.csv`. On Vista, use `scripts/tacc/sweep.sbatch` instead ([BENCHMARKING.md](BENCHMARKING.md#sweeps)); the first Vista results are in [RESULTS.md](RESULTS.md).
+The results are in `out/sweep-g2/sweep.csv`. Summarize it with `python3 scripts/tacc/ratios.py out/sweep-g2/sweep.csv`. The `lights` preset measures 1, 2 and 4 lights (through `--lights`); `ratios.py` prints those rows as a separate light-count table. On Vista, use `scripts/tacc/sweep.sbatch` instead ([BENCHMARKING.md](BENCHMARKING.md#sweeps)); the first Vista results are in [RESULTS.md](RESULTS.md).
 
 ## Build CUDA and render on the GPU
 
@@ -367,6 +389,8 @@ Allocate a GH compute node and load the documented GCC/CUDA/CMake modules. Use `
 | `--cam-look X Y Z` | Override camera target |
 | `--cam-vfov DEGREES` | Override vertical field of view |
 | `--shade lit\|normal` | Lighting/shadows or normal visualization |
+| `--lights N` | Replace the lights with N copies of light 0 on a ring (light-count sweep) |
+| `--orbit N --frames DIR` | Prepare once, render N frames around the target into DIR |
 | `--out PATH.png` | Save sRGB PNG |
 | `--pfm PATH.pfm` | Save linear RGB |
 | `--aov primid,lightmask` | Save requested sidecars next to PFM |

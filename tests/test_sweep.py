@@ -60,9 +60,26 @@ class Presets(unittest.TestCase):
         core = sweep.preset_points('core', 'vista')
         names = [p.name for p in core]
         self.assertEqual(len(names), len(set(names)))
-        for preset in ('cpu-threads', 'gpu-build-threads', 'size', 'bvh', 'resolution', 'tapp'):
+        for preset in ('cpu-threads', 'gpu-build-threads', 'size', 'bvh', 'resolution', 'lights',
+                       'tapp'):
             for p in sweep.preset_points(preset, 'vista'):
                 self.assertIn(p.name, names, preset)
+
+    def test_lights_preset_varies_only_the_light_count(self):
+        points = sweep.preset_points('lights', 'vista')
+        self.assertEqual(sorted({p.lights for p in points}), sweep.LIGHT_COUNTS)
+        self.assertEqual({(p.scene, p.bvh, p.width) for p in points},
+                         {(sweep.BASELINE_SCENE, 'lbvh', 1920)})
+        one = [p for p in points if p.lights == 1]
+        size = {p.name for p in sweep.preset_points('size', 'vista')}
+        self.assertTrue(all(p.name in size for p in one), 'L = 1 reuses the size points')
+        four = next(p for p in points if p.lights == 4)
+        self.assertTrue(four.name.endswith('_L4'))
+        with tempfile.TemporaryDirectory() as scenes:
+            (Path(scenes) / f'{sweep.BASELINE_SCENE}.json').write_text('{}')
+            args = sweep.render_args(four, scenes)
+            self.assertEqual(args[args.index('--lights') + 1], '4')
+            self.assertNotIn('--lights', sweep.render_args(one[0], scenes))
 
     def test_unknown_preset(self):
         with self.assertRaises(sweep.SweepError):
