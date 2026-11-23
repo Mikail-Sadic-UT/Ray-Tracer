@@ -220,7 +220,7 @@ A CPU-only build must always work. CI uses it.
 
 ### Runtime diagnostics
 
-- `RT_BVH_STAGES=1` prints one line per LBVH build to stderr with the time of each builder stage in ms (`centroids`, `morton`, `sort`, `hierarchy`, `refit`, `recover`, `emit`, `sah`, `free`). The first five make up the `build` component and the rest `layout`. Diagnostic only: the results schema has no slot for them (#68).
+- `RT_BVH_STAGES=1` prints one line per LBVH build to stderr, with the thread count the stages used (1 below 4096 primitives, whatever B is) and the requested B, then the time of each builder stage in ms (`centroids`, `morton`, `sort`, `hierarchy`, `refit`, `recover`, `emit`, `sah`, `free`). The first five make up the `build` component and the rest `layout`. Diagnostic only: the results schema has no slot for them (#68).
 
 ### Adding tests
 
