@@ -38,6 +38,12 @@ class Scratch {
     Scratch(const Scratch&) = delete;
     Scratch& operator=(const Scratch&) = delete;
 
+    /// Frees the storage early, so the release is timed with the stage that used it.
+    void reset() {
+        ::operator delete(data_);
+        data_ = nullptr;
+        size_ = 0;
+    }
     T* data() { return data_; }
     const T* data() const { return data_; }
     size_t size() const { return size_; }
@@ -602,6 +608,15 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
         result.stats.depth = counts[0].depth;
         result.stats.sah_cost = sah_cost(result, teams);
         clock.mark("sah");
+        // Release the scratch here so freeing ~200 MB at 1M counts as layout, not as time
+        // outside every component (#67).
+        temp.reset();
+        counts.reset();
+        order.reset();
+        sorted_keys.reset();
+        keys.reset();
+        prims.reset();
+        clock.mark("free");
         const auto layout_end = std::chrono::steady_clock::now();
         timings.layout =
             std::chrono::duration<double, std::milli>(layout_end - layout_start).count();
@@ -621,6 +636,8 @@ Bvh build_bvh(const Scene& scene, const BvhParams& params, Timings& timings) {
     result.stats.depth = builder.max_depth;
     const auto layout_start = std::chrono::steady_clock::now();
     result.stats.sah_cost = sah_cost(result);
+    prims.reset();
+    std::vector<uint32_t>().swap(order);
     const auto layout_end = std::chrono::steady_clock::now();
     timings.layout = std::chrono::duration<double, std::milli>(layout_end - layout_start).count();
     return result;
