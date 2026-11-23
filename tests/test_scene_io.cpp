@@ -101,7 +101,8 @@ TEST_F(SceneIo, RejectsMalformedFieldsWithPaths) {
         {"/ambient", 1.0e100, "ambient"},
         {"/materials", json::object(), "materials"},
         {"/materials/0/specular", 0, "materials[0].specular"},
-        {"/lights/0/type", "directional", "lights[0].type"},
+        {"/lights/0/type", "directional", "lights[0].direction"},  // no "direction" key
+        {"/lights/0/type", 1, "lights[0].type"},
         {"/lights/0/type", "unknown", "lights[0].type"},
         {"/geometry", nullptr, "geometry"},
         {"/geometry/spheres", nullptr, "geometry.spheres"},
@@ -151,7 +152,17 @@ TEST_F(SceneIo, RejectsInvalidSceneValues) {
         {[](auto& s) { s.materials[0].shininess = 0; }, "materials[0].shininess"},
         {[&](auto& s) { s.materials[0].shininess = inf; }, "materials[0].shininess"},
         {[](auto& s) { s.materials[0].flags = 2; }, "materials[0].flags"},
-        {[](auto& s) { s.lights[0].type = rt::LIGHT_DIRECTIONAL; }, "lights[0].type"},
+        {[](auto& s) { s.lights[0].type = 2; }, "lights[0].type"},
+        {[](auto& s) {
+             s.lights[0].type = rt::LIGHT_DIRECTIONAL;
+             s.lights[0].pos_or_dir = {0, 0, 0};
+         },
+         "lights[0].direction"},
+        {[&](auto& s) {
+             s.lights[0].type = rt::LIGHT_DIRECTIONAL;
+             s.lights[0].pos_or_dir.y = nan;
+         },
+         "lights[0].direction[1]"},
         {[&](auto& s) { s.lights[0].pos_or_dir.x = inf; }, "lights[0].position[0]"},
         {[](auto& s) { s.lights[0].intensity.z = -1; }, "lights[0].intensity[2]"},
         {[&](auto& s) { s.lights[0].intensity.y = nan; }, "lights[0].intensity[1]"},
@@ -180,6 +191,35 @@ TEST_F(SceneIo, RejectsInvalidSceneValues) {
 }
 
 /// The coordinate bound applies at load and names both the field and the offending value.
+/// E2: a directional light loads with its direction normalized, survives a save and load, and
+/// rejects a zero direction; specular materials keep their flag.
+TEST_F(SceneIo, DirectionalLightsAndSpecularMaterials) {
+    document["lights"].push_back(
+        {{"type", "directional"}, {"direction", {0, -3, 4}}, {"intensity", {1, 2, 3}}});
+    document["materials"][0]["specular"] = true;
+    document["materials"][0]["ks"] = {0.5, 0.5, 0.5};
+    document["materials"][0]["shininess"] = 32;
+    const rt::SceneHost scene = rt::parse_scene(document);
+    ASSERT_EQ(scene.lights.size(), 2u);
+    const rt::Light& light = scene.lights[1];
+    EXPECT_EQ(light.type, rt::LIGHT_DIRECTIONAL);
+    EXPECT_FLOAT_EQ(light.pos_or_dir.x, 0.0f);
+    EXPECT_FLOAT_EQ(light.pos_or_dir.y, -0.6f);
+    EXPECT_FLOAT_EQ(light.pos_or_dir.z, 0.8f);
+    EXPECT_EQ(light.intensity.z, 3.0f);
+    EXPECT_EQ(scene.materials[0].flags, uint32_t{rt::MAT_SPECULAR});
+
+    const auto path = directory / "directional.json";
+    rt::save_scene(path.string(), scene);
+    const rt::SceneHost loaded = rt::load_scene(path.string());
+    EXPECT_EQ(loaded.hash, scene.hash);
+    EXPECT_EQ(loaded.lights[1].type, rt::LIGHT_DIRECTIONAL);
+    EXPECT_EQ(loaded.lights[1].pos_or_dir.y, light.pos_or_dir.y);
+
+    document["lights"][1]["direction"] = {0, 0, 0};
+    expect_error([&] { rt::parse_scene(document); }, "lights[1].direction");
+}
+
 TEST_F(SceneIo, CoordinateBoundAtLoadReportsValue) {
     document["geometry"]["triangles"][0]["v"][1][0] = -2.5e18;
     try {
