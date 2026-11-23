@@ -191,9 +191,10 @@ TEST(Traverse, QueryForwards) {
     }
 }
 
-/// BvhQuery holds only the scene and BVH views, so passing it to a kernel is cheap.
+/// BvhQuery holds only the scene and BVH views and the overflow pointer (IC2), so passing it
+/// to a kernel is cheap.
 TEST(Traverse, QueryLayout) {
-    EXPECT_EQ(sizeof(rt::BvhQuery), sizeof(rt::Scene) + sizeof(rt::BvhView));
+    EXPECT_EQ(sizeof(rt::BvhQuery), sizeof(rt::Scene) + sizeof(rt::BvhView) + sizeof(uint32_t*));
 }
 
 // ---------------------------------------------------------------------------------------------

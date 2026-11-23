@@ -21,17 +21,6 @@ namespace {
 constexpr uint32_t kBlockX = 16;
 constexpr uint32_t kBlockY = 16;
 
-/// BvhQuery plus the device overflow flag. §6's BvhQuery has no member for the flag
-/// (CONTRACT_NOTES W8), so the backend keeps its own query type with the same two calls, as
-/// CpuBackend does.
-struct CheckedBvhQuery {
-    Scene s;
-    BvhView bvh;
-    uint32_t* overflow;  ///< One device word shared by all threads; set with atomicOr.
-    RT_INLINE Hit closest(const Ray& r) const { return traverse_closest(r, s, bvh, overflow); }
-    RT_INLINE bool any(const Ray& r) const { return traverse_any(r, s, bvh, overflow); }
-};
-
 /// The megakernel: one thread per pixel, writing its own PixelResult fields. AOV pointers are
 /// null when the AOV was not requested.
 template <class Query, class Shading>
@@ -158,8 +147,8 @@ void CudaBackend::render(const Camera& cam, Image& out, Timings& t) {
         RT_CUDA_CHECK(cudaMemset(d_overflow_, 0, sizeof(uint32_t)));
         kernel.start();
         if (use_bvh_) {
-            launch(cam, s, CheckedBvhQuery{s, scene_.bvh_view(), d_overflow_}, settings_.shade,
-                   d_rgb_, d_prim_id_, d_light_mask_);
+            launch(cam, s, BvhQuery{s, scene_.bvh_view(), d_overflow_}, settings_.shade, d_rgb_,
+                   d_prim_id_, d_light_mask_);
         } else {
             launch(cam, s, BruteQuery{s}, settings_.shade, d_rgb_, d_prim_id_, d_light_mask_);
         }

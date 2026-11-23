@@ -180,12 +180,16 @@ RT_INLINE bool traverse_any(const Ray& r, const Scene& s, const BvhView& bvh,
 struct BvhQuery {
     Scene s;      ///< Scene view; its arrays live in host or device memory to match the caller.
     BvhView bvh;  ///< BVH over @p s, in the same memory space.
+    /// Optional stack-overflow flag (INTERFACE_CHANGES IC2), forwarded to traverse_closest and
+    /// traverse_any. Null reports nothing. The backend owns the word, in the same memory space,
+    /// and checks it after render.
+    uint32_t* overflow = nullptr;
 
     /// Closest hit for a primary ray.
-    RT_INLINE Hit closest(const Ray& r) const { return traverse_closest(r, s, bvh); }
+    RT_INLINE Hit closest(const Ray& r) const { return traverse_closest(r, s, bvh, overflow); }
 
     /// Occlusion test for a shadow ray over `(r.tmin, r.tmax)`.
-    RT_INLINE bool any(const Ray& r) const { return traverse_any(r, s, bvh); }
+    RT_INLINE bool any(const Ray& r) const { return traverse_any(r, s, bvh, overflow); }
 };
 
 }  // namespace rt
