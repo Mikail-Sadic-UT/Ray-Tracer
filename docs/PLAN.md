@@ -44,7 +44,7 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 
 ### Decisions still open
 
-- **Which extensions to run (#71).** Leaning (Nov 23, working solo): camera-path video first (done, see below), then E2 Blinn-Phong (done), then mirror reflections (`MAT_MIRROR` is reserved), then colored glass if time is left. All behind material flags, so the benchmark scenes, goldens and CPU/GPU byte equality stay unchanged; reflective images get their own comparison category. E1, E3, E4 and E5 are likely cut. Candidates and what the data says. Sizes are the ROADMAP timeboxes; the owners listed there assumed a four-person team, so treat them as sizes only:
+- **Which extensions to run (#71).** Leaning (Nov 23, working solo): camera-path video first (done, see below), then E2 Blinn-Phong (done), then mirror reflections (done), then colored glass if time is left. All behind material flags, so the benchmark scenes, goldens and CPU/GPU byte equality stay unchanged; mirror images turned out byte-identical between CPU and GPU, so they need no separate comparison category. E1, E3, E4 and E5 are likely cut. Candidates and what the data says. Sizes are the ROADMAP timeboxes; the owners listed there assumed a four-person team, so treat them as sizes only:
   - **E3 parallel binned SAH (1 week):** addresses the tree-quality tradeoff. The median tree renders 2× faster than LBVH on the CPU and 2.6× on the GPU, but its serial build makes T_br 8.9× (CPU) and 20× (GPU) slower after #68. The most a better tree can save is about 3.5 ms of GPU render, so SAH helps GPU T_br only if its build costs less than that on top of LBVH; the case rests on T_frame and the CPU render.
   - **E1 memory modes (4 days):** the proposal's data-movement question. With explicit memory on the GH200, transfer is already about 0.3 ms at 1M, so there may be little to show. The comparison could still be informative.
   - **E2 Blinn-Phong (2 days), E4 Embree (4 days), E5 wavefront (1 week), E6 `obj2bin` + Blender export (3 days):** all independent of the above. E4 would strengthen the "best CPU" tier. E5 and E6 start only after G3, and E5 depends on the profile. ROADMAP expected E1 to E3 to fit and the rest to be cut.
@@ -63,7 +63,7 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 
 Not planned. Listed so they are not lost; each can be pulled into the plan if its trigger happens.
 
-- **Stretch** ([STRETCH.md](STRETCH.md)): OptiX backend, SIMD packet tracing, mirror reflections, GPU-side LBVH build, extra experiments. The GPU-side build would attack the 47 ms preparation directly, but it is large. Look at it only if #68 finds the CPU build cannot get near 17 ms.
+- **Stretch** ([STRETCH.md](STRETCH.md)): OptiX backend, SIMD packet tracing, GPU-side LBVH build, extra experiments. The GPU-side build would attack the 47 ms preparation directly, but it is large. Look at it only if #68 finds the CPU build cannot get near 17 ms.
 - **Deferred items** ([ROADMAP](ROADMAP.md#deferred-designed-not-required)), each with its own trigger:
   - extra `rt_compare` checks and dense-mesh corruption tests: a visibly wrong image passes `rt_compare`;
   - exact goldens in a pinned CI container: tolerance goldens miss a regression;
@@ -92,5 +92,6 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 | IC2 overflow flag in `BvhQuery` (closes W8) and IC3 `AABB::empty()` and constants in `math.hpp` | `mikail/lbvh-scaling` (#69, #4) |
 | Thread sweeps at every scene size | `mikail/lbvh-scaling` (#70, first item) |
 | Light-count sweep: `rt_render --lights N` (N copies of light 0 on a ring, 1/N intensity), `lights` sweep preset, `num_lights` CSV column, light table in `ratios.py`. Laptop run works; Vista run still to do | `mikail/lights-orbit` (#70) |
+| Mirror reflections: `MAT_MIRROR` with reflectance `ks`, up to 4 bounces, `"mirror"` JSON key, `known_mirror` scene and golden, oracle case. IC5 | `mikail/mirror` |
 | E2: Blinn-Phong highlights for `MAT_SPECULAR` and directional lights, deterministic `spec_pow` (CPU and GPU byte-identical), directional lights in scene JSON, `known_specular` scene and golden, oracle case. IC4, closes W3 | `mikail/blinn-phong` |
 | Camera orbit: `rt_render --orbit N --frames DIR` (one preparation, N frames, T_frame over the path) and `scripts/make_video.sh` (MP4 via ffmpeg) | `mikail/lights-orbit` |

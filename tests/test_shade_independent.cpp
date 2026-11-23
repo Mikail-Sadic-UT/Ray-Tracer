@@ -5,7 +5,8 @@
 /// The expected numbers come from a separate double-precision implementation of the frozen rules
 /// in INTERFACES section 6, not from src/shade. They cover cases test_shade.cpp doesn't:
 /// an off-axis sphere normal, a tilted triangle normal with unequal channels, the color of
-/// a multi-light sum, and an E2 specular point under point and directional lights.
+/// a multi-light sum, an E2 specular point under point and directional lights, and a mirror
+/// floor reflecting a lit sphere.
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -95,6 +96,28 @@ TEST(ShadeIndependent, SpecularWithPointAndDirectionalLights) {
     const rt::PixelResult r = rt::shade_hit(ray, q.closest(ray), scene, q);
     expect_rel(r.rgb, 0.3979296575488013, 0.4917751714388172, 0.6213526054445188);
     EXPECT_EQ(r.light_mask, 3u);
+}
+
+/// Mirror floor point (2, 0, 0) seen from (4, 1.5, 0): its own Lambert light plus ks times the
+/// lit sphere point the reflected ray reaches. The mask is the floor's own (light 0 reaches it).
+TEST(ShadeIndependent, MirrorFloorReflectsLitSphere) {
+    const rt::Sphere sphere{{0.0f, 1.0f, 0.0f}, 1.0f, 1u};
+    const rt::Triangle floor[2] = {
+        {{-5.0f, 0.0f, -5.0f}, {-5.0f, 0.0f, 5.0f}, {5.0f, 0.0f, 5.0f}, 0u},
+        {{-5.0f, 0.0f, -5.0f}, {5.0f, 0.0f, 5.0f}, {5.0f, 0.0f, -5.0f}, 0u}};
+    const rt::Material materials[2] = {
+        {{0.1f, 0.1f, 0.1f}, {0.8f, 0.7f, 0.6f}, 1.0f, rt::MAT_MIRROR},
+        {{0.8f, 0.1f, 0.1f}, {}, 1.0f, 0u}};
+    const rt::Light light = point_light({3.0f, 4.0f, 2.0f}, {20.0f, 20.0f, 20.0f});
+    const rt::Scene scene{&sphere, 1u, floor, 2u, materials, 2u, &light, 1u, {}, 0.05f};
+    const rt::vec3 from{4.0f, 1.5f, 0.0f};
+    const rt::Ray ray{from, 0.0f, rt::normalize(rt::vec3{2.0f, 0.0f, 0.0f} - from), INFINITY};
+    const rt::BruteQuery q{scene};
+    const rt::Hit hit = q.closest(ray);
+    ASSERT_NE(hit.prim & rt::PRIM_TRIANGLE_BIT, 0u);
+    const rt::PixelResult r = rt::shade_hit(ray, hit, scene, q);
+    expect_rel(r.rgb, 0.3173421754758055, 0.11320063820130652, 0.10961920772280653);
+    EXPECT_EQ(r.light_mask, 1u);
 }
 
 }  // namespace

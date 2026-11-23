@@ -22,15 +22,17 @@ struct Triangle {
     uint32_t material_id;  ///< Index into the scene's materials.
 };
 
-/// Material flags stored in scene files. Specular shading is an extension.
+/// Material flags stored in scene files.
 enum MaterialFlags : uint32_t {
-    MAT_SPECULAR = 1u << 0,  ///< Enable the specular extension; bit 1 is reserved for mirrors.
+    MAT_SPECULAR = 1u << 0,  ///< Enable the specular extension (Blinn-Phong highlight, E2).
+    MAT_MIRROR = 1u << 1,    ///< Reflect like a mirror with reflectance `ks` (after E2).
 };
 
-/// Surface parameters; core shading uses only the diffuse albedo.
+/// Surface parameters. Lambert shading uses `albedo`; the flags add highlights and reflection.
 struct Material {
     color albedo;     ///< Nonnegative linear diffuse reflectance.
-    color ks;         ///< Nonnegative linear specular reflectance (extension).
+    color ks;         ///< Nonnegative linear specular reflectance: highlight color for
+                      ///< MAT_SPECULAR, reflection color for MAT_MIRROR.
     float shininess;  ///< Specular exponent, at least 1.
     uint32_t flags;   ///< MaterialFlags bit set.
 };

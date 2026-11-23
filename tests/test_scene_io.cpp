@@ -151,7 +151,7 @@ TEST_F(SceneIo, RejectsInvalidSceneValues) {
         {[&](auto& s) { s.materials[0].ks.y = inf; }, "materials[0].ks[1]"},
         {[](auto& s) { s.materials[0].shininess = 0; }, "materials[0].shininess"},
         {[&](auto& s) { s.materials[0].shininess = inf; }, "materials[0].shininess"},
-        {[](auto& s) { s.materials[0].flags = 2; }, "materials[0].flags"},
+        {[](auto& s) { s.materials[0].flags = 4; }, "materials[0].flags"},
         {[](auto& s) { s.lights[0].type = 2; }, "lights[0].type"},
         {[](auto& s) {
              s.lights[0].type = rt::LIGHT_DIRECTIONAL;
@@ -218,6 +218,29 @@ TEST_F(SceneIo, DirectionalLightsAndSpecularMaterials) {
 
     document["lights"][1]["direction"] = {0, 0, 0};
     expect_error([&] { rt::parse_scene(document); }, "lights[1].direction");
+}
+
+/// Mirrors: the optional "mirror" key sets MAT_MIRROR, survives a save and load, is written only
+/// when set, and must be a boolean.
+TEST_F(SceneIo, MirrorMaterials) {
+    EXPECT_EQ(rt::parse_scene(document).materials[1].flags, 0u);  // absent means false
+    document["materials"][1]["mirror"] = true;
+    document["materials"][1]["ks"] = {0.9, 0.9, 0.9};
+    const rt::SceneHost scene = rt::parse_scene(document);
+    EXPECT_EQ(scene.materials[1].flags, uint32_t{rt::MAT_MIRROR});
+
+    const auto path = directory / "mirror.json";
+    rt::save_scene(path.string(), scene);
+    const rt::SceneHost loaded = rt::load_scene(path.string());
+    EXPECT_EQ(loaded.hash, scene.hash);
+    EXPECT_EQ(loaded.materials[1].flags, uint32_t{rt::MAT_MIRROR});
+    std::ifstream saved(path);
+    const json written = json::parse(saved);
+    EXPECT_EQ(written["materials"][1]["mirror"], true);
+    EXPECT_FALSE(written["materials"][0].contains("mirror"));
+
+    document["materials"][1]["mirror"] = 1;
+    expect_error([&] { rt::parse_scene(document); }, "materials[1].mirror");
 }
 
 TEST_F(SceneIo, CoordinateBoundAtLoadReportsValue) {

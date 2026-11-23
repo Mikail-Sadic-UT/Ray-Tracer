@@ -15,7 +15,7 @@ parser.add_argument('--goldens', required=True)
 args = parser.parse_args()
 
 SCENES = ('known_two_spheres', 'known_single_sphere', 'known_degenerate_triangle',
-          'known_specular')
+          'known_specular', 'known_mirror')
 
 
 def run(command):

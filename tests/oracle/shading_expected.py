@@ -7,7 +7,8 @@ frozen rules of docs/INTERFACES.md section 6 directly:
   rgb = albedo * ambient + sum_i albedo * max(0, dot(ng, l)) * I_i / d2   (unoccluded lights)
 where l = (L - p) / |L - p|, d2 = |L - p|^2 and ng faces the viewer. E2 adds, for specular
 materials, ks * max(0, dot(ng, h))^shininess * I_i / d2 with h = normalize(l + wo); a
-directional light uses l = normalize(-dir), d2 = 1 and an unbounded shadow ray.
+directional light uses l = normalize(-dir), d2 = 1 and an unbounded shadow ray. A mirror
+(MAT_MIRROR) adds ks times the shading seen along the reflected ray d - 2 * dot(d, n) * n.
 
 The printed literals are pasted into tests/test_shade_independent.cpp. Run:
     python3 tests/oracle/shading_expected.py
@@ -69,6 +70,17 @@ def shade_e2(p, n, wo, albedo, ks, shininess, lights, spheres=()):
     return rgb, mask
 
 
+def ray_sphere(o, d, center, radius):
+    """Nearest t > 0 where the unit-direction ray o + t * d meets the sphere, or None."""
+    oc = sub(o, center)
+    b = dot(oc, d); c = dot(oc, oc) - radius * radius
+    disc = b * b - c
+    if disc < 0: return None
+    for t in (-b - math.sqrt(disc), -b + math.sqrt(disc)):
+        if t > 1e-9: return t
+    return None
+
+
 def main():
     sphere = ((0.0, 1.0, 0.0), 1.0)
     light0 = ((0.0, 4.0, 0.0), (20.0, 20.0, 20.0))
@@ -101,6 +113,24 @@ def main():
                  ('directional', (1.0, -1.0, 0.0), (5.0, 5.0, 5.0))]
     print("e2", shade_e2(p, (0.0, 1.0, 0.0), wo, ALBEDO_FLOOR, (0.5, 0.4, 0.3), 20.5,
                          e2_lights, [sphere]))
+
+    # Mirror floor point (2, 0, 0) seen from (4, 1.5, 0). The reflected ray hits the sphere,
+    # which is Lambert, so the path ends there.
+    floor_albedo, floor_ks = (0.1, 0.1, 0.1), (0.8, 0.7, 0.6)
+    mirror_light = ((3.0, 4.0, 2.0), (20.0, 20.0, 20.0))
+    p = (2.0, 0.0, 0.0); n = (0.0, 1.0, 0.0)
+    d = norm(sub(p, (4.0, 1.5, 0.0)))
+    floor_rgb, floor_mask = shade(p, n, floor_albedo, [mirror_light], [sphere])
+    r = norm(tuple(di - 2.0 * dot(d, n) * ni for di, ni in zip(d, n)))
+    # The reflected ray starts at the offset origin (INTERFACES section 6, offset_ray_origin):
+    # within 1/32 of zero a coordinate moves by 2^-16 along the normal, which here shifts the
+    # sphere hit enough to matter at 1e-5. x = 2 is far from zero, and the integer-ulp offset
+    # there moves along the normal's zero x and z components, so only y changes.
+    start = (2.0, 2.0 ** -16, 0.0)
+    t = ray_sphere(start, r, *sphere)
+    q = tuple(pi + t * ri for pi, ri in zip(start, r))
+    sphere_rgb, _ = shade(q, norm(sub(q, sphere[0])), ALBEDO_SPHERE, [mirror_light], [sphere])
+    print("mirror", [f + k * c for f, k, c in zip(floor_rgb, floor_ks, sphere_rgb)], floor_mask)
 
 
 if __name__ == "__main__":

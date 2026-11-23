@@ -37,6 +37,9 @@ const Expect kScenes[] = {
     {"known_single_sphere", {0, rt::PRIM_TRIANGLE_BIT | 0, rt::PRIM_TRIANGLE_BIT | 1}},
     {"known_degenerate_triangle", {0, 1, rt::PRIM_TRIANGLE_BIT | 0, rt::PRIM_TRIANGLE_BIT | 1}},
     {"known_specular", {0, 1, 2, rt::PRIM_TRIANGLE_BIT | 0, rt::PRIM_TRIANGLE_BIT | 1}},
+    {"known_mirror",
+     {0, 1, 2, 3, rt::PRIM_TRIANGLE_BIT | 0, rt::PRIM_TRIANGLE_BIT | 1, rt::PRIM_TRIANGLE_BIT | 2,
+      rt::PRIM_TRIANGLE_BIT | 3}},
 };
 
 std::string golden_path(const std::string& name, const char* suffix) {

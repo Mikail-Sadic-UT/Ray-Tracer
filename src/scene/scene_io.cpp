@@ -7,6 +7,7 @@
 #include <fstream>
 #include <limits>
 #include <nlohmann/json.hpp>
+#include <utility>
 
 #include "camera/camera_io.hpp"
 #include "core/float_format.hpp"
@@ -96,7 +97,7 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
         nonnegative_vec3(material.ks, path + ".ks");
         finite_float(material.shininess, path + ".shininess");
         if (material.shininess < 1.0f) scene_error(path + ".shininess", "must be at least 1");
-        if ((material.flags & ~uint32_t{MAT_SPECULAR}) != 0)
+        if ((material.flags & ~uint32_t{MAT_SPECULAR | MAT_MIRROR}) != 0)
             scene_error(path + ".flags", "unknown or reserved material flags");
     }
     // Primitives: a cheap exact predicate first; the path-naming checks below run only for a
@@ -169,11 +170,17 @@ static SceneHost parse_scene_impl(const json& document, const std::filesystem::p
         const std::string path = indexed("materials", i);
         const json& specular = member(value, "specular", path);
         if (!specular.is_boolean()) scene_error(path + ".specular", "expected a boolean");
+        // Optional (absent means false), so scenes written before mirrors still load.
+        const auto mirror = value.find("mirror");
+        if (mirror != value.end() && !mirror->is_boolean())
+            scene_error(path + ".mirror", "expected a boolean");
+        const bool is_mirror = mirror != value.end() && mirror->get<bool>();
         scene.materials.push_back(
             {read_vec3(member(value, "albedo", path), path + ".albedo"),
              read_vec3(member(value, "ks", path), path + ".ks"),
              read_float(member(value, "shininess", path), path + ".shininess"),
-             specular.get<bool>() ? uint32_t{MAT_SPECULAR} : 0u});
+             (specular.get<bool>() ? uint32_t{MAT_SPECULAR} : 0u) |
+                 (is_mirror ? uint32_t{MAT_MIRROR} : 0u)});
     }
     scene.lights.reserve(lights.size());
     for (size_t i = 0; i < lights.size(); ++i) {
@@ -268,10 +275,13 @@ json scene_to_json(const SceneHost& scene) {
                      {"lights", json::array()},
                      {"geometry", {{"spheres", json::array()}, {"triangles", json::array()}}}};
     for (const auto& material : scene.materials) {
-        document["materials"].push_back({{"albedo", vector(material.albedo)},
-                                         {"ks", vector(material.ks)},
-                                         {"shininess", number(material.shininess)},
-                                         {"specular", (material.flags & MAT_SPECULAR) != 0}});
+        json entry = {{"albedo", vector(material.albedo)},
+                      {"ks", vector(material.ks)},
+                      {"shininess", number(material.shininess)},
+                      {"specular", (material.flags & MAT_SPECULAR) != 0}};
+        // Written only when set, so scenes without mirrors save exactly as before.
+        if ((material.flags & MAT_MIRROR) != 0) entry["mirror"] = true;
+        document["materials"].push_back(std::move(entry));
     }
     for (const auto& light : scene.lights) {
         const bool directional = light.type == LIGHT_DIRECTIONAL;

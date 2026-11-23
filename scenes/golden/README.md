@@ -12,13 +12,14 @@ oracle in `tests/oracle/` (#60) are the other independent checks. Those cover ch
 not whole images. The shading oracle also covers the E2 rules (Blinn-Phong and directional
 lights).
 
-Producing commit: 9671e83c6fe6f792baadfeb0a1ad85234edfd653
+Producing commit: 3e25f11f78fd60720e0f3e8478d1c81e784641ee
 
 ## What is here
 
 For each of `known_two_spheres`, `known_single_sphere` and `known_degenerate_triangle`
-(`scenes/known/`, 640x480, one point light), and `known_specular` (640x480, E2: matte and
-specular spheres, one point and one directional light):
+(`scenes/known/`, 640x480, one point light), `known_specular` (640x480, E2: matte and
+specular spheres, one point and one directional light), and `known_mirror` (640x480, mirror
+reflections: a mirror wall, chrome and gold mirror spheres, same two light types):
 
 | File | Content |
 |---|---|
