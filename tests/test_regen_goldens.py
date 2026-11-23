@@ -55,7 +55,7 @@ Path(args[args.index('--results') + 1]).write_text(json.dumps({
         self.assertEqual(result.returncode, 0, result.stderr)
         provenance = (self.root / 'goldens/PROVENANCE.txt').read_text()
         self.assertIn('commit: ' + self.commit, provenance)
-        self.assertEqual(len(list((self.root / 'goldens').glob('known_*'))), 12)  # 4 scenes x 3 files
+        self.assertEqual(len(list((self.root / 'goldens').glob('known_*'))), 15)  # 5 scenes x 3 files
 
 
 if __name__ == '__main__':

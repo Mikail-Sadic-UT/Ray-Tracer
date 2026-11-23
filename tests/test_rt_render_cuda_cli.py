@@ -12,7 +12,7 @@ parser.add_argument('--compare', required=True)
 parser.add_argument('--scenes', required=True, help='directory with the known_*.json scenes')
 args = parser.parse_args()
 SCENES = ['known_two_spheres', 'known_single_sphere', 'known_degenerate_triangle',
-          'known_specular']
+          'known_specular', 'known_mirror']
 AOV_SUFFIXES = ('.pfm', '.primid.u32img', '.lightmask.u32img')
 def run(command, ok=True, clean_stdout=True):
     result = subprocess.run(command, capture_output=True, text=True)
