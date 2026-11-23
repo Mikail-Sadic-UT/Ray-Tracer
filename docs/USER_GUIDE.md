@@ -209,7 +209,15 @@ For a small custom scene, copy a known scene:
 cp scenes/known/known_two_spheres.json out/practice/custom.json
 ```
 
-Edit its camera, material `albedo` colors, point-light position/intensity, sphere centers/radii, or triangle vertices, then validate and render the copy. Material references are zero-based indices into `materials`. Core shading uses diffuse materials and point lights. Coordinates and colors must be finite; radii must be positive; colors/intensities must be nonnegative. Degenerate triangles are allowed but never hit.
+Edit its camera, material `albedo` colors, point-light position/intensity, sphere centers/radii, or triangle vertices, then validate and render the copy. Material references are zero-based indices into `materials`. Coordinates and colors must be finite; radii must be positive; colors/intensities must be nonnegative. Degenerate triangles are allowed but never hit.
+
+Materials are diffuse (Lambert) unless `"specular": true`, which adds a Blinn-Phong highlight: `ks` is its color and strength, and `shininess` (at least 1, fractions allowed) its tightness, from broad at about 10 to a small sharp spot at a few hundred. Besides point lights, a scene can have directional lights such as sunlight:
+
+```json
+{"type": "directional", "direction": [1, -1.5, -0.8], "intensity": [0.5, 0.45, 0.35]}
+```
+
+`direction` is the way the light travels; it is normalized at load. A directional light has no distance falloff, so its intensity is the irradiance it gives a surface facing it, and its shadows are cast from infinitely far away. `scenes/known/known_specular.json` uses both features.
 
 Version-2 scenes may store geometry inline or reference a `.bin` file. Binary paths resolve relative to the scene JSON, so keep the JSON and referenced geometry together. Full format and validation rules: [INTERFACES.md §2](INTERFACES.md#2-scene-image-and-file-formats).
 

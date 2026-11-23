@@ -20,7 +20,7 @@ ECE 379K project. A ray tracer for spheres and triangles that splits work betwee
 5. Validation: analytic tests, independent oracle, BVH vs brute force, image/AOV comparison.
 6. Measurements: application, build-and-render, and prepared-frame times, with scaling and breakdowns.
 
-Extensions (memory modes, Blinn-Phong, SAH, Embree, wavefront, `obj2bin`) start only after the Core gates they depend on pass, in [priority order](docs/ROADMAP.md#extensions-in-priority-order-each-timeboxed). OptiX and the other [stretch items](docs/STRETCH.md) are future work.
+Extensions (memory modes, Blinn-Phong, SAH, Embree, wavefront, `obj2bin`) start only after the Core gates they depend on pass, in [priority order](docs/ROADMAP.md#extensions-in-priority-order-each-timeboxed). Blinn-Phong highlights and directional lights (E2) have landed; see [`known_specular`](scenes/known/known_specular.json). OptiX and the other [stretch items](docs/STRETCH.md) are future work.
 
 ## Goals (from proposal)
 

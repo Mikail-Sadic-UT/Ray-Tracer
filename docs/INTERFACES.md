@@ -276,6 +276,8 @@ Coordinates: right-handed, **Y-up**.
 
 CLI camera overrides are validated by the same rules after they are applied.
 
+> Changed: directional lights are accepted in every build, with a `"direction"` JSON key; see IC4 in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md).
+
 ### Owning storage vs views
 
 Three types, so nobody passes host pointers to a kernel by accident:
@@ -718,6 +720,8 @@ Selection: `--shade lit|normal` (default `lit`), carried in `RenderSettings::sha
 Core: `contrib_i = albedo * max(0, dot(ng, l)) * I_i / d2`.
 
 Extension (`MAT_SPECULAR`): adds `ks * max(0, dot(ng, h))^shininess * I_i / d2`, where `h = normalize(l + wo)`.
+
+> Changed: implemented in every build, with the power computed by `spec_pow`, not `powf`; see IC4 in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md).
 
 ### Accumulation order (frozen)
 
