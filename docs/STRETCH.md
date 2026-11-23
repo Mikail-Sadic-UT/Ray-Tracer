@@ -48,5 +48,5 @@ Embree fills the "best possible CPU" role instead (E4).
 ## Extra experiments
 
 - **Grace-Grace nodes (144 cores):** one extra CPU scaling point. Costs node-hours.
-- **Camera paths for T_frame:** render a sequence of cameras over a prepared scene instead of repeating one camera.
+- **Camera paths for T_frame:** render a sequence of cameras over a prepared scene instead of repeating one camera. *Landed after G2* as `rt_render --orbit N --frames DIR` (one turn around the camera target; T_frame over the path printed, not yet in results files) and `scripts/make_video.sh`.
 - **Interactive viewer via WSLg:** demo only.

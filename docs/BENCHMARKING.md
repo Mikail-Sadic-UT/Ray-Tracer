@@ -141,7 +141,7 @@ Core sweeps, varying one dimension at a time around a baseline. Baseline: `bench
 
 Extensions add their own dimensions: memory modes, pipeline, Embree.
 
-**Running them (C12):** `scripts/tacc/sweep.py` turns each row into a preset (`cpu-threads`, `gpu-build-threads`, `size`, `bvh`, `resolution`, `tapp`). `g2` is the first T_app / T_br / T_frame at 3 sizes. `core` is every Core row. `smoke` is the known scene, for checking a node. The size preset also measures the 1-core CPU baseline at each size, which the target ratios need. Light count L isn't automated yet: `rt_render` has no light override, so it needs scene variants with 2 and 4 lights. On Vista, from the repo root in `$WORK`:
+**Running them (C12):** `scripts/tacc/sweep.py` turns each row into a preset (`cpu-threads`, `gpu-build-threads`, `size`, `bvh`, `resolution`, `lights`, `tapp`). `g2` is the first T_app / T_br / T_frame at 3 sizes. `core` is every Core row. `smoke` is the known scene, for checking a node. The size preset also measures the 1-core CPU baseline at each size, which the target ratios need. Light count L uses `rt_render --lights N`, which replaces the scene's light with N copies on a ring about the Y axis, each with 1/N of the intensity, so total power is fixed and only the shadow-ray count changes; the L = 1 points are the `size` points. `ratios.py` counts only one-light rows toward the targets and prints a separate light-count table. On Vista, from the repo root in `$WORK`:
 
 ```bash
 mkdir -p logs
