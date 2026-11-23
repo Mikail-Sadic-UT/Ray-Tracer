@@ -15,7 +15,7 @@ These are not bugs. A bug in someone's code is a GitHub issue for its owner.
 | ID | Contract | Gap | Trigger | Owners |
 |---|---|---|---|---|
 | W1 | §2 `Light` | `pad = 0.0f` makes `Light` non-trivial | A kernel stages lights in shared memory | Po, Mikail |
-| W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | E2 (Blinn-Phong) starts | Po, Arek |
+| W3 | §2 Valid input | Core builds accept specular materials but reject directional lights | **Closed (Nov 23):** IC4 turns E2 on in every build; specular materials shade and directional lights load | Po, Arek |
 | W6 | §5 Frozen rules, triangle test | The row cites PBRT v4 Sec. 6.5.3 but doesn't say which parts apply. `intersect_triangle` departs from PBRT in three ways (below); the open interval and `t_hi` rules require the last two | C4 shadow tests, or the next edit of §5 | Mikail, Arek |
 | W8 | §5 Stack overflow, §6 `BvhQuery` | §5 requires an overflow flag that the backend checks after `render`, but no signature carries it. `traverse_*` take it as an extra defaulted `uint32_t* overflow = nullptr`; `BvhQuery` has no member for it, so traversal through the query stops silently on overflow. `CpuBackend` and `CudaBackend` each use a private query that passes the flag | **Closed (Nov 22):** IC2 added the flag to `BvhQuery`; both backends use it (#69) | Mikail, Po |
 | W9 | §7 `MemConfig` | §7 names `MemConfig mem; // mode, advice, prefetch` but never defines it. `backend.hpp` defines `MemMode`, `MemAdvice` and `bool prefetch` from the ARCHITECTURE `--mem`, `--mem-advice` and `--prefetch` values, all defaulting to explicit / none / off | E1 memory modes start, or the next edit of §7 | Mikail |
@@ -35,6 +35,8 @@ No current impact. The megakernel reads lights from global memory, uploads copy 
 §2 accepts directional lights only in builds with E2, but says nothing about `"specular": true` (`MAT_SPECULAR`). The loader accepts specular materials, and Core shading ignores `ks`, so a scene written for E2 renders as Lambert on a Core build without a warning.
 
 **If triggered:** gate `MAT_SPECULAR` the same way as directional lights, or state that Core ignores it.
+
+**Closed (Nov 23):** neither. E2 is on in every build (IC4), so `"specular": true` adds the Blinn-Phong term and directional lights load everywhere.
 
 ### W6: what "PBRT v4 Sec. 6.5.3" covers in the triangle test
 

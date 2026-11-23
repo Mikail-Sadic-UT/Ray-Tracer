@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Independent expected values for the Lambert + point-light shading tests.
+"""Independent expected values for the Lambert + point-light shading tests, and for the E2
+extension (Blinn-Phong highlights and directional lights).
 
 Pure Python in double precision; shares no code with src/shade. It implements the
 frozen rules of docs/INTERFACES.md section 6 directly:
   rgb = albedo * ambient + sum_i albedo * max(0, dot(ng, l)) * I_i / d2   (unoccluded lights)
-where l = (L - p) / |L - p|, d2 = |L - p|^2 and ng faces the viewer.
+where l = (L - p) / |L - p|, d2 = |L - p|^2 and ng faces the viewer. E2 adds, for specular
+materials, ks * max(0, dot(ng, h))^shininess * I_i / d2 with h = normalize(l + wo); a
+directional light uses l = normalize(-dir), d2 = 1 and an unbounded shadow ray.
 
 The printed literals are pasted into tests/test_shade_independent.cpp. Run:
     python3 tests/oracle/shading_expected.py
@@ -22,9 +25,12 @@ def cross(a, b): return (a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1
 def norm(a): n = math.sqrt(dot(a, a)); return tuple(x / n for x in a)
 
 
-def sphere_blocks(p, light, center, radius):
-    """True if the sphere intersects the open segment p -> light."""
-    d = sub(light, p); length = math.sqrt(dot(d, d)); d = tuple(x / length for x in d)
+def sphere_blocks(p, light, center, radius, direction=None):
+    """True if the sphere intersects the open segment p -> light, or the ray p + t * direction."""
+    if direction is None:
+        d = sub(light, p); length = math.sqrt(dot(d, d)); d = tuple(x / length for x in d)
+    else:
+        d, length = direction, math.inf
     oc = sub(p, center)
     b = dot(oc, d); c = dot(oc, oc) - radius * radius
     disc = b * b - c
@@ -40,6 +46,25 @@ def shade(p, n, albedo, lights, spheres=()):
         cs = dot(n, l)
         if cs <= 0 or any(sphere_blocks(p, lp, c, r) for c, r in spheres): continue
         for k in range(3): rgb[k] += albedo[k] * cs * inten[k] / d2
+        mask |= 1 << i
+    return rgb, mask
+
+
+def shade_e2(p, n, wo, albedo, ks, shininess, lights, spheres=()):
+    """E2 shading. lights: ('point', position, I) or ('directional', travel direction, I)."""
+    rgb = [a * AMBIENT for a in albedo]; mask = 0
+    for i, (kind, v, inten) in enumerate(lights):
+        if kind == 'point':
+            to_l = sub(v, p); d2 = dot(to_l, to_l); l = norm(to_l)
+            blocked = any(sphere_blocks(p, v, c, r) for c, r in spheres)
+        else:
+            l = norm(tuple(-x for x in v)); d2 = 1.0
+            blocked = any(sphere_blocks(p, None, c, r, l) for c, r in spheres)
+        cs = dot(n, l)
+        if cs <= 0 or blocked: continue
+        h = norm(tuple(a + b for a, b in zip(l, wo)))
+        spec = max(0.0, dot(n, h)) ** shininess
+        for k in range(3): rgb[k] += (albedo[k] * cs + ks[k] * spec) * inten[k] / d2
         mask |= 1 << i
     return rgb, mask
 
@@ -66,6 +91,16 @@ def main():
     # Three lights on the floor point (1, 0, 0), as in MultipleLightsAccumulateInOrderWithMask.
     lights = [light0, ((3.0, 4.0, 3.0), (10.0, 5.0, 2.0)), ((-3.0, -4.0, 0.0), (9.0, 9.0, 9.0))]
     print("multi", shade((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), ALBEDO_FLOOR, lights, [sphere]))
+
+    # E2: specular floor point (1, 0, 0) seen from (1, 5, 10). A point light, a directional
+    # light (direction given unnormalized), and a directional light the sphere blocks.
+    p = (1.0, 0.0, 0.0)
+    wo = norm(sub((1.0, 5.0, 10.0), p))
+    e2_lights = [('point', (3.0, 4.0, 3.0), (10.0, 5.0, 2.0)),
+                 ('directional', (-1.0, -2.0, -0.5), (0.3, 0.6, 0.9)),
+                 ('directional', (1.0, -1.0, 0.0), (5.0, 5.0, 5.0))]
+    print("e2", shade_e2(p, (0.0, 1.0, 0.0), wo, ALBEDO_FLOOR, (0.5, 0.4, 0.3), 20.5,
+                         e2_lights, [sphere]))
 
 
 if __name__ == "__main__":

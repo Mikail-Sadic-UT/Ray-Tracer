@@ -8,15 +8,17 @@ The independent check is Mikail's: `tests/oracle/shading_expected.py` (#59) reco
 Lambert and shadow values in double precision from INTERFACES section 6 without using any code
 from `src/shade`, and `tests/test_shade_independent.cpp` checks the renderer against its
 literals. The analytic tests in `tests/test_shade.cpp` and the double-precision intersection
-oracle in `tests/oracle/` (#60, not yet merged) are the other independent checks. Those cover chosen points, not whole
-images.
+oracle in `tests/oracle/` (#60) are the other independent checks. Those cover chosen points,
+not whole images. The shading oracle also covers the E2 rules (Blinn-Phong and directional
+lights).
 
-Producing commit: dd0efa7d615c14844a87aa7d0aa2202b9b685638
+Producing commit: 9671e83c6fe6f792baadfeb0a1ad85234edfd653
 
 ## What is here
 
 For each of `known_two_spheres`, `known_single_sphere` and `known_degenerate_triangle`
-(`scenes/known/`, 640x480, one point light):
+(`scenes/known/`, 640x480, one point light), and `known_specular` (640x480, E2: matte and
+specular spheres, one point and one directional light):
 
 | File | Content |
 |---|---|

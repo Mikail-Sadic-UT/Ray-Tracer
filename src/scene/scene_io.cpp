@@ -124,9 +124,16 @@ void validate_scene(const SceneHost& scene, bool require_light_mask) {
     for (size_t i = 0; i < scene.lights.size(); ++i) {
         const Light& light = scene.lights[i];
         const std::string path = indexed("lights", i);
-        if (light.type != LIGHT_POINT)
-            scene_error(path + ".type", "core supports point lights only");
-        world_vec3(light.pos_or_dir, path + ".position");
+        if (light.type == LIGHT_POINT) {
+            world_vec3(light.pos_or_dir, path + ".position");
+        } else if (light.type == LIGHT_DIRECTIONAL) {
+            world_vec3(light.pos_or_dir, path + ".direction");
+            const vec3 d = light.pos_or_dir;
+            if (d.x == 0.0f && d.y == 0.0f && d.z == 0.0f)
+                scene_error(path + ".direction", "must have non-zero length");
+        } else {
+            scene_error(path + ".type", "must be a point or directional light");
+        }
         nonnegative_vec3(light.intensity, path + ".intensity");
         if (light.pad != 0.0f) scene_error(path + ".pad", "reserved field must be zero");
     }
@@ -173,11 +180,23 @@ static SceneHost parse_scene_impl(const json& document, const std::filesystem::p
         const json& value = lights[i];
         const std::string path = indexed("lights", i);
         const json& type = member(value, "type", path);
-        if (!type.is_string() || type.get<std::string>() != "point")
-            scene_error(path + ".type", "core supports point lights only");
-        scene.lights.push_back(
-            {LIGHT_POINT, read_vec3(member(value, "position", path), path + ".position"),
-             read_vec3(member(value, "intensity", path), path + ".intensity"), 0.0f});
+        const std::string kind = type.is_string() ? type.get<std::string>() : std::string{};
+        const color intensity = read_vec3(member(value, "intensity", path), path + ".intensity");
+        if (kind == "point") {
+            scene.lights.push_back({LIGHT_POINT,
+                                    read_vec3(member(value, "position", path), path + ".position"),
+                                    intensity, 0.0f});
+        } else if (kind == "directional") {
+            // The direction the light travels, normalized at load (INTERFACES section 2).
+            vec3 d = read_vec3(member(value, "direction", path), path + ".direction");
+            world_vec3(d, path + ".direction");
+            if (d.x == 0.0f && d.y == 0.0f && d.z == 0.0f)
+                scene_error(path + ".direction", "must have non-zero length");
+            d = normalize(d);
+            scene.lights.push_back({LIGHT_DIRECTIONAL, d, intensity, 0.0f});
+        } else {
+            scene_error(path + ".type", "expected \"point\" or \"directional\"");
+        }
     }
     scene.spheres.reserve(spheres.size());
     for (size_t i = 0; i < spheres.size(); ++i) {
@@ -255,9 +274,11 @@ json scene_to_json(const SceneHost& scene) {
                                          {"specular", (material.flags & MAT_SPECULAR) != 0}});
     }
     for (const auto& light : scene.lights) {
-        document["lights"].push_back({{"type", "point"},
-                                      {"position", vector(light.pos_or_dir)},
-                                      {"intensity", vector(light.intensity)}});
+        const bool directional = light.type == LIGHT_DIRECTIONAL;
+        document["lights"].push_back(
+            {{"type", directional ? "directional" : "point"},
+             {directional ? "direction" : "position", vector(light.pos_or_dir)},
+             {"intensity", vector(light.intensity)}});
     }
     for (const auto& sphere : scene.spheres) {
         document["geometry"]["spheres"].push_back({{"center", vector(sphere.center)},

@@ -1,10 +1,11 @@
 /// @file test_shade_independent.cpp
-/// @brief Lambert + shadow checks against literals from tests/oracle/shading_expected.py.
+/// @brief Lambert, Blinn-Phong and shadow checks against literals from
+/// tests/oracle/shading_expected.py.
 ///
 /// The expected numbers come from a separate double-precision implementation of the frozen rules
 /// in INTERFACES section 6, not from src/shade. They cover cases test_shade.cpp doesn't:
-/// an off-axis sphere normal, a tilted triangle normal with unequal channels, and the color of
-/// a multi-light sum.
+/// an off-axis sphere normal, a tilted triangle normal with unequal channels, the color of
+/// a multi-light sum, and an E2 specular point under point and directional lights.
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -73,6 +74,27 @@ TEST(ShadeIndependent, MultiLightColorSum) {
     const rt::PixelResult r = rt::shade_hit(ray, q.closest(ray), scene, q);
     expect_rel(r.rgb, 0.2142920506537052, 0.1246460253268526, 0.07085841013074104);
     EXPECT_EQ(r.light_mask, 2u);
+}
+
+/// E2: specular floor point (1, 0, 0) seen from (1, 5, 10), shininess 20.5 (fractional, so
+/// spec_pow's square-root path runs). Light 0 is a point light, light 1 a directional light given
+/// with an unnormalized direction, and light 2 a directional light the sphere blocks.
+TEST(ShadeIndependent, SpecularWithPointAndDirectionalLights) {
+    const rt::Sphere sphere{{0.0f, 1.0f, 0.0f}, 1.0f, 0u};
+    const rt::Triangle floor[2] = {
+        {{-5.0f, 0.0f, -5.0f}, {-5.0f, 0.0f, 5.0f}, {5.0f, 0.0f, 5.0f}, 0u},
+        {{-5.0f, 0.0f, -5.0f}, {5.0f, 0.0f, 5.0f}, {5.0f, 0.0f, -5.0f}, 0u}};
+    const rt::Material material{{0.7f, 0.7f, 0.7f}, {0.5f, 0.4f, 0.3f}, 20.5f, rt::MAT_SPECULAR};
+    const rt::Light lights[3] = {point_light({3.0f, 4.0f, 3.0f}, {10.0f, 5.0f, 2.0f}),
+                                 {rt::LIGHT_DIRECTIONAL, {-1.0f, -2.0f, -0.5f}, {0.3f, 0.6f, 0.9f}},
+                                 {rt::LIGHT_DIRECTIONAL, {1.0f, -1.0f, 0.0f}, {5.0f, 5.0f, 5.0f}}};
+    const rt::Scene scene{&sphere, 1u, floor, 2u, &material, 1u, lights, 3u, {}, 0.05f};
+    const rt::vec3 from{1.0f, 5.0f, 10.0f};
+    const rt::Ray ray{from, 0.0f, rt::normalize(rt::vec3{1.0f, 0.0f, 0.0f} - from), INFINITY};
+    const rt::BruteQuery q{scene};
+    const rt::PixelResult r = rt::shade_hit(ray, q.closest(ray), scene, q);
+    expect_rel(r.rgb, 0.3979296575488013, 0.4917751714388172, 0.6213526054445188);
+    EXPECT_EQ(r.light_mask, 3u);
 }
 
 }  // namespace

@@ -29,13 +29,14 @@ struct Expect {
     std::vector<rt::PrimRef> ids;  ///< Primary-hit IDs the golden must contain (misses excluded).
 };
 
-/// What each golden must contain, read from the scene files: sphere indices are 0 and 1,
+/// What each golden must contain, read from the scene files: sphere indices start at 0,
 /// triangle IDs carry rt::PRIM_TRIANGLE_BIT. The degenerate scene's third triangle (index 2)
 /// has zero area and must never be visible.
 const Expect kScenes[] = {
     {"known_two_spheres", {0, 1, rt::PRIM_TRIANGLE_BIT | 0, rt::PRIM_TRIANGLE_BIT | 1}},
     {"known_single_sphere", {0, rt::PRIM_TRIANGLE_BIT | 0, rt::PRIM_TRIANGLE_BIT | 1}},
     {"known_degenerate_triangle", {0, 1, rt::PRIM_TRIANGLE_BIT | 0, rt::PRIM_TRIANGLE_BIT | 1}},
+    {"known_specular", {0, 1, 2, rt::PRIM_TRIANGLE_BIT | 0, rt::PRIM_TRIANGLE_BIT | 1}},
 };
 
 std::string golden_path(const std::string& name, const char* suffix) {
