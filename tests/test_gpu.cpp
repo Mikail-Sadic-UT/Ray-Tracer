@@ -98,8 +98,8 @@ TEST(CudaBackend, NameAndNeedsBvh) {
 /// The known scenes match the CPU, with the BVH and brute force, lit and normal.
 TEST(CudaBackend, KnownScenesMatchCpu) {
     RT_SKIP_WITHOUT_CUDA_DEVICE();
-    for (const char* name :
-         {"known_two_spheres", "known_single_sphere", "known_degenerate_triangle"}) {
+    for (const char* name : {"known_two_spheres", "known_single_sphere",
+                             "known_degenerate_triangle", "known_specular"}) {
         const rt::SceneHost s = known_scene(name);
         const rt::Bvh bvh = build(s);
         for (rt::ShadeMode shade : {rt::ShadeMode::Lit, rt::ShadeMode::Normal}) {
