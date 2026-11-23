@@ -45,7 +45,7 @@ if [[ -f "$cache" ]]; then
   compiler="$cxx: $("$cxx" --version 2>/dev/null | head -n 1)"
 fi
 
-scenes=(known_two_spheres known_single_sphere known_degenerate_triangle known_specular known_mirror known_glass)
+scenes=(known_two_spheres known_single_sphere known_degenerate_triangle known_specular known_mirror known_glass known_showcase)
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 

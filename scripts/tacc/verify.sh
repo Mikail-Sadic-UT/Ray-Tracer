@@ -105,7 +105,7 @@ check_pair() {  # name json bvh
   if [[ $repeat == 1 ]]; then pass "$tag: repeated CUDA run byte-identical"
   else fail "$tag: repeated CUDA runs differ"; fi
 }
-for k in known_two_spheres known_single_sphere known_degenerate_triangle known_specular known_mirror known_glass; do
+for k in known_two_spheres known_single_sphere known_degenerate_triangle known_specular known_mirror known_glass known_showcase; do
   check_pair "$k" "$repo/scenes/known/$k.json" median
 done
 for s in $sizes; do
