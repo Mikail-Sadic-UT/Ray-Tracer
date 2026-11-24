@@ -53,8 +53,12 @@ RT_INLINE SurfacePoint surface_at(const Ray& r, const Hit& h, const Scene& s) {
         material_id = tri.material_id;
     } else {
         const Sphere& sphere = s.spheres[h.prim];
-        p = r.origin + h.t * r.dir;
-        ng = normalize(p - sphere.center);
+        // r.origin + t * dir carries an error of a few ulp of the ray's length, which can exceed
+        // offset_ray_origin's step for a coordinate much smaller than the camera distance (a
+        // sphere top just above y = 0 seen from far away). Projecting back onto the sphere
+        // makes the error relative to the sphere instead, so the shadow ray clears it.
+        ng = normalize(r.origin + h.t * r.dir - sphere.center);
+        p = sphere.center + sphere.radius * ng;
         material_id = sphere.material_id;
     }
     if (dot(ng, r.dir) > 0.0f) ng = -ng;
