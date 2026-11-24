@@ -168,6 +168,36 @@ TEST(OffsetRayOrigin, OffsetsPastRoundingOfPlaneEquation) {
     }
 }
 
+/// A lone sphere whose top sits just above y = 0, seen from about 50 units away, is lit
+/// everywhere the light faces it. Sphere 3824, camera and light of bench_10k_s1: the hit point
+/// from `origin + t * dir` was off by a few ulp of 50, more than the offset in y at 0.07, so
+/// the shadow ray started inside the sphere and some pixels came out shadowed (speckles).
+TEST(SurfaceAt, DistantSphereTopIsNotSelfShadowed) {
+    const rt::Sphere sphere{{-12.122617f, -1.0150115f, -2.5987887f}, 0.9540324f, 0u};
+    const rt::Material material{{0.8f, 0.8f, 0.8f}, {}, 1.0f, 0u};
+    const rt::Light light{rt::LIGHT_POINT, {12.0f, 32.0f, 8.0f}, {800.0f, 800.0f, 800.0f}};
+    const rt::Scene scene{&sphere, 1u, nullptr, 0u, &material, 1u, &light, 1u, {}, 0.05f};
+    const rt::vec3 eye{0.012052536f, 31.593962f, 43.358017f};
+    const rt::BruteQuery q{scene};
+    int lit_facing = 0;
+    for (int i = -40; i <= 40; ++i) {
+        for (int k = -40; k <= 40; ++k) {
+            // Aim at the upper cap, where the normal is within about 25 degrees of +y.
+            const rt::vec3 target = sphere.center + rt::vec3{0.01f * static_cast<float>(i), 0.9f,
+                                                             0.01f * static_cast<float>(k)};
+            const rt::Ray ray{eye, 0.0f, rt::normalize(target - eye), INFINITY};
+            const rt::Hit hit = q.closest(ray);
+            if (hit.prim != 0u) continue;
+            const rt::SurfacePoint sp = rt::surface_at(ray, hit, scene);
+            if (rt::dot(sp.ng, light.pos_or_dir - sp.p) <= 0.0f) continue;
+            ++lit_facing;
+            const rt::PixelResult r = rt::shade_hit(ray, hit, scene, q);
+            EXPECT_EQ(r.light_mask, 1u) << "ray " << i << ", " << k;
+        }
+    }
+    EXPECT_GT(lit_facing, 1000);
+}
+
 /// A scene with one white-ish material and the given point lights, for light_sample tests.
 struct LightRig {
     rt::Material material{{0.5f, 0.25f, 1.0f}, {}, 1.0f, 0u};

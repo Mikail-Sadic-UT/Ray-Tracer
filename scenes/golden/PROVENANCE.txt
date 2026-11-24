@@ -1,16 +1,16 @@
-commit: 0761ee9e25509f8e86a68176d8b87d1df96edf36
+commit: 24e90feaf064ff7dbd57a4a9f81e3392be39185b
 renderer: rt_render --backend cpu --bvh median --shade lit --build-threads 1 --render-threads 1 --aov primid,lightmask
 compiler: g++-13: g++-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
 build type: Release
-reason: known_glass: tinted shadows through glass; add known_showcase (every material); the other five goldens are re-rendered byte-identical
+reason: sphere hit points projected onto the sphere (self-shadow speckle fix)
 sha256:
-d8e6a7ec1b1dbc0a5f366a35fc053e73add70f97bc673ea0c11bedc7b6c7e533  known_degenerate_triangle.pfm
-506d7a4073b5108d05e7210250449603dd7aff3a42b62fa954a6a75bd8c7f49f  known_glass.pfm
-4ea5353fdc4f7579b2525f19febfae3aba1242f07ad8e84e560ca83681f193a0  known_mirror.pfm
-2845f942fc100853cecdd40edc83659f539e64397e989473592671e55075b120  known_showcase.pfm
-3144ac8d0b8bee2867359f8fc5179a5c4f9d9a1297da880c746ed7bfc51c2629  known_single_sphere.pfm
-50187055bb09cf10ce3631a8e2b7b8e2ac172dc9c0d3bc3cc817804f6e4a3e27  known_specular.pfm
-d8e6a7ec1b1dbc0a5f366a35fc053e73add70f97bc673ea0c11bedc7b6c7e533  known_two_spheres.pfm
+c808020a4d73d45af0d0a59a32a1de753eb1e4cf06f642615c429a72ec818eec  known_degenerate_triangle.pfm
+577261c0ed41d4fecb7017f2ba1a7469efd350cfcda08e24e3468cf6ca8fe0b6  known_glass.pfm
+1c51e129a4dcc484d281397bba6a31b36f19efa8cf1dd6990feebcce986ad165  known_mirror.pfm
+96b4e0d4451418d91327b2fe5e45cf9b48d12a88b068e67d9e318667f09083c8  known_showcase.pfm
+6ad2491fa21546e05f7681e8f2676cb65908dfb2b115e6f069cdd377061d42ca  known_single_sphere.pfm
+fb7e5deae37214a01b29215752d5b8b608ed1cb75509764a903459f898ee2981  known_specular.pfm
+c808020a4d73d45af0d0a59a32a1de753eb1e4cf06f642615c429a72ec818eec  known_two_spheres.pfm
 01a591d1cc951dc32cf84158de0a30ad1ef90f8bcfc75969f1f3e7a1dae3943c  known_degenerate_triangle.lightmask.u32img
 9e138d03deba0d2a61894edec09d0a6e79aa2f63bc450e3a9cc1808be4b3cfde  known_degenerate_triangle.primid.u32img
 0fc0609ca37a95fc215f668b309efb0bc5ef20c1185148c30f6c800a2d032a8b  known_glass.lightmask.u32img

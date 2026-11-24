@@ -93,6 +93,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 | IC2 overflow flag in `BvhQuery` (closes W8) and IC3 `AABB::empty()` and constants in `math.hpp` | `mikail/lbvh-scaling` (#69, #4) |
 | Thread sweeps at every scene size | `mikail/lbvh-scaling` (#70, first item) |
 | Light-count sweep: `rt_render --lights N` (N copies of light 0 on a ring, 1/N intensity), `lights` sweep preset, `num_lights` CSV column, light table in `ratios.py`. Laptop run works; Vista run still to do | `mikail/lights-orbit` (#70) |
+| Self-shadow speckles on distant sphere tops: sphere hit points projected onto the sphere so shadow rays clear it (63 false-shadow pixels at `bench_10k`, none left); goldens regenerated. The lit benchmark images change in the last bits; timing should not | `mikail/sphere-acne` |
 | Tinted shadows through glass (IC7), absorption measured between surface points, `known_showcase` scene and golden (every material) and its orbit video | `mikail/glass-shadows` |
 | Colored glass: `MAT_GLASS` with Fresnel reflection and refraction and color absorption, `"glass"` / `"ior"` JSON keys, shared bounce stack, `known_glass` scene and golden, oracle case. IC6 | `mikail/glass` |
 | Mirror reflections: `MAT_MIRROR` with reflectance `ks`, up to 4 bounces, `"mirror"` JSON key, `known_mirror` scene and golden, oracle case. IC5 | `mikail/mirror` |
