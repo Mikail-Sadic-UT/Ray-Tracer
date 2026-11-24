@@ -12,7 +12,7 @@ oracle in `tests/oracle/` (#60) are the other independent checks. Those cover ch
 not whole images. The shading oracle also covers the E2 rules (Blinn-Phong and directional
 lights).
 
-Producing commit: 0761ee9e25509f8e86a68176d8b87d1df96edf36
+Producing commit: 24e90feaf064ff7dbd57a4a9f81e3392be39185b
 
 ## What is here
 
