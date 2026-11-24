@@ -212,9 +212,74 @@ constexpr uint32_t RT_MAX_BOUNCES = 4u;
 /// `SecondaryRay::medium` for a ray outside any glass.
 constexpr uint32_t RT_NO_MEDIUM = 0xFFFFFFFFu;
 
+/// True when ray @p r reaches the surface of hit @p h from the side its outward normal points
+/// to: a sphere's outside, or the side a triangle's counterclockwise winding faces. Decides
+/// whether a glass hit enters or leaves the glass.
+RT_INLINE bool hits_front(const Ray& r, const Hit& h, const Scene& s, vec3 p) {
+    if ((h.prim & PRIM_TRIANGLE_BIT) != 0u) {
+        const Triangle& tri = s.triangles[h.prim & ~PRIM_TRIANGLE_BIT];
+        return dot(cross(tri.v1 - tri.v0, tri.v2 - tri.v0), r.dir) < 0.0f;
+    }
+    return dot(p - s.spheres[h.prim].center, r.dir) < 0.0f;
+}
+
+/// True when any material of @p s is `MAT_GLASS`. Checked only for blocked shadow rays, so
+/// scenes without glass pay one pass over their few materials per blocked ray and nothing else.
+RT_INLINE bool scene_has_glass(const Scene& s) {
+    for (uint32_t i = 0; i < s.num_materials; ++i) {
+        if ((s.materials[i].flags & MAT_GLASS) != 0u) return true;
+    }
+    return false;
+}
+
+/// Most surfaces a shadow ray may pass through on its way to a light before it counts as
+/// blocked (four glass objects in a row).
+constexpr uint32_t RT_MAX_SHADOW_GLASS_SURFACES = 8u;
+
+/// Light that reaches the end of the blocked shadow ray @p shadow through glass, per channel.
+///
+/// Walks the ray surface by surface with `q.closest`. Any surface that is not glass blocks it
+/// completely. Glass lets the ray through in a straight line (no refraction, so no caustics),
+/// and every stretch inside glass multiplies the light by `ks^t` for its length `t`, the same
+/// absorption camera rays see. `t` runs from the entry point to the exit point, so the offsets
+/// that restart the ray on the far side of each surface do not shorten it. The ray continues
+/// with `tmax` reduced by the distance covered.
+/// @param[out] transmittance The surviving fraction; set only when the function returns true.
+/// @return False when the ray is blocked, or crosses more than RT_MAX_SHADOW_GLASS_SURFACES.
+template <class Query>
+RT_INLINE bool glass_transmittance(const Ray& shadow, const Scene& s, const Query& q,
+                                   color& transmittance) {
+    color t{1.0f, 1.0f, 1.0f};
+    Ray ray = shadow;
+    uint32_t medium = RT_NO_MEDIUM;
+    vec3 entry{0.0f, 0.0f, 0.0f};
+    for (uint32_t i = 0; i < RT_MAX_SHADOW_GLASS_SURFACES; ++i) {
+        const Hit hit = q.closest(ray);
+        if (hit.prim == RT_MISS_PRIM) {
+            transmittance = t;
+            return true;
+        }
+        const SurfacePoint sp = surface_at(ray, hit, s);
+        if ((s.materials[sp.material_id].flags & MAT_GLASS) == 0u) return false;
+        if (medium != RT_NO_MEDIUM) {
+            const color a = s.materials[medium].ks;
+            const float inside = length(sp.p - entry);
+            t = t * color{spec_pow(a.x, inside), spec_pow(a.y, inside), spec_pow(a.z, inside)};
+        }
+        medium = hits_front(ray, hit, s, sp.p) ? sp.material_id : RT_NO_MEDIUM;
+        entry = sp.p;
+        ray = {offset_ray_origin(sp.p, -sp.ng), 0.0f, ray.dir, ray.tmax - hit.t};
+    }
+    return false;
+}
+
 /// Direct light at a surface point: `albedo * ambient`, then each light in index order whose
 /// shadow ray is unoccluded according to `q.any`, setting bit `i` of @p mask for it (lights
 /// `i < 32`). The order is fixed so every backend sums the same floats in the same sequence.
+///
+/// In a scene with glass, a blocked shadow ray gets a second look: if only glass is in the way,
+/// the light still adds `contrib * glass_transmittance` and sets its bit when any channel gets
+/// through (tinted shadows). Scenes without glass never take that branch.
 template <class Query>
 RT_INLINE color direct_light(const SurfacePoint& sp, vec3 wo, const Scene& s, const Query& q,
                              uint32_t& mask) {
@@ -223,9 +288,17 @@ RT_INLINE color direct_light(const SurfacePoint& sp, vec3 wo, const Scene& s, co
     for (uint32_t i = 0; i < s.num_lights; ++i) {
         color contrib;
         Ray shadow_ray;
-        if (light_sample(sp, wo, s, i, contrib, shadow_ray) && !q.any(shadow_ray)) {
+        if (!light_sample(sp, wo, s, i, contrib, shadow_ray)) continue;
+        if (!q.any(shadow_ray)) {
             rgb += contrib;
             if (i < 32u) mask |= (1u << i);
+        } else if (scene_has_glass(s)) {
+            color through;
+            if (glass_transmittance(shadow_ray, s, q, through) &&
+                (through.x > 0.0f || through.y > 0.0f || through.z > 0.0f)) {
+                rgb += contrib * through;
+                if (i < 32u) mask |= (1u << i);
+            }
         }
     }
     return rgb;
@@ -237,18 +310,8 @@ struct SecondaryRay {
     color weight;     ///< What the light found along the ray is multiplied by.
     uint32_t depth;   ///< Bounces so far on this path, including this ray (1 to RT_MAX_BOUNCES).
     uint32_t medium;  ///< Glass material the ray travels through, or RT_NO_MEDIUM.
+    vec3 entry;       ///< Surface point the ray left from; absorption distance starts here.
 };
-
-/// True when ray @p r reaches the surface of hit @p h from the side its outward normal points
-/// to: a sphere's outside, or the side a triangle's counterclockwise winding faces. Decides
-/// whether a glass hit enters or leaves the glass.
-RT_INLINE bool hits_front(const Ray& r, const Hit& h, const Scene& s, vec3 p) {
-    if ((h.prim & PRIM_TRIANGLE_BIT) != 0u) {
-        const Triangle& tri = s.triangles[h.prim & ~PRIM_TRIANGLE_BIT];
-        return dot(cross(tri.v1 - tri.v0, tri.v2 - tri.v0), r.dir) < 0.0f;
-    }
-    return dot(p - s.spheres[h.prim].center, r.dir) < 0.0f;
-}
 
 /// Schlick's approximation of the reflected fraction at a glass surface with index @p ior, for
 /// the cosine @p c of the angle on the side outside the glass.
@@ -278,8 +341,11 @@ RT_INLINE void spawn_secondary(vec3 dir, bool front, const SurfacePoint& sp, col
         const color w = weight * m.ks;
         if (!(w.x > 0.0f || w.y > 0.0f || w.z > 0.0f)) return;
         const vec3 reflected = normalize(dir - 2.0f * dot(dir, sp.ng) * sp.ng);
-        stack[count++] = {
-            {offset_ray_origin(sp.p, sp.ng), 0.0f, reflected, INFINITY}, w, depth + 1u, medium};
+        stack[count++] = {{offset_ray_origin(sp.p, sp.ng), 0.0f, reflected, INFINITY},
+                          w,
+                          depth + 1u,
+                          medium,
+                          sp.p};
     } else if ((m.flags & MAT_GLASS) != 0u) {
         const float ior = m.shininess;
         const float eta = front ? 1.0f / ior : ior;
@@ -293,13 +359,15 @@ RT_INLINE void spawn_secondary(vec3 dir, bool front, const SurfacePoint& sp, col
             stack[count++] = {{offset_ray_origin(sp.p, -sp.ng), 0.0f, refracted, INFINITY},
                               weight * (1.0f - reflectance),
                               depth + 1u,
-                              front ? sp.material_id : RT_NO_MEDIUM};
+                              front ? sp.material_id : RT_NO_MEDIUM,
+                              sp.p};
         }
         const vec3 reflected = normalize(dir - 2.0f * dot(dir, sp.ng) * sp.ng);
         stack[count++] = {{offset_ray_origin(sp.p, sp.ng), 0.0f, reflected, INFINITY},
                           weight * reflectance,
                           depth + 1u,
-                          medium};
+                          medium,
+                          sp.p};
     }
 }
 
@@ -310,7 +378,8 @@ RT_INLINE void spawn_secondary(vec3 dir, bool front, const SurfacePoint& sp, col
 /// same floats in the same order. Each ray adds `weight * background` on a miss, or
 /// `weight * direct_light` at the surface it reaches, which may push further rays (see
 /// `spawn_secondary`). A ray inside glass is first attenuated by `ks^t` per channel, the glass
-/// color raised to the distance travelled (Beer-Lambert absorption, through `spec_pow`).
+/// color raised to the distance from the surface point it left to the one it reaches
+/// (Beer-Lambert absorption, through `spec_pow`).
 /// Depth-first order needs at most `RT_MAX_BOUNCES + 1` slots.
 /// @tparam Query Provides `closest` and `any`.
 template <class Query>
@@ -328,13 +397,16 @@ RT_INLINE color secondary_light(const Ray& r, const Hit& h, const SurfacePoint& 
             sum += item.weight * s.background;
             continue;
         }
+        const SurfacePoint hp = surface_at(item.ray, hit, s);
         color weight = item.weight;
         if (item.medium != RT_NO_MEDIUM) {
+            // Measured from the surface point the ray left, not its offset origin, so the
+            // offsets do not shorten it (as in glass_transmittance).
             const color a = s.materials[item.medium].ks;
+            const float inside = length(hp.p - item.entry);
             weight =
-                weight * color{spec_pow(a.x, hit.t), spec_pow(a.y, hit.t), spec_pow(a.z, hit.t)};
+                weight * color{spec_pow(a.x, inside), spec_pow(a.y, inside), spec_pow(a.z, inside)};
         }
-        const SurfacePoint hp = surface_at(item.ray, hit, s);
         uint32_t unused_mask;
         sum += weight * direct_light(hp, -item.ray.dir, s, q, unused_mask);
         spawn_secondary(item.ray.dir, hits_front(item.ray, hit, s, hp.p), hp, weight, item.depth,

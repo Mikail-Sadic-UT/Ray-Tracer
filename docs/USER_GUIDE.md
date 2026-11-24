@@ -138,7 +138,14 @@ bash scripts/make_video.sh --scene scenes/generated/bench_1m_s1.json --out out/o
   --frames 120 --fps 30 -- --backend cuda --bvh lbvh --build-threads 16 --width 1280 --height 720
 ```
 
-Options after `--` go to `rt_render`. `--keep-frames DIR` keeps the PNGs.
+Options after `--` go to `rt_render`. `--keep-frames DIR` keeps the PNGs. The material showcase makes a good presentation clip (8 seconds, about 10 seconds to render on the laptop GPU):
+
+```bash
+bash scripts/make_video.sh --scene scenes/known/known_showcase.json --out out/showcase_orbit.mp4 \
+  --frames 240 --fps 30 -- --backend cuda --bvh lbvh --width 1280 --height 960
+```
+
+The orbit keeps the scene camera's distance to its target, so in a scene with walls (like `known_mirror`) pass `--cam-pos`, `--cam-look` and `--cam-vfov` to keep the camera inside.
 
 ### Normal visualization
 
@@ -227,7 +234,7 @@ For glass, set `"glass": true` and give `"ior"` (index of refraction: 1.5 for wi
 {"name": "green glass", "albedo": [0, 0, 0], "ks": [0.45, 0.85, 0.5], "ior": 1.5, "specular": false, "glass": true}
 ```
 
-`ks` is the glass color: the fraction of red, green and blue that remains after one unit of distance through it, so thick glass is deeper in color than thin glass, and `[1, 1, 1]` is perfectly clear. Keep `albedo` at zero for clear-looking glass. Light both reflects off and refracts through the surface, more of it reflecting at grazing angles. Glass and mirror rays together follow at most 4 bounces. Glass spheres and closed triangle meshes work; a triangle's outside is the side its vertices wind counterclockwise around. Shadows of glass are solid, as if it were opaque. `scenes/known/known_glass.json` has three colored glass spheres in front of a striped wall.
+`ks` is the glass color: the fraction of red, green and blue that remains after one unit of distance through it, so thick glass is deeper in color than thin glass, and `[1, 1, 1]` is perfectly clear. Keep `albedo` at zero for clear-looking glass. Light both reflects off and refracts through the surface, more of it reflecting at grazing angles. Glass and mirror rays together follow at most 4 bounces. Glass spheres and closed triangle meshes work; a triangle's outside is the side its vertices wind counterclockwise around. Glass casts tinted shadows: light passes through it in a straight line and takes on its color, so a green ball casts a green shadow and clear glass almost none (the light is not bent, so there are no focused caustics). `scenes/known/known_glass.json` has three colored glass spheres in front of a striped wall, and `scenes/known/known_showcase.json` puts every material in one scene: a chrome sphere ringed by matte, glossy, mirror and glass balls.
 
 Version-2 scenes may store geometry inline or reference a `.bin` file. Binary paths resolve relative to the scene JSON, so keep the JSON and referenced geometry together. Full format and validation rules: [INTERFACES.md §2](INTERFACES.md#2-scene-image-and-file-formats).
 

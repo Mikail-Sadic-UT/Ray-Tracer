@@ -742,6 +742,8 @@ hit:   rgb = albedo * ambient; prim_id = hit.prim; light_mask = 0
                light_mask |= (1u << i)        // only when i < 32
 ```
 
+> Changed: in scenes with glass, a blocked shadow ray can still pass light tinted by the glass; see IC7 in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md).
+
 Every backend (CPU, megakernel, wavefront, Embree, OptiX) uses this exact order. The wavefront pipeline writes per-(pixel, light) contributions and occlusion flags to fixed slots. Its accumulate kernel then sums them in light order. **No floating-point atomics on color**, so repeated runs are bit-identical.
 
 ## 7. Backend interface

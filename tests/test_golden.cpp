@@ -63,6 +63,9 @@ const Expect kScenes[] = {
       rt::PRIM_TRIANGLE_BIT | 15,
       rt::PRIM_TRIANGLE_BIT | 16,
       rt::PRIM_TRIANGLE_BIT | 17}},
+    // Sphere 5 (shiny blue) sits behind the chrome sphere: seen only in reflections.
+    {"known_showcase",
+     {0, 1, 2, 3, 4, 6, 7, 8, rt::PRIM_TRIANGLE_BIT | 0, rt::PRIM_TRIANGLE_BIT | 1}},
 };
 
 std::string golden_path(const std::string& name, const char* suffix) {
