@@ -10,6 +10,8 @@
 #   PRESET   sweep.py preset (g2, core, cpu-threads, gpu-build-threads, size, bvh, resolution,
 #            tapp, smoke), or verify for verify.sh only. Default g2.
 #   VERIFY   1 (default) runs verify.sh before a sweep; 0 skips it.
+#            PRESET may be a space-separated list ("lights core"): one allocation runs verify.sh
+#            once, then each sweep in order, each into its own OUT/<preset> directory.
 #   OUT      results directory. Default $SCRATCH/rt-results/<preset>-<job id>.
 #   RT_BUILD build tree (default <repo>/build-vista); RT_SCENE_DEST scene directory
 #            (default <repo>/scenes/generated, where fetch_scenes.sh puts scenes-v1).
@@ -33,7 +35,12 @@ if [[ "$PRESET" == verify || "${VERIFY:-1}" == 1 ]]; then
   bash scripts/tacc/verify.sh --build "$RT_BUILD" --scenes "$RT_SCENE_DEST" --out "$OUT/verify"
 fi
 if [[ "$PRESET" != verify ]]; then
-  python3 scripts/tacc/sweep.py run --preset "$PRESET" --machine vista \
-    --scenes "$RT_SCENE_DEST" --rt-render "$RT_BUILD/apps/rt_render/rt_render" --out "$OUT"
+  read -r -a presets <<< "$PRESET"
+  for p in "${presets[@]}"; do
+    dest="$OUT"
+    [[ ${#presets[@]} -gt 1 ]] && dest="$OUT/$p"
+    python3 scripts/tacc/sweep.py run --preset "$p" --machine vista \
+      --scenes "$RT_SCENE_DEST" --rt-render "$RT_BUILD/apps/rt_render/rt_render" --out "$dest"
+  done
 fi
 echo "rt-sweep: done; results in $OUT"
