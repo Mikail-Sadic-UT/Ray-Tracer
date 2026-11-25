@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# Renders a camera orbit with rt_render and encodes it as an H.264 MP4.
+# Renders a camera orbit, or a walk along a camera path, with rt_render and encodes it as an
+# H.264 MP4.
 #
 #   make_video.sh --scene SCENE.json --out VIDEO.mp4 [--frames N] [--fps F] [--keep-frames DIR]
-#                 [--rt-render BIN] [-- extra rt_render options]
+#                 [--path PATH.json] [--rt-render BIN] [-- extra rt_render options]
 #
 # The scene is prepared once; rt_render then renders N frames on one turn around the camera
-# target (--orbit) and prints T_frame over the path. Anything after `--` goes to rt_render,
-# for example `-- --backend cuda --bvh lbvh --build-threads 16 --width 1280 --height 720`.
+# target (--orbit) and prints T_frame over the path. With --path, the N frames run along the
+# waypoints in PATH.json instead (rt_render --path; see USER_GUIDE "Camera path"). Anything
+# after `--` goes to rt_render, for example
+# `-- --backend cuda --bvh lbvh --build-threads 16 --width 1280 --height 720`.
 # Needs ffmpeg (sudo apt install ffmpeg).
 set -euo pipefail
 
-scene="" out="" frames=120 fps=30 keep="" rt_render="build/apps/rt_render/rt_render"
+scene="" out="" frames=120 fps=30 keep="" path="" rt_render="build/apps/rt_render/rt_render"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --scene) scene="$2"; shift 2 ;;
@@ -18,9 +21,10 @@ while [[ $# -gt 0 ]]; do
         --frames) frames="$2"; shift 2 ;;
         --fps) fps="$2"; shift 2 ;;
         --keep-frames) keep="$2"; shift 2 ;;
+        --path) path="$2"; shift 2 ;;
         --rt-render) rt_render="$2"; shift 2 ;;
         --) shift; break ;;
-        -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "make_video.sh: unknown option $1 (see --help)" >&2; exit 2 ;;
     esac
 done
@@ -35,7 +39,11 @@ else
     trap 'rm -rf "$dir"' EXIT
 fi
 
-"$rt_render" --scene "$scene" --orbit "$frames" --frames "$dir" "$@"
+if [[ -n "$path" ]]; then
+    "$rt_render" --scene "$scene" --path "$path" --path-frames "$frames" --frames "$dir" "$@"
+else
+    "$rt_render" --scene "$scene" --orbit "$frames" --frames "$dir" "$@"
+fi
 # yuv420p needs even dimensions; the pad keeps odd sizes playable without rescaling.
 ffmpeg -loglevel error -y -framerate "$fps" -i "$dir/frame_%04d.png" \
     -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -c:v libx264 -pix_fmt yuv420p -crf 18 "$out"
