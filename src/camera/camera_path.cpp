@@ -50,9 +50,12 @@ void only_keys(const json& object, const std::set<std::string>& allowed, const s
 
 }  // namespace
 
-CameraPath::CameraPath(std::vector<CameraWaypoint> waypoints, PathTiming timing, bool ease)
+CameraPath::CameraPath(std::vector<CameraWaypoint> waypoints, PathTiming timing, bool ease,
+                       double turn_cost)
     : count_(waypoints.size()), timing_(timing), ease_(ease) {
     if (waypoints.size() < 2) path_error("waypoints", "need at least 2");
+    if (!(turn_cost >= 0.0) || !std::isfinite(turn_cost))
+        path_error("turn_cost", "must be a finite number, at least 0");
     std::vector<Channels> pts;
     for (std::size_t i = 0; i < waypoints.size(); ++i) {
         const CameraWaypoint& w = waypoints[i];
@@ -65,6 +68,20 @@ CameraPath::CameraPath(std::vector<CameraWaypoint> waypoints, PathTiming timing,
             path_error(where + ".vfov_deg", "must be between 0 and 180 degrees, exclusively");
         pts.push_back(c);
     }
+    // Judged against the size of the coordinates: identical positions still leave rounding noise
+    // of about 1e-16 of them in the spline.
+    double scale = 1.0;
+    for (const Channels& c : pts)
+        for (int k = 0; k < 3; ++k) scale = std::max(scale, std::fabs(c[k]));
+    const double negligible = 1.0e-9 * scale;
+    // Segments between identical positions hold the camera exactly still: the spline would
+    // otherwise carry it a little past the stopping point and back while the view turns.
+    for (std::size_t i = 0; i + 1 < pts.size(); ++i) {
+        double d2 = 0.0;
+        for (int k = 0; k < 3; ++k) d2 += (pts[i + 1][k] - pts[i][k]) * (pts[i + 1][k] - pts[i][k]);
+        hold_.push_back(d2 <= negligible * negligible);
+    }
+
     // Reflect the neighbour past each end so the first and last segments need no special case.
     Channels before, after;
     const std::size_t n = pts.size();
@@ -76,41 +93,57 @@ CameraPath::CameraPath(std::vector<CameraWaypoint> waypoints, PathTiming timing,
     points_.insert(points_.end(), pts.begin(), pts.end());
     points_.push_back(after);
 
-    // Centripetal knots from the camera positions: the square root of each distance. Look-at
-    // points and fields of view ride on the same knots.
     auto distance = [&](const Channels& a, const Channels& b) {
         double d2 = 0.0;
         for (int c = 0; c < 3; ++c) d2 += (a[c] - b[c]) * (a[c] - b[c]);
         return std::sqrt(d2);
     };
+    // The angle the view direction turns through between two waypoints.
+    auto turn_angle = [](const Channels& a, const Channels& b) {
+        double da[3], db[3], na = 0.0, nb = 0.0, dot = 0.0;
+        for (int c = 0; c < 3; ++c) {
+            da[c] = a[3 + c] - a[c];
+            db[c] = b[3 + c] - b[c];
+            na += da[c] * da[c];
+            nb += db[c] * db[c];
+            dot += da[c] * db[c];
+        }
+        if (!(na > 0.0) || !(nb > 0.0)) return 0.0;
+        return std::acos(std::clamp(dot / std::sqrt(na * nb), -1.0, 1.0));
+    };
+
+    // Centripetal knots: the square root of how far each step takes the camera, walking or
+    // turning (the same measure that shares out frame time below). Spacing them by position alone
+    // would give a camera that stops and turns a near-zero interval, and the look-at point
+    // would swing far off target in the neighbouring segment. Look-at points and fields of view
+    // ride on the same knots.
     knots_.assign(points_.size(), 0.0);
     for (std::size_t i = 1; i < points_.size(); ++i) {
-        knots_[i] =
-            knots_[i - 1] + std::max(std::sqrt(distance(points_[i - 1], points_[i])), kMinKnot);
+        const double step = std::max(distance(points_[i - 1], points_[i]),
+                                     turn_cost * turn_angle(points_[i - 1], points_[i]));
+        knots_[i] = knots_[i - 1] + std::max(std::sqrt(step), kMinKnot);
     }
 
     if (timing_ == PathTiming::Distance) {
         const int segments = static_cast<int>(count_) - 1;
-        for (int s = 0; s < segments; ++s)
-            for (int k = 0; k < kSamplesPerSegment; ++k)
-                samples_.push_back({s, static_cast<double>(k) / kSamplesPerSegment});
-        samples_.push_back({segments - 1, 1.0});
-        arc_.assign(samples_.size(), 0.0);
-        Channels previous = evaluate(samples_[0].segment, samples_[0].tau);
-        for (std::size_t j = 1; j < samples_.size(); ++j) {
-            const Channels here = evaluate(samples_[j].segment, samples_[j].tau);
-            arc_[j] = arc_[j - 1] + distance(previous, here);
-            previous = here;
+        time_before_.assign(1, 0.0);
+        for (int s = 0; s < segments; ++s) {
+            std::vector<double> arc(kSamplesPerSegment + 1, 0.0);
+            Channels previous = evaluate(s, 0.0);
+            for (int k = 1; k <= kSamplesPerSegment; ++k) {
+                const Channels here = evaluate(s, static_cast<double>(k) / kSamplesPerSegment);
+                arc[k] = arc[k - 1] + distance(previous, here);
+                previous = here;
+            }
+            const double walk = arc.back() > negligible ? arc.back() : 0.0;
+            const double turn = turn_cost * turn_angle(pts[s], pts[s + 1]);
+            segment_length_.push_back(walk);
+            time_before_.push_back(time_before_.back() + std::max(walk, turn));
+            length_ += walk;
+            arc_.push_back(std::move(arc));
         }
-        length_ = arc_.back();
-        // Judged against the size of the coordinates: identical positions still leave rounding
-        // noise of about 1e-16 of them in the spline.
-        double scale = 1.0;
-        for (const Channels& c : pts)
-            for (int k = 0; k < 3; ++k) scale = std::max(scale, std::fabs(c[k]));
-        if (!(length_ > 1.0e-9 * scale))
-            path_error("waypoints",
-                       "the camera never moves; use \"timing\": \"waypoints\" to turn in place");
+        if (!(time_before_.back() > negligible))
+            path_error("waypoints", "the camera neither moves nor turns");
     } else {
         for (std::size_t i = 0; i + 1 < count_; ++i)
             length_ += distance(points_[i + 1], points_[i + 2]);
@@ -133,7 +166,11 @@ CameraPath::Channels CameraPath::evaluate(int segment, double tau) const {
     const Channels a3 = mix(p[2], p[3], k[2], k[3], t);
     const Channels b1 = mix(a1, a2, k[0], k[2], t);
     const Channels b2 = mix(a2, a3, k[1], k[3], t);
-    return mix(b1, b2, k[1], k[2], t);
+    Channels out = mix(b1, b2, k[1], k[2], t);
+    if (hold_[static_cast<std::size_t>(segment)]) {
+        for (int c = 0; c < 3; ++c) out[c] = p[1][c];  // the camera stays put
+    }
+    return out;
 }
 
 void CameraPath::locate(double t, int& segment, double& tau) const {
@@ -144,17 +181,26 @@ void CameraPath::locate(double t, int& segment, double& tau) const {
         tau = u - segment;
         return;
     }
-    const double s = t * length_;
-    std::size_t j =
-        static_cast<std::size_t>(std::upper_bound(arc_.begin(), arc_.end(), s) - arc_.begin());
-    j = (j == 0) ? 0 : std::min(j - 1, arc_.size() - 2);
-    const double span = arc_[j + 1] - arc_[j];
-    const double f = span > 0.0 ? std::clamp((s - arc_[j]) / span, 0.0, 1.0) : 0.0;
-    const Sample a = samples_[j];
-    Sample b = samples_[j + 1];
-    if (b.segment != a.segment) b = {a.segment, 1.0};  // the next segment's start is this one's end
-    segment = a.segment;
-    tau = a.tau + (b.tau - a.tau) * f;
+    // Time is shared out by segment (walking or turning, whichever takes longer); within a
+    // segment the camera moves at constant speed along its route.
+    const double s = t * time_before_.back();
+    const auto first = time_before_.begin() + 1;
+    segment =
+        std::min(static_cast<int>(std::upper_bound(first, time_before_.end(), s) - first), last);
+    const double share = time_before_[segment + 1] - time_before_[segment];
+    const double f = share > 0.0 ? std::clamp((s - time_before_[segment]) / share, 0.0, 1.0) : 0.0;
+    const std::vector<double>& arc = arc_[segment];
+    if (!(segment_length_[segment] > 0.0)) {  // a turn in place: equal progress in time
+        tau = f;
+        return;
+    }
+    const double along = f * arc.back();
+    std::size_t k =
+        static_cast<std::size_t>(std::upper_bound(arc.begin(), arc.end(), along) - arc.begin());
+    k = (k == 0) ? 0 : std::min(k - 1, arc.size() - 2);
+    const double span = arc[k + 1] - arc[k];
+    const double within = span > 0.0 ? std::clamp((along - arc[k]) / span, 0.0, 1.0) : 0.0;
+    tau = (static_cast<double>(k) + within) / kSamplesPerSegment;
 }
 
 Camera CameraPath::at(const Camera& base, double t) const {
@@ -181,7 +227,7 @@ Camera CameraPath::at(const Camera& base, double t) const {
 
 CameraPath parse_camera_path(const json& document, float default_vfov_deg) {
     if (!document.is_object()) path_error("path", "expected an object");
-    only_keys(document, {"waypoints", "timing", "ease"}, "path");
+    only_keys(document, {"waypoints", "timing", "ease", "turn_cost"}, "path");
 
     PathTiming timing = PathTiming::Distance;
     if (const auto it = document.find("timing"); it != document.end()) {
@@ -196,6 +242,11 @@ CameraPath parse_camera_path(const json& document, float default_vfov_deg) {
     if (const auto it = document.find("ease"); it != document.end()) {
         if (!it->is_boolean()) path_error("ease", "expected true or false");
         ease = it->get<bool>();
+    }
+    double turn_cost = 2.0;
+    if (const auto it = document.find("turn_cost"); it != document.end()) {
+        if (!it->is_number()) path_error("turn_cost", "expected a number");
+        turn_cost = it->get<double>();
     }
     const auto list = document.find("waypoints");
     if (list == document.end()) path_error("waypoints", "missing field");
@@ -217,7 +268,7 @@ CameraPath parse_camera_path(const json& document, float default_vfov_deg) {
         waypoints.push_back({read_vec3(*position, where + ".position"),
                              read_vec3(*look_at, where + ".look_at"), vfov});
     }
-    return CameraPath(std::move(waypoints), timing, ease);
+    return CameraPath(std::move(waypoints), timing, ease, turn_cost);
 }
 
 CameraPath load_camera_path(const std::string& file, float default_vfov_deg) {

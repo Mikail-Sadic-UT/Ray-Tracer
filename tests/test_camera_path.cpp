@@ -130,6 +130,56 @@ TEST(CameraPath, WaypointTimingCanTurnInPlace) {
     EXPECT_NEAR(middle.look_at.z, -2.5f, 1e-4f);
 }
 
+TEST(CameraPath, DistanceTimingGivesATurnInPlaceTimeFromItsAngle) {
+    // Walk 6 units with the view fixed, then stop and turn 90 degrees. With a turn cost of 2 per
+    // radian the turn is worth pi, so walking gets 6 / (6 + pi) of the time.
+    const double pi = 3.14159265358979323846;
+    const rt::CameraPath path({waypoint({0, 0, 0}, {0, 0, -10}), waypoint({6, 0, 0}, {6, 0, -10}),
+                               waypoint({6, 0, 0}, {16, 0, 0})},
+                              rt::PathTiming::Distance, false, 2.0);
+    const double walking = 6.0 / (6.0 + pi);
+    EXPECT_NEAR(path.at(base_camera(), 0.5 * walking).position.x, 3.0, 2e-2);   // constant speed
+    EXPECT_NEAR(path.at(base_camera(), walking + 1e-6).position.x, 6.0, 2e-3);  // arrived
+    for (double t : {0.7, 0.85, 1.0}) {
+        EXPECT_NEAR(path.at(base_camera(), t).position.x, 6.0, 1e-4) << "t " << t;  // stays put
+    }
+    // The view turns steadily: at the middle of the turn it points 45 degrees between the two.
+    const rt::Camera middle = path.at(base_camera(), walking + 0.5 * (1.0 - walking));
+    EXPECT_GT(middle.look_at.x, 6.0f);
+    EXPECT_LT(middle.look_at.x, 16.0f);
+    // A free turn takes no time at all.
+    const rt::CameraPath free({waypoint({0, 0, 0}, {0, 0, -10}), waypoint({6, 0, 0}, {6, 0, -10}),
+                               waypoint({6, 0, 0}, {16, 0, 0})},
+                              rt::PathTiming::Distance, false, 0.0);
+    EXPECT_NEAR(free.at(base_camera(), 0.5).position.x, 3.0, 2e-2);
+    EXPECT_NEAR(free.at(base_camera(), 0.99).position.x, 6.0 * 0.99, 2e-2);  // walking gets it all
+    EXPECT_NEAR(free.at(base_camera(), 1.0).position.x, 6.0, 1e-4);
+}
+
+TEST(CameraPath, StoppingToLookAroundDoesNotThrowTheViewOffTarget) {
+    // A walk that ends with a turn in place (the house walk-through): spacing the spline by
+    // position alone gave the turn a near-zero interval, and the look-at point swung to
+    // (61, 1, 40) in the segment before it. The look-at points here all lie within [-5, 6.5].
+    const rt::CameraPath path(
+        {waypoint({9, 2, -1}, {0, 1.5, -1}), waypoint({6, 2, -1}, {0, 1.5, -0.5}),
+         waypoint({2.5, 2, -1.4}, {0, 1.5, 1.5}), waypoint({1.5, 2, -0.2}, {0.5, 1.4, 4}),
+         waypoint({0.8, 2, 1.4}, {0.6, 1.3, 6}), waypoint({0.8, 2, 1.4}, {-4.2, 1.3, 3.2})},
+        rt::PathTiming::Distance, false);
+    for (double t = 0.0; t <= 1.0; t += 0.005) {
+        const rt::Camera cam = path.at(base_camera(), t);
+        EXPECT_GE(cam.look_at.x, -5.0f - 1.0f) << "t " << t;
+        EXPECT_LE(cam.look_at.x, 0.6f + 1.0f) << "t " << t;
+        EXPECT_GE(cam.look_at.z, -1.0f - 1.0f) << "t " << t;
+        EXPECT_LE(cam.look_at.z, 6.0f + 1.0f) << "t " << t;
+    }
+    // The camera stands exactly still through the turn: the last segment holds its position.
+    const rt::Camera end = path.at(base_camera(), 1.0);
+    const rt::Camera before_end = path.at(base_camera(), 0.97);
+    EXPECT_EQ(end.position.x, 0.8f);
+    EXPECT_EQ(before_end.position.x, 0.8f);
+    EXPECT_EQ(before_end.position.z, 1.4f);
+}
+
 TEST(CameraPath, RejectsBadWaypoints) {
     const rt::vec3 target{0, 0, 0};
     EXPECT_THROW(rt::CameraPath({waypoint({0, 0, 1}, target)}, rt::PathTiming::Distance, false),
@@ -140,11 +190,17 @@ TEST(CameraPath, RejectsBadWaypoints) {
     EXPECT_THROW(rt::CameraPath({waypoint({0, 0, 1}, target), waypoint({1, 0, 1}, target, 180.0f)},
                                 rt::PathTiming::Distance, false),
                  rt::Error);
-    EXPECT_THROW(rt::CameraPath({waypoint({0, 0, 1}, target), waypoint({0, 0, 1}, {1, 0, 0})},
+    // Neither moving nor turning is an error; turning alone is not (it takes time from its angle).
+    EXPECT_THROW(rt::CameraPath({waypoint({0, 0, 1}, target), waypoint({0, 0, 1}, target)},
                                 rt::PathTiming::Distance, false),
                  rt::Error);
     EXPECT_NO_THROW(rt::CameraPath({waypoint({0, 0, 1}, target), waypoint({0, 0, 1}, {1, 0, 0})},
+                                   rt::PathTiming::Distance, false));
+    EXPECT_NO_THROW(rt::CameraPath({waypoint({0, 0, 1}, target), waypoint({0, 0, 1}, {1, 0, 0})},
                                    rt::PathTiming::Waypoints, false));
+    EXPECT_THROW(rt::CameraPath({waypoint({0, 0, 1}, target), waypoint({1, 0, 1}, target)},
+                                rt::PathTiming::Distance, false, -1.0),
+                 rt::Error);
 }
 
 TEST(CameraPath, ChecksTheCameraAtEachFrameAndNamesWhereItFails) {
@@ -179,6 +235,21 @@ TEST(CameraPathParse, ReadsWaypointsTimingEaseAndFieldOfView) {
     EXPECT_NEAR(path.at(base_camera(), 0.0).vfov_deg, 55.0f, 1e-4f);
     EXPECT_NEAR(path.at(base_camera(), 0.5).vfov_deg, 70.0f, 1e-4f);
     EXPECT_NEAR(path.at(base_camera(), 1.0).vfov_deg, 70.0f, 1e-4f);
+}
+
+TEST(CameraPathParse, ReadsTheTurnCost) {
+    const std::string walk =
+        R"("waypoints": [{"position": [0,0,0], "look_at": [0,0,-5]},
+                          {"position": [0,0,0], "look_at": [5,0,0]}])";
+    const rt::CameraPath cheap =
+        rt::parse_camera_path(nlohmann::json::parse("{\"turn_cost\": 0.5," + walk + "}"), 45.0f);
+    EXPECT_EQ(cheap.size(), 2u);
+    EXPECT_THROW(
+        rt::parse_camera_path(nlohmann::json::parse("{\"turn_cost\": -1," + walk + "}"), 45.0f),
+        rt::Error);
+    EXPECT_THROW(
+        rt::parse_camera_path(nlohmann::json::parse("{\"turn_cost\": \"x\"," + walk + "}"), 45.0f),
+        rt::Error);
 }
 
 TEST(CameraPathParse, RejectsBadFilesNamingTheField) {
