@@ -1,0 +1,11 @@
+# The tetrahedron as two groups, for the obj2bin --group-material tests.
+v 0 0 0
+v 1 0 0
+v 0 1 0
+v 0 0 1
+o front
+f 1 3 2
+f 1 2 4
+o back
+f 1 4 3
+f 2 3 4

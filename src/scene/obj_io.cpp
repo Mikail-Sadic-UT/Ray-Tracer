@@ -42,6 +42,8 @@ uint32_t corner_index(const std::string& token, std::size_t num_vertices, const 
 
 ObjMesh parse_obj(std::istream& input, const std::string& name) {
     ObjMesh mesh;
+    mesh.groups.push_back("default");
+    uint32_t group = 0u;
     std::string text;
     std::size_t line = 0;
     std::vector<uint32_t> corners;
@@ -50,7 +52,15 @@ ObjMesh parse_obj(std::istream& input, const std::string& name) {
         std::istringstream fields(text);
         std::string kind;
         if (!(fields >> kind)) continue;
-        if (kind == "v") {
+        if (kind == "o" || kind == "g") {
+            std::string group_name;
+            if (!(fields >> group_name)) group_name = "default";
+            group = static_cast<uint32_t>(mesh.groups.size());
+            for (uint32_t i = 0; i < mesh.groups.size(); ++i) {
+                if (mesh.groups[i] == group_name) group = i;
+            }
+            if (group == mesh.groups.size()) mesh.groups.push_back(group_name);
+        } else if (kind == "v") {
             double x = 0.0, y = 0.0, z = 0.0;
             if (!(fields >> x >> y >> z)) obj_error(name, line, "expected 'v x y z'");
             mesh.vertices.push_back(
@@ -64,6 +74,7 @@ ObjMesh parse_obj(std::istream& input, const std::string& name) {
             if (corners.size() < 3) obj_error(name, line, "a face needs at least 3 corners");
             for (std::size_t i = 1; i + 1 < corners.size(); ++i) {
                 mesh.faces.push_back({corners[0], corners[i], corners[i + 1]});
+                mesh.face_group.push_back(group);
             }
         }
     }
@@ -81,10 +92,24 @@ void append_mesh(SceneHost& scene, const ObjMesh& mesh, const MeshPlacement& pla
     if (mesh.faces.empty()) throw Error("obj: the mesh has no faces");
     if (!(placement.size > 0.0f) || !std::isfinite(placement.size))
         throw Error("obj: size must be positive and finite");
-    if (placement.material_id >= scene.materials.size())
-        throw Error("obj: material " + std::to_string(placement.material_id) +
-                    " is not in the scene (" + std::to_string(scene.materials.size()) +
-                    " materials)");
+    auto check_material = [&](uint32_t id) {
+        if (id >= scene.materials.size())
+            throw Error("obj: material " + std::to_string(id) + " is not in the scene (" +
+                        std::to_string(scene.materials.size()) + " materials)");
+    };
+    check_material(placement.material_id);
+    std::vector<uint32_t> group_material(mesh.groups.size(), placement.material_id);
+    for (const auto& [group_name, id] : placement.group_materials) {
+        check_material(id);
+        bool found = false;
+        for (std::size_t g = 0; g < mesh.groups.size(); ++g) {
+            if (mesh.groups[g] == group_name) {
+                group_material[g] = id;
+                found = true;
+            }
+        }
+        if (!found) throw Error("obj: the mesh has no group '" + group_name + "'");
+    }
 
     const double inf = std::numeric_limits<double>::infinity();
     double lo[3] = {inf, inf, inf}, hi[3] = {-inf, -inf, -inf};
@@ -125,9 +150,10 @@ void append_mesh(SceneHost& scene, const ObjMesh& mesh, const MeshPlacement& pla
                     static_cast<float>(moved[i * 3 + 2] + shift[2])};
     };
     scene.triangles.reserve(scene.triangles.size() + mesh.faces.size());
-    for (const auto& f : mesh.faces) {
+    for (std::size_t i = 0; i < mesh.faces.size(); ++i) {
+        const auto& f = mesh.faces[i];
         scene.triangles.push_back(
-            {vertex(f[0]), vertex(f[1]), vertex(f[2]), placement.material_id});
+            {vertex(f[0]), vertex(f[1]), vertex(f[2]), group_material[mesh.face_group[i]]});
     }
 }
 

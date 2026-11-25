@@ -102,3 +102,32 @@ TEST(ObjIo, PlacementRejectsBadMeshesAndSettings) {
     EXPECT_THROW(rt::append_mesh(scene, tri, {1.0f, 0.0f, {}, 2u}), rt::Error);
     EXPECT_TRUE(scene.triangles.empty());
 }
+
+TEST(ObjIo, GroupsNameFacesAndTakeTheirOwnMaterial) {
+    const rt::ObjMesh mesh = parse(
+        "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\nf 1 2 3\no head\nf 1 2 4\ng body extra\nf 1 3 4\n"
+        "o head\nf 2 3 4\n");
+    ASSERT_EQ(mesh.groups.size(), 3u);
+    EXPECT_EQ(mesh.groups[0], "default");
+    EXPECT_EQ(mesh.groups[1], "head");
+    EXPECT_EQ(mesh.groups[2], "body");
+    EXPECT_EQ(mesh.face_group, (std::vector<uint32_t>{0u, 1u, 2u, 1u}));
+
+    rt::SceneHost scene = stage();
+    rt::MeshPlacement placement;
+    placement.material_id = 0u;
+    placement.group_materials = {{"head", 1u}};
+    rt::append_mesh(scene, mesh, placement);
+    ASSERT_EQ(scene.triangles.size(), 4u);
+    EXPECT_EQ(scene.triangles[0].material_id, 0u);
+    EXPECT_EQ(scene.triangles[1].material_id, 1u);
+    EXPECT_EQ(scene.triangles[2].material_id, 0u);
+    EXPECT_EQ(scene.triangles[3].material_id, 1u);
+
+    rt::SceneHost other = stage();
+    placement.group_materials = {{"tail", 1u}};
+    EXPECT_THROW(rt::append_mesh(other, mesh, placement), rt::Error);
+    placement.group_materials = {{"head", 7u}};
+    EXPECT_THROW(rt::append_mesh(other, mesh, placement), rt::Error);
+    EXPECT_TRUE(other.triangles.empty());
+}

@@ -182,6 +182,22 @@
       "ior": 1.5,
       "specular": false,
       "glass": true
+    },
+    {
+      "name": "visor blue",
+      "albedo": [
+        0.02,
+        0.06,
+        0.16
+      ],
+      "ks": [
+        0.55,
+        0.75,
+        0.95
+      ],
+      "shininess": 300,
+      "specular": true,
+      "mirror": true
     }
   ],
   "lights": [
