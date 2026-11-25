@@ -156,6 +156,7 @@ The orbit keeps the scene camera's distance to its target, so in a scene with wa
 {
   "timing": "distance",
   "ease": false,
+  "turn_cost": 2.0,
   "waypoints": [
     { "position": [14, 1.6, -1.3], "look_at": [0, 1.4, -1.0], "vfov_deg": 70 },
     { "position": [2.5, 1.6, -1.3], "look_at": [0, 1.4,  2.0] },
@@ -166,7 +167,7 @@ The orbit keeps the scene camera's distance to its target, so in a scene with wa
 
 - `position` and `look_at` are required on every waypoint. `vfov_deg` is optional: the first waypoint without it uses the scene camera's, and later ones keep the previous value. `up` and the resolution come from the scene camera (and `--width`, `--height`, `--cam-*` overrides). Unknown keys are errors.
 - Position, look-at point and field of view are smoothed with a centripetal Catmull-Rom spline that passes exactly through every waypoint and does not loop when waypoints are unevenly spaced.
-- `"timing": "distance"` (default) moves at constant speed along the route. `"timing": "waypoints"` gives each segment equal time, which is how to turn in place (two waypoints with the same position and different `look_at`). `"ease": true` starts and stops gently.
+- `"timing": "distance"` (default) moves at constant speed along the route. A segment that only turns (two waypoints with the same position and different `look_at`, to stop and look around) still gets time: each segment takes as long as the longer of its walking distance and `turn_cost` times the angle it turns through, in radians. `turn_cost` is optional and defaults to 2 (scene units per radian), so a quarter turn counts as about 3 units of walking. `"timing": "waypoints"` instead gives every segment equal time. `"ease": true` starts and stops gently.
 - Every frame is checked before rendering starts, so a camera that ends up on its look-at point or looks straight along `up` fails at once, naming the point on the path.
 - It does not combine with `--orbit`, `--mode`, `--runs`, `--results`, `--out` or `--pfm`.
 
