@@ -1,0 +1,333 @@
+{
+  "version": 2,
+  "camera": {
+    "position": [
+      0,
+      2.6,
+      7.2
+    ],
+    "look_at": [
+      0,
+      1.0,
+      0
+    ],
+    "up": [
+      0,
+      1,
+      0
+    ],
+    "vfov_deg": 45,
+    "width": 1280,
+    "height": 720
+  },
+  "background": [
+    0.08,
+    0.09,
+    0.13
+  ],
+  "ambient": 0.05,
+  "materials": [
+    {
+      "name": "floor",
+      "albedo": [
+        0.6,
+        0.6,
+        0.62
+      ],
+      "ks": [
+        0,
+        0,
+        0
+      ],
+      "shininess": 1,
+      "specular": false
+    },
+    {
+      "name": "chrome",
+      "albedo": [
+        0.03,
+        0.03,
+        0.03
+      ],
+      "ks": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "shininess": 250,
+      "specular": true,
+      "mirror": true
+    },
+    {
+      "name": "matte red",
+      "albedo": [
+        0.8,
+        0.12,
+        0.1
+      ],
+      "ks": [
+        0,
+        0,
+        0
+      ],
+      "shininess": 1,
+      "specular": false
+    },
+    {
+      "name": "glossy green",
+      "albedo": [
+        0.1,
+        0.6,
+        0.15
+      ],
+      "ks": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "shininess": 24,
+      "specular": true
+    },
+    {
+      "name": "shiny blue",
+      "albedo": [
+        0.1,
+        0.15,
+        0.7
+      ],
+      "ks": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "shininess": 180,
+      "specular": true
+    },
+    {
+      "name": "gold mirror",
+      "albedo": [
+        0.05,
+        0.04,
+        0.0
+      ],
+      "ks": [
+        0.9,
+        0.7,
+        0.3
+      ],
+      "shininess": 1,
+      "specular": false,
+      "mirror": true
+    },
+    {
+      "name": "green glass",
+      "albedo": [
+        0,
+        0,
+        0
+      ],
+      "ks": [
+        0.45,
+        0.85,
+        0.5
+      ],
+      "ior": 1.5,
+      "specular": false,
+      "glass": true
+    },
+    {
+      "name": "amber glass",
+      "albedo": [
+        0,
+        0,
+        0
+      ],
+      "ks": [
+        0.9,
+        0.55,
+        0.15
+      ],
+      "ior": 1.5,
+      "specular": false,
+      "glass": true
+    },
+    {
+      "name": "clear glass",
+      "albedo": [
+        0,
+        0,
+        0
+      ],
+      "ks": [
+        0.97,
+        0.97,
+        0.97
+      ],
+      "ior": 1.45,
+      "specular": false,
+      "glass": true
+    },
+    {
+      "name": "blue glass",
+      "albedo": [
+        0,
+        0,
+        0
+      ],
+      "ks": [
+        0.4,
+        0.55,
+        0.95
+      ],
+      "ior": 1.5,
+      "specular": false,
+      "glass": true
+    }
+  ],
+  "lights": [
+    {
+      "type": "point",
+      "position": [
+        -3,
+        6,
+        3
+      ],
+      "intensity": [
+        40,
+        40,
+        40
+      ]
+    },
+    {
+      "type": "directional",
+      "direction": [
+        0.5,
+        -1.2,
+        -0.7
+      ],
+      "intensity": [
+        0.4,
+        0.38,
+        0.33
+      ]
+    }
+  ],
+  "geometry": {
+    "spheres": [
+      {
+        "center": [
+          0.0,
+          0.55,
+          3.4
+        ],
+        "radius": 0.55,
+        "material": 2
+      },
+      {
+        "center": [
+          2.4042,
+          0.55,
+          2.4042
+        ],
+        "radius": 0.55,
+        "material": 6
+      },
+      {
+        "center": [
+          3.4,
+          0.55,
+          0.0
+        ],
+        "radius": 0.55,
+        "material": 3
+      },
+      {
+        "center": [
+          2.4042,
+          0.55,
+          -2.4042
+        ],
+        "radius": 0.55,
+        "material": 7
+      },
+      {
+        "center": [
+          0.0,
+          0.55,
+          -3.4
+        ],
+        "radius": 0.55,
+        "material": 4
+      },
+      {
+        "center": [
+          -2.4042,
+          0.55,
+          -2.4042
+        ],
+        "radius": 0.55,
+        "material": 8
+      },
+      {
+        "center": [
+          -3.4,
+          0.55,
+          -0.0
+        ],
+        "radius": 0.55,
+        "material": 5
+      },
+      {
+        "center": [
+          -2.4042,
+          0.55,
+          2.4042
+        ],
+        "radius": 0.55,
+        "material": 9
+      }
+    ],
+    "triangles": [
+      {
+        "v": [
+          [
+            -60,
+            0,
+            -60
+          ],
+          [
+            -60,
+            0,
+            60
+          ],
+          [
+            60,
+            0,
+            60
+          ]
+        ],
+        "material": 0
+      },
+      {
+        "v": [
+          [
+            -60,
+            0,
+            -60
+          ],
+          [
+            60,
+            0,
+            60
+          ],
+          [
+            60,
+            0,
+            -60
+          ]
+        ],
+        "material": 0
+      }
+    ]
+  }
+}

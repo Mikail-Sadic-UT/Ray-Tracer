@@ -28,3 +28,6 @@ results/
 # Python
 __pycache__/
 .venv/
+
+# Downloaded OBJ meshes and the scenes obj2bin writes from them (E6); see USER_GUIDE.md.
+scenes/meshes/
