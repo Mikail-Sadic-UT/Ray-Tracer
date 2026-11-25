@@ -148,6 +148,37 @@ bash scripts/make_video.sh --scene scenes/known/known_showcase.json --out out/sh
 
 The orbit keeps the scene camera's distance to its target, so in a scene with walls (like `known_mirror`) pass `--cam-pos`, `--cam-look` and `--cam-vfov` to keep the camera inside.
 
+### Camera path
+
+`--path FILE --path-frames N --frames DIR` renders N frames along a camera path instead of a circle, again preparing the scene once. The file lists waypoints; the first frame is the first waypoint and the last frame is the last:
+
+```json
+{
+  "timing": "distance",
+  "ease": false,
+  "waypoints": [
+    { "position": [14, 1.6, -1.3], "look_at": [0, 1.4, -1.0], "vfov_deg": 70 },
+    { "position": [2.5, 1.6, -1.3], "look_at": [0, 1.4,  2.0] },
+    { "position": [0.8, 1.6,  1.4], "look_at": [0.8, 1.4, 6.0] }
+  ]
+}
+```
+
+- `position` and `look_at` are required on every waypoint. `vfov_deg` is optional: the first waypoint without it uses the scene camera's, and later ones keep the previous value. `up` and the resolution come from the scene camera (and `--width`, `--height`, `--cam-*` overrides). Unknown keys are errors.
+- Position, look-at point and field of view are smoothed with a centripetal Catmull-Rom spline that passes exactly through every waypoint and does not loop when waypoints are unevenly spaced.
+- `"timing": "distance"` (default) moves at constant speed along the route. `"timing": "waypoints"` gives each segment equal time, which is how to turn in place (two waypoints with the same position and different `look_at`). `"ease": true` starts and stops gently.
+- Every frame is checked before rendering starts, so a camera that ends up on its look-at point or looks straight along `up` fails at once, naming the point on the path.
+- It does not combine with `--orbit`, `--mode`, `--runs`, `--results`, `--out` or `--pfm`.
+
+`scripts/make_video.sh --path PATH.json --frames N` encodes the frames as an MP4:
+
+```bash
+bash scripts/make_video.sh --scene scenes/known/known_showcase.json --path out/walk.json \
+  --out out/walk.mp4 --frames 240 --fps 30 -- --backend cuda --bvh lbvh
+```
+
+The path only chooses the camera each frame is rendered with, so CPU and GPU images stay byte-identical.
+
 ### Normal visualization
 
 Use `--shade normal` instead of `--shade lit` to show surface normals as colors. This skips lights and shadows, making it useful for inspecting geometry and tracing. Use lit shading for performance comparisons.
@@ -454,6 +485,7 @@ Allocate a GH compute node and load the documented GCC/CUDA/CMake modules. Use `
 | `--shade lit\|normal` | Lighting/shadows or normal visualization |
 | `--lights N` | Replace the lights with N copies of light 0 on a ring (light-count sweep) |
 | `--orbit N --frames DIR` | Prepare once, render N frames around the target into DIR |
+| `--path FILE --path-frames N --frames DIR` | Prepare once, render N frames along the camera path in FILE into DIR |
 | `--out PATH.png` | Save sRGB PNG |
 | `--pfm PATH.pfm` | Save linear RGB |
 | `--aov primid,lightmask` | Save requested sidecars next to PFM |

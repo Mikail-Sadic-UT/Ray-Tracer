@@ -18,7 +18,7 @@
 │   ├── scene/      (Po)        scene.hpp (Scene view)  scene_host.hpp  scene_io.hpp  scene_io.cpp  json_helpers.hpp
 │   │                           binary_format.hpp  hash.hpp  hash.cpp  generator.cpp  pcg32.hpp  obj_io.hpp/.cpp (OBJ for obj2bin)
 │   │                           # generator.cpp + hash: -ffp-contract=off (now project-wide)
-│   ├── camera/     (Jett)      camera.hpp (inline camera_ray, device-usable)  camera_io.hpp  camera.cpp (host only: parsing, overrides)
+│   ├── camera/     (Jett)      camera.hpp (inline camera_ray, device-usable)  camera_io.hpp  camera.cpp (host only: parsing, overrides)  camera_path.hpp/.cpp (waypoint paths, `rt_render --path`)
 │   ├── bvh/        (Jett)      bvh_types.hpp  bvh.hpp  bounds.cpp  build_median.cpp  build_lbvh.cpp  layout.cpp  build_sah.cpp  validate.cpp
 │   │                           morton.hpp  radix_sort.hpp
 │   ├── trace/      (Mikail)    hit.hpp  intersect.hpp  traverse.hpp  brute.hpp
