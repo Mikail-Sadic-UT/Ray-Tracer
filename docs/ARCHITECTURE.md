@@ -168,7 +168,7 @@ Implemented so far (#47): `--scene`, `--backend cpu`, `--bvh`, `--max-leaf-size`
 | `rt_gen` | Po | Seeded generator |
 | `rt_compare` | Po | Image and AOV comparison |
 | `scene_dump` | Po | Print a parsed scene and its hash |
-| `obj2bin` | Jett | OBJ/MTL → `.bin` (Extension E6) |
+| `obj2bin` | Mikail | OBJ mesh + template scene → `.json` + `.bin` (Extension E6; `.mtl` ignored) |
 
 ## References
 

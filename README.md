@@ -20,7 +20,7 @@ ECE 379K project. A ray tracer for spheres and triangles that splits work betwee
 5. Validation: analytic tests, independent oracle, BVH vs brute force, image/AOV comparison.
 6. Measurements: application, build-and-render, and prepared-frame times, with scaling and breakdowns.
 
-Extensions (memory modes, Blinn-Phong, SAH, Embree, wavefront, `obj2bin`) start only after the Core gates they depend on pass, in [priority order](docs/ROADMAP.md#extensions-in-priority-order-each-timeboxed). Blinn-Phong highlights and directional lights (E2), mirror reflections and colored glass have landed; see [`known_specular`](scenes/known/known_specular.json), [`known_mirror`](scenes/known/known_mirror.json), [`known_glass`](scenes/known/known_glass.json) (with tinted shadows) and [`known_showcase`](scenes/known/known_showcase.json), which has all of them. OptiX and the other [stretch items](docs/STRETCH.md) are future work.
+Extensions (memory modes, Blinn-Phong, SAH, Embree, wavefront, `obj2bin`) start only after the Core gates they depend on pass, in [priority order](docs/ROADMAP.md#extensions-in-priority-order-each-timeboxed). Blinn-Phong highlights and directional lights (E2), mirror reflections and colored glass have landed; see [`known_specular`](scenes/known/known_specular.json), [`known_mirror`](scenes/known/known_mirror.json), [`known_glass`](scenes/known/known_glass.json) (with tinted shadows) and [`known_showcase`](scenes/known/known_showcase.json), which has all of them. `obj2bin` (E6) puts OBJ meshes such as the Stanford dragon into a scene ([user guide](docs/USER_GUIDE.md#render-an-obj-mesh)). OptiX and the other [stretch items](docs/STRETCH.md) are future work.
 
 ## Goals (from proposal)
 

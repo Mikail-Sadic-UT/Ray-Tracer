@@ -1,4 +1,5 @@
-rt_add_gtest(test_scene SOURCES test_scene.cpp test_scene_io.cpp test_binary_io.cpp test_generator.cpp LIBS rt_scene)
+rt_add_gtest(test_scene SOURCES test_scene.cpp test_scene_io.cpp test_binary_io.cpp test_generator.cpp
+  test_obj_io.cpp LIBS rt_scene)
 target_compile_definitions(test_scene PRIVATE
   RT_TEST_SCENES_DIR="${PROJECT_SOURCE_DIR}/scenes/known")
 
@@ -14,3 +15,11 @@ add_test(NAME fetch_scenes_archive COMMAND python3
   --scene-dump $<TARGET_FILE:scene_dump>
   --fetch-script "${PROJECT_SOURCE_DIR}/scripts/fetch_scenes.sh"
   --known-scene "${PROJECT_SOURCE_DIR}/scenes/known/known_two_spheres.json")
+
+# obj2bin (E6): a tetrahedron placed in a known scene loads back with 4 more triangles.
+add_test(NAME obj2bin_tetrahedron COMMAND sh -c
+  "$<TARGET_FILE:obj2bin> --obj '${PROJECT_SOURCE_DIR}/tests/data/tetrahedron.obj' \
+   --template '${PROJECT_SOURCE_DIR}/scenes/known/known_two_spheres.json' \
+   --out '${CMAKE_CURRENT_BINARY_DIR}/obj2bin_tetra.json' --size 0.5 --at 0 0 1 --rotate-y 30 \
+   && $<TARGET_FILE:scene_dump> --verify '${CMAKE_CURRENT_BINARY_DIR}/obj2bin_tetra.json'")
+set_tests_properties(obj2bin_tetrahedron PROPERTIES PASS_REGULAR_EXPRESSION "triangles: 6")

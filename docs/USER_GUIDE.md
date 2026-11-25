@@ -69,6 +69,7 @@ ctest --test-dir build-cpu -R 'Trace|Traverse' --output-on-failure
 | `scene_dump` | `build-cpu/apps/scene_dump/scene_dump` | Inspect and validate scenes |
 | `rt_gen` | `build-cpu/apps/rt_gen/rt_gen` | Generate spheres and terrain |
 | `rt_compare` | `build-cpu/apps/rt_compare/rt_compare` | Compare linear images and diagnostics |
+| `obj2bin` | `build-cpu/apps/obj2bin/obj2bin` | Place an OBJ mesh in a scene (E6) |
 
 Each executable accepts `--help`.
 
@@ -258,6 +259,30 @@ mkdir -p out/generated
 The generator writes JSON metadata and binary geometry. `--out` accepts a prefix or a `.json` path. `--primitives` is the exact total number of spheres plus triangles and must be at least 4 and below `2^31`. Only `uniform` is currently supported.
 
 Scenes contain colored spheres over a height-field terrain, a point light, and a fitted 1920×1080 camera. A fixed seed controls sphere placement; terrain shape is fixed. Generation is repeatable on the same recorded environment, but math-library differences can change bytes across machines. Use local generation for development; use the published files for comparable benchmarks.
+
+## Render an OBJ mesh
+
+`obj2bin` (E6) places a Wavefront OBJ triangle mesh in a template scene and writes a binary scene that every tool loads like a generated one. The template supplies the camera, lights, materials and any other geometry; [`scenes/templates/mesh_stage.json`](../scenes/templates/mesh_stage.json) is the showcase ring of spheres with room in the middle.
+
+```bash
+mkdir -p scenes/meshes   # gitignored
+curl -L -o scenes/meshes/xyzrgb_dragon.obj \
+  https://raw.githubusercontent.com/alecjacobson/common-3d-test-models/master/data/xyzrgb_dragon.obj
+
+./build/apps/obj2bin/obj2bin --obj scenes/meshes/xyzrgb_dragon.obj \
+  --template scenes/templates/mesh_stage.json --out scenes/meshes/dragon_gold.json \
+  --material 5 --size 3.6 --rotate-y 20
+
+scripts/make_video.sh --scene scenes/meshes/dragon_gold.json --out out/dragon_gold_orbit.mp4 \
+  --frames 180 -- --backend cuda --bvh lbvh --cam-pos 0 2.2 5.4 --cam-look 0 0.9 0
+```
+
+- `--material N` is an index into the template's materials (in `mesh_stage.json`: 1 chrome, 3 glossy green, 5 gold mirror, 6 to 9 glass).
+- `--size S` scales the mesh so its largest extent is `S`; `--rotate-y DEG` turns it about the vertical axis; `--at X Y Z` puts the bottom center of its bounding box there (default the origin, on the floor).
+- Only `v` and `f` lines are read. Polygons are split into triangles, and normals, texture coordinates and `.mtl` materials are ignored. Faces must wind counterclockwise seen from outside (the OBJ convention), which glass relies on to tell entering from leaving.
+- Shading is flat per triangle. Mirror, gold and diffuse meshes look right; glass on a dense mesh looks speckled, because each tiny facet refracts differently and the bounce limit is 4. A coarse closed mesh such as Spot works better as glass.
+
+The Stanford dragon (XYZ RGB scan, 250K triangles) renders at about 14 ms per frame at 1280×720 on the laptop GPU, and CPU and CUDA images are byte-identical.
 
 ## Download the fixed benchmark scenes
 
