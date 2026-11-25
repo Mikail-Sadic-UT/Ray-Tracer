@@ -268,7 +268,7 @@ Fetched with CMake `FetchContent` as release archives, pinned by version and SHA
 | stb (stb_image_write) | PNG output | commit `003501f6` (target `stb`, headers only) |
 | CLI11 | Command line | `v2.7.2` (target `CLI11::CLI11`) |
 | GoogleTest | Tests | `v1.18.0` (target `GTest::gtest_main`; only with `RT_BUILD_TESTS`) |
-| tinyobjloader | `obj2bin` (Extension E6) | Not added yet; pinned when E6 starts |
+| tinyobjloader | `obj2bin` (Extension E6) | Not used: `obj2bin` reads `v` and `f` lines with its own parser (`src/scene/obj_io.cpp`) |
 | Embree 4 | Embree backend (Extension E4) | `v4.x` (**verify on Vista** ARM64 build or module) |
 | OptiX SDK | OptiX backend (Stretch) | `8.x` or newer, manual download |
 
