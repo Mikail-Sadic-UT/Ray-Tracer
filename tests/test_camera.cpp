@@ -117,3 +117,27 @@ TEST(CameraRayTest, OffAxisCenterRayHitsLookAtAndAllRaysAreUnitLength) {
         }
     }
 }
+
+/// tan_det is within one float ulp of the exact tangent over the whole field-of-view range. (It
+/// is in fact the correctly rounded value at every angle tried; one ulp keeps the test robust to
+/// a reference that rounds differently.) Its host/device equality is in test_camera_device.cu.
+TEST(TanDet, MatchesTheExactTangentWithinOneUlp) {
+    const float pi = 3.14159265358979323846f;
+    for (float vfov = 0.25f; vfov < 179.9f; vfov += 0.25f) {
+        const float x = vfov * pi / 360.0f;
+        const float exact = static_cast<float>(std::tan(static_cast<long double>(x)));
+        const float got = rt::tan_det(x);
+        const float ulp = std::nextafter(exact, INFINITY) - exact;
+        EXPECT_LE(std::fabs(got - exact), ulp) << "vfov " << vfov;
+    }
+}
+
+/// The values the shipped scenes depend on: 45 degrees must give exactly the float the old
+/// `tanf` gave, so their images and goldens stay byte-identical.
+TEST(TanDet, KeepsTheValueOfTheOldTanfAtFortyFiveDegrees) {
+    const float pi = 3.14159265358979323846f;
+    for (float vfov : {45.0f, 90.0f, 30.0f}) {
+        const float x = vfov * pi / 360.0f;
+        EXPECT_EQ(rt::tan_det(x), tanf(x)) << "vfov " << vfov;
+    }
+}
