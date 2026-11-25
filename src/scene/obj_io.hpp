@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <istream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "core/math.hpp"
@@ -17,10 +18,15 @@ namespace rt {
 struct ObjMesh {
     std::vector<vec3> vertices;
     std::vector<std::array<uint32_t, 3>> faces;
+    /// Group names from `o` and `g` lines, in order of appearance; the first token after the
+    /// keyword (`default` if empty). Faces before any such line are in group `default`.
+    std::vector<std::string> groups;
+    std::vector<uint32_t> face_group;  ///< Index into `groups` for each face.
 };
 
-/// Reads `v` and `f` lines; everything else (normals, texture coordinates, groups, materials,
-/// comments) is ignored. Face corners may be `v`, `v/vt`, `v//vn` or `v/vt/vn`, with 1-based
+/// Reads `v`, `f`, `o` and `g` lines; everything else (normals, texture coordinates, materials,
+/// comments) is ignored. `o` and `g` start a named group, so obj2bin can give parts of a model
+/// different materials. Face corners may be `v`, `v/vt`, `v//vn` or `v/vt/vn`, with 1-based
 /// or negative (relative) indices. Polygons with more than three corners are split into a fan
 /// from the first corner, keeping their winding.
 /// @param name Source name used in error messages.
@@ -37,7 +43,9 @@ struct MeshPlacement {
     float size = 2.0f;            ///< Largest bounding-box extent after scaling.
     float rotate_y_deg = 0.0f;    ///< Rotation about the vertical axis through the mesh center.
     vec3 base{0.0f, 0.0f, 0.0f};  ///< Where the bottom center of the bounding box lands.
-    uint32_t material_id = 0u;    ///< Material of every triangle.
+    uint32_t material_id = 0u;    ///< Material of every triangle not named in `group_materials`.
+    /// Group name and material for the triangles of that group.
+    std::vector<std::pair<std::string, uint32_t>> group_materials = {};
 };
 
 /// Appends the mesh to `scene.triangles`: scaled so its largest extent is `size`, rotated about
@@ -45,7 +53,8 @@ struct MeshPlacement {
 /// double and rounded once per coordinate. Winding is kept, so counterclockwise faces still
 /// face outward (glass relies on it).
 /// @throws Error if the mesh has no faces, its vertices are not finite, it is flat in every
-///         direction, `size` is not positive, or `material_id` is not a scene material.
+///         direction, `size` is not positive, a material is not a scene material, or a name in
+///         `group_materials` is not a group of the mesh.
 void append_mesh(SceneHost& scene, const ObjMesh& mesh, const MeshPlacement& placement);
 
 }  // namespace rt

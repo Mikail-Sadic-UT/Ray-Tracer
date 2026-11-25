@@ -277,10 +277,23 @@ scripts/make_video.sh --scene scenes/meshes/dragon_gold.json --out out/dragon_go
   --frames 180 -- --backend cuda --bvh lbvh --cam-pos 0 2.2 5.4 --cam-look 0 0.9 0
 ```
 
-- `--material N` is an index into the template's materials (in `mesh_stage.json`: 1 chrome, 3 glossy green, 5 gold mirror, 6 to 9 glass).
+- `--material N` is an index into the template's materials (in `mesh_stage.json`: 1 chrome, 2 matte red, 3 glossy green, 5 gold mirror, 6 to 9 glass, 10 blue mirror "visor").
+- `--group-material NAME=ID` (repeatable) gives the triangles of one OBJ group, named by an `o` or `g` line, their own material; the rest take `--material`. An unknown group name is an error.
 - `--size S` scales the mesh so its largest extent is `S`; `--rotate-y DEG` turns it about the vertical axis; `--at X Y Z` puts the bottom center of its bounding box there (default the origin, on the floor).
 - Only `v` and `f` lines are read. Polygons are split into triangles, and normals, texture coordinates and `.mtl` materials are ignored. Faces must wind counterclockwise seen from outside (the OBJ convention), which glass relies on to tell entering from leaving.
 - Shading is flat per triangle. Mirror, gold and diffuse meshes look right; glass on a dense mesh looks speckled, because each tiny facet refracts differently and the bounce limit is 4. A coarse closed mesh such as Spot works better as glass.
+
+### From a glTF model (.glb)
+
+`scripts/glb2obj.py` converts a binary glTF to an OBJ that `obj2bin` reads: it bakes in the node transforms, drops everything but triangles, and writes each connected piece of surface as its own group (`part0`, `part1`, ...), printing their sizes and bounding boxes so you can tell which is which. It uses only the Python standard library. Textures, vertex colors and materials are dropped, since the renderer has none of them.
+
+```bash
+python3 -I scripts/glb2obj.py model.glb scenes/meshes/model.obj
+./build/apps/obj2bin/obj2bin --obj scenes/meshes/model.obj --template scenes/templates/mesh_stage.json \
+  --out scenes/meshes/model.json --material 2 --group-material part2=1 --group-material part3=10
+```
+
+For example, a 5.5K-triangle crewmate model with four pieces (body, backpack, visor rim, visor pane) becomes a red body with a chrome rim and a blue mirror pane. Downloaded models keep their own licenses; check the source page before putting one in a report or slides, and give the credit it asks for.
 
 The Stanford dragon (XYZ RGB scan, 250K triangles) renders at about 14 ms per frame at 1280×720 on the laptop GPU, and CPU and CUDA images are byte-identical.
 
