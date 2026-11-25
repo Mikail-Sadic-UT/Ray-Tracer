@@ -217,7 +217,35 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
     assert first == (root / 'orbit_ref.png').read_bytes()
     assert (root / 'orbit' / 'frame_0002.png').read_bytes() != first
 
+    # --path: waypoints through the scene's own camera; the first frame is the plain image, the
+    # last is a plain render from the last waypoint, and the ones between differ from both.
+    camera = json.loads(Path(args.scene).read_text())['camera']
+    pos, look = camera['position'], camera['look_at']
+    end = [pos[0] + 2.0, pos[1], pos[2]]
+    (root / 'path.json').write_text(json.dumps({'waypoints': [
+        {'position': pos, 'look_at': look},
+        {'position': [pos[0] + 1.0, pos[1], pos[2]], 'look_at': look, 'vfov_deg': 50},
+        {'position': end, 'look_at': look, 'vfov_deg': 50}]}))
+    size = ['--width', '48', '--height', '32']
+    run([args.render, '--scene', args.scene, *size, '--bvh', 'lbvh', '--path', str(root / 'path.json'),
+         '--path-frames', '5', '--frames', str(root / 'path')])
+    frames = sorted(p.name for p in (root / 'path').iterdir())
+    assert frames == [f'frame_{i:04d}.png' for i in range(5)], frames
+    run([args.render, '--scene', args.scene, *size, '--out', str(root / 'path_last_ref.png'),
+         '--cam-pos', *map(str, end), '--cam-look', *map(str, look), '--cam-vfov', '50'])
+    path_first = (root / 'path' / 'frame_0000.png').read_bytes()
+    path_last = (root / 'path' / 'frame_0004.png').read_bytes()
+    assert path_first == (root / 'orbit_ref.png').read_bytes()
+    assert path_last == (root / 'path_last_ref.png').read_bytes()
+    assert (root / 'path' / 'frame_0002.png').read_bytes() not in (path_first, path_last)
+    assert path_first != path_last
+
     # Errors exit non-zero with a message on stderr.
+    (root / 'path_bad.json').write_text('{"waypoints": [{"position": [0, 0, 0], "look_at": [0, 0, 1]}]}')
+    (root / 'path_typo.json').write_text(json.dumps({'waypoints': [
+        {'position': pos, 'lookat': look}, {'position': end, 'look_at': look}]}))
+    path_args = ['--path', str(root / 'path.json'), '--path-frames', '3', '--frames',
+                 str(root / 'p2')]
     failures = {
         '--runs applies only': ['--runs', '3'],
         'cannot open': ['--results', str(root / 'missing_dir' / 'r.json')],
@@ -228,8 +256,20 @@ with tempfile.TemporaryDirectory(prefix='rt-render-') as directory:
         '--lights': ['--lights', '0'],
         '--orbit requires --frames': ['--orbit', '3'],
         '--frames applies only': ['--frames', str(root / 'unused')],
-        'writes only frame PNGs': ['--orbit', '3', '--frames', str(root / 'o2'),
+        'write only frame PNGs': ['--orbit', '3', '--frames', str(root / 'o2'),
                                    '--results', str(root / 'o2.json')],
+        '--path requires --path-frames': ['--path', str(root / 'path.json'), '--frames',
+                                          str(root / 'p3')],
+        '--path-frames requires --path': ['--path-frames', '3', '--frames', str(root / 'p3')],
+        '--path requires --frames': ['--path', str(root / 'path.json'), '--path-frames', '3'],
+        'separate camera modes': [*path_args, '--orbit', '3'],
+        'frame PNGs': [*path_args, '--out', str(root / 'p4.png')],
+        'at least 2': ['--path', str(root / 'path_bad.json'), '--path-frames', '3', '--frames',
+                       str(root / 'p5')],
+        "unknown key 'lookat'": ['--path', str(root / 'path_typo.json'), '--path-frames', '3',
+                                 '--frames', str(root / 'p6')],
+        'cannot open': ['--path', str(root / 'nope.json'), '--path-frames', '3', '--frames',
+                        str(root / 'p7')],
     }
     for text, extra in failures.items():
         result = run([args.render, '--scene', args.scene, *extra], ok=False)

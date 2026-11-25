@@ -10,6 +10,8 @@
 ///
 /// `--orbit N --frames DIR` prepares once and renders N frames on one turn around the camera
 /// target, writing `DIR/frame_NNNN.png` (for a video) and reporting T_frame over the path.
+/// `--path FILE --path-frames N --frames DIR` does the same along a camera path through the
+/// waypoints in FILE (see camera/camera_path.hpp).
 /// `--lights N` replaces the lights with N copies of light 0 for the light-count sweep.
 #include <CLI/CLI.hpp>
 #include <array>
@@ -33,6 +35,7 @@
 #include "bench/timer.hpp"
 #include "bvh/bvh.hpp"
 #include "camera/camera_io.hpp"
+#include "camera/camera_path.hpp"
 #include "core/error.hpp"
 #include "cpu/cpu_backend.hpp"
 #include "image/image_io.hpp"
@@ -158,7 +161,8 @@ int main(int argc, char** argv) {
         std::vector<std::string> aov_names;
         int build_threads = 1, render_threads = 1, runs = 5;
         uint32_t width = 0, height = 0, max_leaf_size = 4, num_lights = 0, orbit = 0;
-        std::string frames_dir;
+        std::string frames_dir, path_file;
+        uint32_t path_frames = 0;
         std::vector<float> cam_pos, cam_look;
         float cam_vfov = 0.0f;
         {
@@ -205,13 +209,21 @@ int main(int argc, char** argv) {
                            "Replace the lights with N copies of light 0 on a ring about the Y "
                            "axis, each with 1/N of its intensity (light-count sweep)")
                 ->check(CLI::Range(1u, 32u));
-            auto* frames_opt =
-                app.add_option("--frames", frames_dir, "Directory for the --orbit frame PNGs");
+            auto* frames_opt = app.add_option("--frames", frames_dir,
+                                              "Directory for the --orbit or --path frame PNGs");
             app.add_option("--orbit", orbit,
                            "Prepare once, then render N frames on one turn around the camera "
                            "target; reports T_frame over the path")
                 ->check(CLI::Range(1u, 100000u))
                 ->needs(frames_opt);
+            auto* path_opt = app.add_option(
+                "--path", path_file,
+                "Camera path JSON (waypoints with position, look_at, optional vfov_deg); "
+                "renders --path-frames frames along it, from the first waypoint to the last");
+            path_opt->needs(frames_opt);
+            app.add_option("--path-frames", path_frames, "Number of frames along --path")
+                ->check(CLI::Range(2u, 100000u))
+                ->needs(path_opt);
             auto* pfm_opt = app.add_option("--pfm", out_pfm, "Write linear RGB PFM");
             app.add_option("--aov", aov_names, "AOVs written next to the PFM: primid,lightmask")
                 ->delimiter(',')
@@ -225,15 +237,22 @@ int main(int argc, char** argv) {
             if (backend_name != "cuda" && app.count("--pipeline") != 0) {
                 throw rt::Error("rt_render: --pipeline applies only to --backend cuda");
             }
-            if (orbit != 0 && (app.count("--mode") != 0 || app.count("--runs") != 0 ||
+            if (orbit != 0 && app.count("--path") != 0) {
+                throw rt::Error("rt_render: --orbit and --path are separate camera modes");
+            }
+            if (app.count("--path") != 0 && app.count("--path-frames") == 0) {
+                throw rt::Error("rt_render: --path requires --path-frames");
+            }
+            const bool frame_mode = orbit != 0 || app.count("--path") != 0;
+            if (frame_mode && (app.count("--mode") != 0 || app.count("--runs") != 0 ||
                                app.count("--results") != 0 || app.count("--pfm") != 0 ||
                                app.count("--out") != 0)) {
                 throw rt::Error(
-                    "rt_render: --orbit writes only frame PNGs; it does not combine with --mode, "
-                    "--runs, --results, --pfm or --out");
+                    "rt_render: --orbit and --path write only frame PNGs; they do not combine "
+                    "with --mode, --runs, --results, --pfm or --out");
             }
-            if (orbit == 0 && app.count("--frames") != 0) {
-                throw rt::Error("rt_render: --frames applies only to --orbit");
+            if (!frame_mode && app.count("--frames") != 0) {
+                throw rt::Error("rt_render: --frames applies only to --orbit and --path");
             }
             if (pipeline == "wavefront") {
                 throw rt::Error("rt_render: --pipeline wavefront is Extension E5, not implemented");
@@ -275,6 +294,16 @@ int main(int argc, char** argv) {
         // AOV choice only the light limit. A full second validate_scene() pass cost ~0.4 s
         // of T_app at 1M primitives (#67).
         rt::validate_camera(cam);
+        // A camera path replaces position, look-at point and field of view each frame; it takes
+        // `up` and the resolution from the camera above. Every frame is checked now, before the
+        // expensive preparation, so a bad waypoint fails at once.
+        std::vector<rt::Camera> path_cameras;
+        if (!path_file.empty()) {
+            const rt::CameraPath path = rt::load_camera_path(path_file, cam.vfov_deg);
+            for (uint32_t i = 0; i < path_frames; ++i) {
+                path_cameras.push_back(path.at(cam, static_cast<double>(i) / (path_frames - 1)));
+            }
+        }
         if ((aovs & rt::AOV_LIGHT_MASK) != 0) rt::validate_light_mask_limit(scene);
         const rt::RenderSettings settings{
             cam.width, cam.height, aovs,
@@ -318,13 +347,15 @@ int main(int argc, char** argv) {
             backend->render(cam, image, t);
         };
 
-        if (orbit != 0) {
+        if (orbit != 0 || !path_cameras.empty()) {
+            const uint32_t frame_count = orbit != 0 ? orbit : path_frames;
             std::filesystem::create_directories(frames_dir);
             rt::Timings prep;
             build_and_render(prep);  // untimed preparation; frame 0 is rendered again below
             std::vector<double> totals;
-            for (uint32_t i = 0; i < orbit; ++i) {
-                const rt::Camera frame_cam = orbit_camera(cam, i, orbit);
+            for (uint32_t i = 0; i < frame_count; ++i) {
+                const rt::Camera frame_cam =
+                    orbit != 0 ? orbit_camera(cam, i, orbit) : path_cameras[i];
                 const rt::RunSet one = rt::measure_frame(
                     rt::HarnessOptions{0, 1},
                     [&](rt::Timings& t) { backend->render(frame_cam, image, t); });
@@ -338,7 +369,8 @@ int main(int argc, char** argv) {
             std::cerr << "rt_render: " << backend->name() << ", bvh " << bvh_name << ", "
                       << cam.width << 'x' << cam.height << ", " << shade_name << ", lights "
                       << scene.lights.size() << ", B=" << build_threads << " R=" << render_threads
-                      << ", orbit " << orbit << " frames -> " << frames_dir << '\n';
+                      << (orbit != 0 ? ", orbit " : ", path ") << frame_count << " frames -> "
+                      << frames_dir << '\n';
             std::cerr << "  preparation: bounds " << prep.bounds << " ms, build " << prep.build
                       << " ms, layout " << prep.layout << " ms, convert " << prep.convert
                       << " ms, alloc " << prep.alloc << " ms, upload " << prep.upload << " ms\n";
