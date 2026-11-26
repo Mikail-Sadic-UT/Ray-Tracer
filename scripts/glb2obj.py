@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Converts a binary glTF (.glb) to a Wavefront OBJ that obj2bin can read.
 
-    glb2obj.py MODEL.glb OUT.obj
+    glb2obj.py MODEL.glb OUT.obj [--group-by piece|material]
 
 Only geometry is kept: positions and triangle indices of every triangle-list primitive, with
 the node transforms (translation, rotation, scale, or a 4x4 matrix) baked in. Normals, texture
 coordinates, colors and materials are dropped, because the renderer shades flat and has no
 textures. Skinned and animated models are not handled (the bind pose is written as stored).
 
-Each connected piece of surface (triangles that share a position) becomes its own OBJ object,
-`part0`, `part1`, ..., ordered by the first triangle they contain, so obj2bin can give the
-pieces different materials with --group-material. The piece list and sizes are printed.
+By default each connected piece of surface (triangles that share a position) becomes its own
+OBJ object, `part0`, `part1`, ..., ordered by the first triangle they contain, so obj2bin can
+give the pieces different materials with --group-material. The piece list and sizes are
+printed. With `--group-by material` the objects are the model's glTF materials instead (named
+after them, spaces replaced by underscores), which suits large scenes made of many pieces.
 
 Uses only the standard library. Run it as `python3 -I scripts/glb2obj.py ...` on files you
 did not write.
@@ -65,6 +67,9 @@ def accessor(doc, binary, index):
     width = WIDTH[acc['type']]
     stride = view.get('byteStride') or size * width
     base = view.get('byteOffset', 0) + acc.get('byteOffset', 0)
+    if stride == size * width:
+        end = base + acc['count'] * stride
+        return list(struct.iter_unpack('<' + fmt * width, binary[base:end]))
     out = []
     for i in range(acc['count']):
         out.append(struct.unpack_from('<' + fmt * width, binary, base + i * stride))
@@ -109,11 +114,37 @@ def instances(doc):
         stack.extend((c, world) for c in nodes[index].get('children', []))
 
 
+def write_obj(path, source, vertices, faces, parts, names):
+    """Writes the vertices and one `o` object per part, and prints each part's size and box."""
+    with open(path, 'w') as out:
+        out.write(f'# from {source} by glb2obj.py: {len(faces)} triangles, {len(parts)} parts\n')
+        out.write(''.join('v %.9g %.9g %.9g\n' % v for v in vertices))
+        for name, part in zip(names, parts):
+            out.write(f'o {name}\n')
+            out.write(''.join(f'f {a + 1} {b + 1} {c + 1}\n' for a, b, c in part))
+    for name, part in zip(names, parts):
+        used = {v for f in part for v in f}
+        lo = [min(vertices[v][k] for v in used) for k in range(3)]
+        hi = [max(vertices[v][k] for v in used) for k in range(3)]
+        print(f'{name}: {len(part)} triangles, box '
+              f'[{lo[0]:.3f} {lo[1]:.3f} {lo[2]:.3f}] to [{hi[0]:.3f} {hi[1]:.3f} {hi[2]:.3f}]')
+    print(f'wrote {path}: {len(vertices)} vertices, {len(faces)} triangles')
+
+
 def main():
-    if len(sys.argv) != 3:
-        fail('usage: glb2obj.py MODEL.glb OUT.obj')
+    args = sys.argv[1:]
+    group_by = 'piece'
+    if '--group-by' in args:
+        at = args.index('--group-by')
+        if at + 1 >= len(args) or args[at + 1] not in ('piece', 'material'):
+            fail('--group-by takes piece or material')
+        group_by = args[at + 1]
+        del args[at:at + 2]
+    if len(args) != 2:
+        fail('usage: glb2obj.py MODEL.glb OUT.obj [--group-by piece|material]')
+    sys.argv[1:] = args
     doc, binary = read_glb(sys.argv[1])
-    vertices, faces = [], []
+    vertices, faces, face_material = [], [], []
     for mesh_index, m in instances(doc):
         for prim in doc['meshes'][mesh_index]['primitives']:
             if prim.get('mode', 4) != 4:
@@ -129,10 +160,25 @@ def main():
             for p in positions:
                 vertices.append(tuple(m[i][0] * p[0] + m[i][1] * p[1] + m[i][2] * p[2] + m[i][3]
                                       for i in range(3)))
-            faces += [(base + indices[k], base + indices[k + 1], base + indices[k + 2])
-                      for k in range(0, len(indices), 3)]
+            new_faces = [(base + indices[k], base + indices[k + 1], base + indices[k + 2])
+                         for k in range(0, len(indices), 3)]
+            faces += new_faces
+            face_material += [prim.get('material', -1)] * len(new_faces)
     if not faces:
         fail('the model has no triangles')
+
+    if group_by == 'material':
+        names = [m.get('name') or f'material{i}' for i, m in enumerate(doc.get('materials', []))]
+        order, parts, part_names = {}, [], []
+        for f, mat in zip(faces, face_material):
+            if mat not in order:
+                order[mat] = len(order)
+                parts.append([])
+                part_names.append(names[mat].replace(' ', '_') if 0 <= mat < len(names)
+                                  else 'no_material')
+            parts[order[mat]].append(f)
+        write_obj(sys.argv[2], sys.argv[1], vertices, faces, parts, part_names)
+        return
 
     # Connected pieces: triangles sharing a position (seams duplicate vertices for UVs).
     weld, rep = {}, []
@@ -157,22 +203,7 @@ def main():
             parts.append([])
         parts[order[root]].append(f)
 
-    with open(sys.argv[2], 'w') as out:
-        out.write(f'# from {sys.argv[1]} by glb2obj.py: {len(faces)} triangles, '
-                  f'{len(parts)} parts\n')
-        for v in vertices:
-            out.write('v %.9g %.9g %.9g\n' % v)
-        for i, part in enumerate(parts):
-            out.write(f'o part{i}\n')
-            for a, b, c in part:
-                out.write(f'f {a + 1} {b + 1} {c + 1}\n')
-    for i, part in enumerate(parts):
-        pts = [vertices[v] for f in part for v in f]
-        lo = [min(p[k] for p in pts) for k in range(3)]
-        hi = [max(p[k] for p in pts) for k in range(3)]
-        print(f'part{i}: {len(part)} triangles, box '
-              f'[{lo[0]:.3f} {lo[1]:.3f} {lo[2]:.3f}] to [{hi[0]:.3f} {hi[1]:.3f} {hi[2]:.3f}]')
-    print(f'wrote {sys.argv[2]}: {len(vertices)} vertices, {len(faces)} triangles')
+    write_obj(sys.argv[2], sys.argv[1], vertices, faces, parts, [f'part{i}' for i in range(len(parts))])
 
 
 if __name__ == '__main__':

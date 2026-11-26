@@ -35,9 +35,40 @@ def make_glb(path, nodes, positions, indices):
     path.write_bytes(struct.pack('<4sII', b'glTF', 2, 12 + len(body)) + body)
 
 
-def convert(glb, obj):
-    return subprocess.run([sys.executable, '-I', str(SCRIPT), str(glb), str(obj)],
+def convert(glb, obj, *extra):
+    return subprocess.run([sys.executable, '-I', str(SCRIPT), str(glb), str(obj), *extra],
                           capture_output=True, text=True)
+
+
+def make_glb_two_materials(path):
+    """One mesh with two triangle primitives (own vertices each), materials 'Red metal' and 'plain'."""
+    triangles = [[(0, 0, 0), (1, 0, 0), (0, 1, 0)], [(5, 0, 0), (6, 0, 0), (5, 1, 0)]]
+    binary = b''.join(struct.pack('<3f', *p) for tri in triangles for p in tri)   # 72 bytes
+    binary += b''.join(struct.pack('<H', i) for _ in triangles for i in (0, 1, 2))  # 2 x 6 bytes
+    binary += b'\0' * (-len(binary) % 4)
+    doc = {
+        'asset': {'version': '2.0'}, 'scenes': [{'nodes': [0]}], 'nodes': [{'mesh': 0}],
+        'meshes': [{'primitives': [
+            {'attributes': {'POSITION': 0}, 'indices': 2, 'material': 0},
+            {'attributes': {'POSITION': 1}, 'indices': 3, 'material': 1}]}],
+        'materials': [{'name': 'Red metal'}, {'name': 'plain'}],
+        'accessors': [
+            {'bufferView': 0, 'componentType': 5126, 'count': 3, 'type': 'VEC3'},
+            {'bufferView': 1, 'componentType': 5126, 'count': 3, 'type': 'VEC3'},
+            {'bufferView': 2, 'componentType': 5123, 'count': 3, 'type': 'SCALAR'},
+            {'bufferView': 3, 'componentType': 5123, 'count': 3, 'type': 'SCALAR'}],
+        'bufferViews': [
+            {'buffer': 0, 'byteOffset': 0, 'byteLength': 36},
+            {'buffer': 0, 'byteOffset': 36, 'byteLength': 36},
+            {'buffer': 0, 'byteOffset': 72, 'byteLength': 6},
+            {'buffer': 0, 'byteOffset': 78, 'byteLength': 6}],
+        'buffers': [{'byteLength': len(binary)}],
+    }
+    text = json.dumps(doc).encode()
+    text += b' ' * (-len(text) % 4)
+    body = struct.pack('<I4s', len(text), b'JSON') + text + struct.pack('<I4s', len(binary),
+                                                                        b'BIN\0') + binary
+    path.write_bytes(struct.pack('<4sII', b'glTF', 2, 12 + len(body)) + body)
 
 
 def read_obj(path):
@@ -88,6 +119,27 @@ class Glb2ObjTest(unittest.TestCase):
         _, groups = read_obj(self.dir / 'm.obj')
         self.assertEqual(list(groups), ['part0'])
         self.assertEqual(len(groups['part0']), 2)
+
+    def test_group_by_material_names_objects_after_the_materials(self):
+        make_glb_two_materials(self.dir / 'm.glb')
+        result = convert(self.dir / 'm.glb', self.dir / 'm.obj', '--group-by', 'material')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        vertices, groups = read_obj(self.dir / 'm.obj')
+        self.assertEqual(len(vertices), 6)
+        self.assertEqual(sorted(groups), ['Red_metal', 'plain'])  # spaces become underscores
+        self.assertEqual(groups['Red_metal'], [(1, 2, 3)])
+        self.assertEqual(groups['plain'], [(4, 5, 6)])
+        self.assertIn('Red_metal: 1 triangles', result.stdout)
+        # Without the option the two separate triangles are two connected pieces instead.
+        result = convert(self.dir / 'm.glb', self.dir / 'p.obj')
+        self.assertEqual(sorted(read_obj(self.dir / 'p.obj')[1]), ['part0', 'part1'])
+
+    def test_group_by_rejects_other_values(self):
+        make_glb_two_materials(self.dir / 'm.glb')
+        for extra in (['--group-by', 'colour'], ['--group-by']):
+            result = convert(self.dir / 'm.glb', self.dir / 'm.obj', *extra)
+            self.assertNotEqual(result.returncode, 0, extra)
+            self.assertIn('--group-by', result.stderr)
 
     def test_rejects_files_that_are_not_glb(self):
         (self.dir / 'bad.glb').write_bytes(b'not a model at all, just text')
