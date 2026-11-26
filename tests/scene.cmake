@@ -40,3 +40,10 @@ add_test(NAME obj2bin_unknown_group COMMAND obj2bin
   --template "${PROJECT_SOURCE_DIR}/scenes/known/known_two_spheres.json"
   --out "${CMAKE_CURRENT_BINARY_DIR}/obj2bin_nogroup.json" --group-material nothing=1)
 set_tests_properties(obj2bin_unknown_group PROPERTIES WILL_FAIL TRUE)
+
+# bake_glb.py: a textured glb becomes a scene of flat palette materials (texture orientation, flat
+# and cut-out materials). Skipped (exit 77) without Pillow and numpy.
+add_test(NAME bake_glb_py COMMAND python3 "${PROJECT_SOURCE_DIR}/tests/test_bake_glb.py"
+  "${PROJECT_SOURCE_DIR}/scripts/bake_glb.py" $<TARGET_FILE:obj2bin> $<TARGET_FILE:scene_dump>
+  "${PROJECT_SOURCE_DIR}/scenes/templates/mesh_stage.json")
+set_tests_properties(bake_glb_py PROPERTIES SKIP_RETURN_CODE 77)
