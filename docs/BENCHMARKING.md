@@ -52,6 +52,8 @@ The proposal compares the GPU against the **fastest tested** multicore CPU, whic
 
 **For the final report only (C14):** pick CPU\* and GPU\* from the sweep, then rerun the 1-core baseline, CPU\*, GPU\*, and fixed-72 configurations in one job, interleaved, 5 runs each. Report the headline ratios from those reruns; picking the minimum of noisy medians biases the picked value low. Preliminary G3 numbers can come straight from the sweep.
 
+`sweep.py final` does this ([Sweeps](#sweeps)). It reads CPU\* and GPU\* per scene and quantity from a `sweep.csv` by the rule above, then runs 5 rounds. Each round measures every selected configuration once, with the order rotated from round to round, so drift during the job affects every configuration alike. In a round, a T_br/T_frame configuration is one process (1 warm-up and 5 runs, the in-process median as usual), and a T_app configuration is one fresh process. The reported value is the median over the 5 rounds, and spread is computed over the rounds. `ratios.py final.csv` reads each configuration's role (`one_core`, `cpu_star`, `gpu_star`, `cpu_fixed`, `gpu_fixed`) from the file. It does not pick again, because that would bring back the bias. The T_app sweep measures the CPU at 1 and 72 threads only, so T_app's CPU\* is the better of those two.
+
 | Target | Headline ratio | Also reported |
 |---|---|---|
 | ~10× multicore | T_br(CPU, B=1, R=1) / T_br(CPU\*) | Fixed: T_br(CPU, 1, 1) / T_br(CPU, 72, 72) |
@@ -151,7 +153,17 @@ sbatch -p gh -t 01:00:00 --export=ALL,PRESET=core scripts/tacc/sweep.sbatch
 sbatch -p gh -t 02:00:00 --export=ALL,PRESET="lights core" scripts/tacc/sweep.sbatch   # several presets, one allocation
 ```
 
-Each job writes `$SCRATCH/rt-results/<preset>-<job id>/`: `identity/` (nvidia-smi, lscpu, gcc, nvcc, modules, ldd, OpenMP environment), `points/<point>/` (results files and the exact command), `verify/summary.txt`, and `sweep.csv`. The CSV has one row per point and quantity, with the components of the median run. Finished points are skipped on resubmission. The laptop runs `g2` in about 1.5 minutes (`--machine laptop`); copy `sweep.csv` and `identity/` out of `$SCRATCH` before it is purged. `python3 scripts/tacc/ratios.py sweep.csv` prints the target ratios (CPU\* and GPU\* chosen by the rule above, with the number of thread counts CPU\* came from) and the T_br breakdown; results so far are in [RESULTS.md](RESULTS.md).
+Each job writes `$SCRATCH/rt-results/<presets>-<job id>/` (a several-step `PRESET` gets one subdirectory per step): `identity/` (nvidia-smi, lscpu, gcc, nvcc, modules, ldd, OpenMP environment), `points/<point>/` (results files and the exact command), `verify/summary.txt`, `sweep.csv`, and `ratios.md` (the tables of `ratios.py`). The CSV has one row per point and quantity, with the components of the median run. Finished points are skipped on resubmission.
+
+Two more steps can go in `PRESET`. `final` runs the interleaved final measurement ([Targets](#targets-from-proposal)) from `FROM=<sweep.csv>`, or else from the sweep earlier in the same job. It writes `final.csv`, `final_plan.json` (the selection and the sweep values it came from) and `ratios.md`. `profile` runs `scripts/tacc/profile.sh` ([Profiling](#profiling)). For the report, the whole sequence fits in one allocation:
+
+```bash
+sbatch -p gh -t 02:00:00 --export=ALL,PRESET="core final profile" scripts/tacc/sweep.sbatch
+sbatch --export=ALL,PRESET=final,FROM=$SCRATCH/rt-results/core-<job id>/sweep.csv scripts/tacc/sweep.sbatch   # final runs alone, from an earlier sweep
+python3 scripts/tacc/sweep.py final --sweep docs/data/vista-core-1164735.csv --machine vista --scenes scenes/generated --dry-run   # selection and time estimate, no measuring
+```
+
+The final step reruns 21 configurations in 5 rounds. That is about 5 minutes of measuring on Vista, estimated from the Nov 23 sweep. It warns if the sweep it chose from was measured at a different commit. Finished rounds are skipped on resubmission. The laptop runs `g2` in about 1.5 minutes (`--machine laptop`); copy `sweep.csv` and `identity/` out of `$SCRATCH` before it is purged. `python3 scripts/tacc/ratios.py sweep.csv` prints the target ratios (CPU\* and GPU\* chosen by the rule above, with the number of thread counts CPU\* came from) and the T_br breakdown; results so far are in [RESULTS.md](RESULTS.md).
 
 ## Machine identity
 
@@ -299,4 +311,28 @@ At G3, enough to explain the results:
 - `-Xptxas -v` register and local-memory (spill and stack) usage for each kernel. The traversal stack is dynamically indexed, so expect it in local memory.
 - Nsight Compute: occupancy, local-memory traffic, achieved memory throughput for the megakernel.
 - Nsight Systems: the timeline of preparation, transfers, and kernels.
-- **Verify on Vista** that both Nsight tools are available.
+
+`scripts/tacc/profile.sh` does all three, for the lit LBVH megakernel at 1920×1080 with B = all cores, on each benchmark scene:
+
+```bash
+bash scripts/tacc/profile.sh --build build --scenes scenes/generated --out out/profile            # laptop
+sbatch --export=ALL,PRESET=profile scripts/tacc/sweep.sbatch                                      # Vista, after verify
+```
+
+It writes `summary.txt` with the numbers worth quoting:
+
+- registers, stack and local memory per kernel, from `cuobjdump --dump-resource-usage` of the built binary, so no `RT_PTXAS_VERBOSE` rebuild is needed;
+- the Nsight Systems kernel and memcpy totals;
+- the main Nsight Compute metrics: occupancy, throughputs, hit rates and active threads per warp.
+
+The full reports (`.nsys-rep`, `.ncu-rep`) are next to it, for `nsys-ui` and `ncu-ui`. Times measured under a profiler are not benchmark numbers. Nsight Compute replays the kernel and locks clocks to base, and Nsight Systems adds tracing overhead. On the laptop both tools work under WSL2 (nsys 2026.1.3, ncu 2026.2.1, from the CUDA 13.3 toolkit). The 1M run takes about 15 s. **Still to verify on Vista:** that `nsys` and `ncu` from `cuda/13.3` run on a GH node, and that users can read the GPU performance counters there. `profile.sh` names `ERR_NVGPUCTRPERM` in its summary if they can't.
+
+Which machine to use:
+
+- **The laptop** is for finding out why the kernel performs as it does, and for trying changes without spending node hours. Registers, occupancy limits, divergence, and whether the kernel is bound by latency or by bandwidth mostly carry over from the 4070 (`sm_89`) to the GH200 (`sm_90`).
+- **Vista** gives the numbers for the report. It is the machine the ratios come from, and it differs from the laptop in ways that change the profile:
+  - the GPU: 132 SMs against 36, HBM3, a larger L2;
+  - the host link: NVLink-C2C against PCIe;
+  - the Grace host, where preparation runs.
+
+  Rerun `profile.sh` there and quote those numbers, with the register count checked against the `sm_90` build.

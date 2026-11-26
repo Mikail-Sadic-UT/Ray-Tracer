@@ -278,5 +278,5 @@ NVIDIA's recent Windows drivers support OptiX inside WSL2. Verify this early on 
 
 ## Profiling tools
 
-- Nsight Systems (`nsys`) and Nsight Compute (`ncu`): ship with the CUDA toolkit. **Verify on Vista** that they're in the `cuda` module or a separate `nvidia` module.
+- Nsight Systems (`nsys`) and Nsight Compute (`ncu`): ship with the CUDA toolkit. On the laptop, the CUDA 13.3 toolkit's versions (nsys 2026.1.3, ncu 2026.2.1) work under WSL2 with the counters enabled as above. **Verify on Vista** that they're in the `cuda/13.3` module (or a separate `nvidia` module) and that users can read the GPU counters. `scripts/tacc/profile.sh` runs both ([BENCHMARKING.md](BENCHMARKING.md#profiling)).
 - CPU: `perf` (if allowed), GCC `-fopt-info-vec` for vectorization reports.
