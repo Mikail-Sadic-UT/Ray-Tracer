@@ -317,7 +317,7 @@ scripts/make_video.sh --scene scenes/meshes/dragon_gold.json --out out/dragon_go
 
 ### From a glTF model (.glb)
 
-`scripts/glb2obj.py` converts a binary glTF to an OBJ that `obj2bin` reads: it bakes in the node transforms, drops everything but triangles, and writes each connected piece of surface as its own group (`part0`, `part1`, ...), printing their sizes and bounding boxes so you can tell which is which. It uses only the Python standard library. Textures, vertex colors and materials are dropped, since the renderer has none of them.
+`scripts/glb2obj.py` converts a binary glTF to an OBJ that `obj2bin` reads: it bakes in the node transforms, drops everything but triangles, and writes each connected piece of surface as its own group (`part0`, `part1`, ...), printing their sizes and bounding boxes so you can tell which is which. It uses only the Python standard library. Textures, vertex colors and materials are dropped, since the renderer has none of them. `--group-by material` writes one group per glTF material instead (named after it, spaces replaced by underscores), which suits models built from many pieces.
 
 ```bash
 python3 -I scripts/glb2obj.py model.glb scenes/meshes/model.obj
@@ -328,6 +328,23 @@ python3 -I scripts/glb2obj.py model.glb scenes/meshes/model.obj
 For example, a 5.5K-triangle crewmate model with four pieces (body, backpack, visor rim, visor pane) becomes a red body with a chrome rim and a blue mirror pane. Downloaded models keep their own licenses; check the source page before putting one in a report or slides, and give the credit it asks for. A `.glb` from Sketchfab usually names its author, license and source page in the `asset.extras` of its JSON chunk. Models of characters from commercial games are fan work whatever license the upload claims, so keep them out of the repo (`scenes/meshes/` is gitignored) and use them only for demos.
 
 The Stanford dragon (XYZ RGB scan, 250K triangles) renders at about 14 ms per frame at 1280×720 on the laptop GPU, and CPU and CUDA images are byte-identical.
+
+### Baking textures into colors
+
+The renderer has no textures, but `scripts/bake_glb.py` gets most of the look of a textured `.glb` without touching it: it averages each material's base-color texture around every piece of the surface and turns the result into ordinary flat materials.
+
+```bash
+sudo apt install python3-pil python3-numpy        # the only tool here that needs them
+python3 scripts/bake_glb.py model.glb mymodel --camera 0 2 6 --look 0 1 0 --fov 50 \
+  --light 3 6 4 40 40 40 --ambient 0.1
+./build/apps/rt_render/rt_render --scene scenes/meshes/mymodel.json --backend cuda --out out/mymodel.png
+```
+
+- Each material's triangles are split into 4^L pieces: as many levels as the piece budget (`--budget`, default 250,000 per material), the texture resolution (pieces stay at least about two texels) and `--max-level` (default 6) allow. Each piece takes the average texture color (times the material's base color factor), quantized to 5 bits per channel, and each distinct color becomes one flat material. A model with a few thousand colors gives a scene with a few thousand materials.
+- Materials without a texture keep their base color factor. For `BLEND` and `MASK` materials (leaves, grilles), pieces whose texture alpha is under one half are dropped.
+- Roughness and metallic factors set the highlight (`ks` and `shininess`); roughness, metallic and normal maps are not used.
+- It writes `NAME.obj`, `NAME_stage.json` and `NAME.json` (+ `.bin`) to `--out-dir` (default `scenes/meshes`). `--camera`, `--look`, `--fov`, `--light` (repeat), `--ambient` and `--background` set the scene's view and lighting, `--drop-instance K` leaves out the K-th mesh instance, and `--size` and `--rotate-y` are passed to `obj2bin` (by default the model keeps its own size, so a model in metres stays 1:1).
+- Detail is limited to the size of a piece, and each piece is one flat color: fine lettering survives only where the mesh is dense or the pieces are small enough. The renderer is untouched, so CPU and GPU images stay byte-identical.
 
 ## Download the fixed benchmark scenes
 
