@@ -11,6 +11,9 @@ a CPU* from those two, and the table says how many were tested. Only one-light r
 ratios; the `lights` preset's rows get their own table. These are preliminary ratios
 straight from a sweep; the final report reruns the selected configurations interleaved.
 
+Given a final.csv from `sweep.py final`, it prints the headline and fixed-thread ratios of those
+reruns instead, reading each configuration's role from the file rather than choosing again.
+
 Exit status: 0 on success, 1 for an unreadable or empty file.
 """
 import argparse
@@ -115,6 +118,46 @@ def lights_table(rows, scene, bvh, width):
     return out
 
 
+def by_role(rows, scene, quantity, role):
+    return next((r for r in rows if r['scene'] == scene and r['quantity'] == quantity
+                 and role in r['roles'].split()), None)
+
+
+def final_scenes(rows):
+    found = {r['scene']: r['num_primitives'] for r in rows}
+    return sorted(found, key=found.get)
+
+
+def final_tables(rows):
+    """Headline and fixed-thread ratios of a final.csv (sweep.py final), read by role.
+
+    The configurations were chosen from a sweep before these runs, so nothing is re-picked
+    here: picking the minimum of the reruns again would bring back the bias they remove.
+    """
+    head = ['| Scene | Quantity | CPU 1 core (ms) | CPU\\* (ms, threads) | GPU\\* (ms, B) '
+            '| 1 core / CPU\\* | CPU\\* / GPU\\* | 1 core / GPU\\* | Spread (max) |',
+            '|---|---|---:|---:|---:|---:|---:|---:|---:|']
+    fixed = list(head)
+    fixed[0] = fixed[0].replace('CPU\\* (ms, threads)', 'CPU fixed (ms, threads)') \
+        .replace('GPU\\* (ms, B)', 'GPU fixed (ms, B)').replace('CPU\\*', 'CPU fixed') \
+        .replace('GPU\\*', 'GPU fixed')
+    for s in final_scenes(rows):
+        for q in QUANTITIES:
+            one = by_role(rows, s, q, 'one_core')
+            for table, (c_role, g_role) in ((head, ('cpu_star', 'gpu_star')),
+                                            (fixed, ('cpu_fixed', 'gpu_fixed'))):
+                cs, gs = by_role(rows, s, q, c_role), by_role(rows, s, q, g_role)
+                if not (one and cs and gs):
+                    continue
+                spread = max(r['spread'] for r in (one, cs, gs))
+                table.append(
+                    f"| {s} | {q} | {one['median_ms']:.1f} | {cs['median_ms']:.1f} "
+                    f"({cs['build_threads']}) | {gs['median_ms']:.1f} ({gs['build_threads']}) "
+                    f"| {ratio(one, cs):.1f}x | {ratio(cs, gs):.2f}x | {ratio(one, gs):.1f}x "
+                    f"| {spread:.0%} |")
+    return head, fixed
+
+
 def spread_warnings(rows):
     return [f"{r['scene']} {r['quantity']} {r['backend']} B{r['build_threads']} "
             f"{r['bvh']} {r['width']}{' L' + str(r['num_lights']) if r['num_lights'] != 1 else ''}"
@@ -133,6 +176,8 @@ def main(argv=None):
     except (OSError, ValueError, KeyError) as error:
         print(f'error: {error}', file=sys.stderr)
         return 1
+    if 'roles' in rows[0]:
+        return print_final(rows)
     print(f'### Target ratios ({args.bvh}, {args.width} px wide)\n')
     print('\n'.join(ratio_table(rows, args.bvh, args.width)))
     for s in scenes(rows, args.bvh, args.width):
@@ -147,6 +192,26 @@ def main(argv=None):
     warnings = spread_warnings(rows)
     if warnings:
         print('\n### Spread above 10%\n')
+        print('\n'.join(f'- {w}' for w in warnings))
+    return 0
+
+
+def print_final(rows):
+    rounds = sorted({r['rounds'] for r in rows})
+    head, fixed = final_tables(rows)
+    bvh, width = rows[0]['bvh'], rows[0]['width']
+    print(f'### Final target ratios ({bvh}, {width} px wide, median of {"/".join(rounds)} '
+          'interleaved rounds)\n')
+    print('\n'.join(head))
+    print('\n### Fixed thread counts (not the headline)\n')
+    print('\n'.join(fixed))
+    for s in final_scenes(rows):
+        if len(pick(rows, s, 'T_br', 'cpu', bvh, width)) > 1:
+            print(f'\n### T_br breakdown, {s} (ms, median run of the median round)\n')
+            print('\n'.join(breakdown_table(rows, s, bvh, width)))
+    warnings = spread_warnings(rows)
+    if warnings:
+        print('\n### Spread over rounds above 10%\n')
         print('\n'.join(f'- {w}' for w in warnings))
     return 0
 
