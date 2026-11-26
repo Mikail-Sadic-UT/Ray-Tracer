@@ -8,6 +8,7 @@ A practical guide to compiling and using the tools currently in this repo. All c
 
 - [Compile and test](#compile-and-test)
 - [Render your first image](#render-your-first-image)
+- [Render from a GUI](#render-from-a-gui)
 - [Change the view and rendering settings](#change-the-view-and-rendering-settings)
 - [Save colors and diagnostic outputs](#save-colors-and-diagnostic-outputs)
 - [Compare two renders](#compare-two-renders)
@@ -91,6 +92,21 @@ explorer.exe out/practice
 ```
 
 The scene JSON supplies the camera and resolution (640×480 for this scene). The renderer loads the scene, builds the BVH, renders pixels, and saves the image. Create output directories before running.
+
+## Render from a GUI
+
+`scripts/gui.py` is a small window around `rt_render` for when you don't want to type the options. It needs `python3-tk` and `python3-pil.imagetk` (`sudo apt install python3-tk python3-pil.imagetk`) and a built `rt_render`; on WSL2 the window opens through WSLg.
+
+```bash
+python3 scripts/gui.py
+```
+
+- **Scene** lists every scene JSON under `scenes/` (`…` browses for another). Picking one fills in its resolution, field of view, position and look-at; **Reset** restores them. **Binary** picks the build directory; `cuda` appears under Backend when that build has CUDA.
+- **Render** runs `rt_render` with the fields as `--width`, `--height`, `--cam-vfov`, `--cam-pos`, `--cam-look` and the renderer options, shows the image, and saves it as `out/gui/<scene>.png`. The log under the image shows the exact command and output.
+- **Video** renders an orbit, or a walk along a camera path JSON (files with `waypoints`), through `scripts/make_video.sh`, so it needs `ffmpeg`. The video and its frames go to `out/gui/`; a slider under the image steps through the frames. A camera path sets the camera itself, so the position, look-at and FOV fields are not used for it.
+- **Last run** shows T_app (or the T_frame median for a video) and the per-stage times from the last successful run.
+
+On X11 the window draws its own dark title bar, because WSLg's title bar is always light: drag it to move, double-click to maximize, and drag the right or bottom edge to resize. `RT_GUI_NATIVE_TITLEBAR=1 python3 scripts/gui.py` keeps the system title bar.
 
 ## Change the view and rendering settings
 

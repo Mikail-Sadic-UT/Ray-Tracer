@@ -101,7 +101,7 @@ mkdir -p out
 
 Open `out/two_spheres.png` to see the red and blue spheres on a floor with shadows. From WSL, `explorer.exe out` opens the output folder in Windows Explorer. The camera and resolution come from the scene JSON.
 
-Use `--shade normal` to visualize surface directions, or `--width 1920 --height 1080` to override the resolution. `--lights N` renders with N copies of the scene's light, and `--orbit N --frames DIR` renders N frames around the scene; `scripts/make_video.sh` turns an orbit into an MP4 ([user guide](docs/USER_GUIDE.md#camera-orbit-and-video)). See all options with:
+Use `--shade normal` to visualize surface directions, or `--width 1920 --height 1080` to override the resolution. `--lights N` renders with N copies of the scene's light, and `--orbit N --frames DIR` renders N frames around the scene; `scripts/make_video.sh` turns an orbit into an MP4 ([user guide](docs/USER_GUIDE.md#camera-orbit-and-video)). For a point-and-click version, `python3 scripts/gui.py` opens a small window that sets these options, renders, and shows the image and timings ([user guide](docs/USER_GUIDE.md#render-from-a-gui)). See all options with:
 
 ```bash
 ./build-cpu/apps/rt_render/rt_render --help
