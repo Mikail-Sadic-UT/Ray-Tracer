@@ -198,6 +198,51 @@
       "shininess": 300,
       "specular": true,
       "mirror": true
+    },
+    {
+      "name": "banana yellow",
+      "albedo": [
+        0.95,
+        0.78,
+        0.1
+      ],
+      "ks": [
+        0.35,
+        0.35,
+        0.3
+      ],
+      "shininess": 40,
+      "specular": true
+    },
+    {
+      "name": "eye white",
+      "albedo": [
+        0.92,
+        0.92,
+        0.9
+      ],
+      "ks": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "shininess": 120,
+      "specular": true
+    },
+    {
+      "name": "pupil black",
+      "albedo": [
+        0.015,
+        0.015,
+        0.02
+      ],
+      "ks": [
+        0.6,
+        0.6,
+        0.6
+      ],
+      "shininess": 200,
+      "specular": true
     }
   ],
   "lights": [
