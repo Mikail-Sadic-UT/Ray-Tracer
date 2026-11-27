@@ -6,6 +6,7 @@ CPU-only build and in CI. Timing values are only checked for shape, never for si
 import argparse
 import csv
 import io
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -314,13 +315,21 @@ class RealFinal(unittest.TestCase):
         with open(self.out / 'final.csv') as f:
             return list(csv.DictReader(f))
 
+    def plan(self):
+        return json.loads((self.out / 'final_plan.json').read_text())
+
     def test_final_csv_has_roles_and_rounds(self):
         self.assertEqual(self.sweep.returncode, 0, self.sweep.stderr)
         self.assertEqual(self.first.returncode, 0, self.first.stderr)
         rows = self.rows()
-        # Points: prepared and app, each at B = R = 1 and 2.
+        # Prepared and app configurations at B = R = 1 and 2. When the 1-thread run was the
+        # faster one in the sweep (a loaded machine, a tiny image), CPU* is that point too and
+        # only one prepared configuration is selected.
+        modes = [p['mode'] for p in self.plan()['points']]
+        self.assertIn(modes.count('prepared'), (1, 2))
+        self.assertEqual(modes.count('app'), 2)
         self.assertEqual(sorted(r['quantity'] for r in rows),
-                         ['T_app', 'T_app', 'T_br', 'T_br', 'T_frame', 'T_frame'])
+                         sorted(['T_app'] * 2 + ['T_br', 'T_frame'] * modes.count('prepared')))
         for r in rows:
             self.assertEqual(r['rounds'], '2')
             self.assertEqual(r['runs'], '2' if r['quantity'] != 'T_app' else '1')
@@ -338,7 +347,8 @@ class RealFinal(unittest.TestCase):
     def test_rerun_skips_finished_rounds(self):
         again = run_script(*self.argv, env=self.env)
         self.assertEqual(again.returncode, 0, again.stderr)
-        self.assertEqual(again.stderr.count('done earlier, skipped'), 8, again.stderr)
+        expected = 2 * len(self.plan()['points'])  # every configuration, 2 rounds
+        self.assertEqual(again.stderr.count('done earlier, skipped'), expected, again.stderr)
 
     def test_refuses_other_configurations_in_the_same_directory(self):
         argv = [a if a != '2' else '3' for a in self.argv]  # --runs 3, --rounds 3
