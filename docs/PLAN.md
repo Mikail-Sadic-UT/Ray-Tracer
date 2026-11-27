@@ -37,7 +37,7 @@ Done Nov 27 on `gh-dev` (jobs 1175084, 1175157, 1175169): `verify` (ctest 358/35
 
 1. On a compute node: `git pull`, then `source scripts/tacc/env.sh && bash scripts/tacc/build_vista.sh` (the build takes about a minute when only a few files changed).
 2. `sbatch -p gh-dev -t 02:00:00 --export=ALL,PRESET="core final profile extra" scripts/tacc/sweep.sbatch`. The whole job took about 15 minutes on Nov 27. Use `gh-dev`: on Nov 27 `gh` had about 500 jobs pending and no start estimate.
-3. The extra step needs `terrain_10k` (`bash scripts/fetch_scenes.sh scenes-extra-v1`) and the mesh scenes (`house`, `map_crew` and `dragon_green`, copied from the laptop) in place (BENCHMARKING.md "Extra benchmarks"). The Vista numbers for `dragon_green` and `showcase` are still to measure: `PRESET=extra` with `EXTRA_ONLY=dragon_green,showcase` does it in a couple of minutes. `ffmpeg` on the compute nodes cannot start, so copy the GPU frames of the house walkthroughs to the laptop and encode them there.
+3. The extra step needs `terrain_10k` (`bash scripts/fetch_scenes.sh scenes-extra-v1`) and the mesh scenes (`house`, `map_crew` and `dragon_green`, copied from the laptop) in place (BENCHMARKING.md "Extra benchmarks"). The Vista numbers for `dragon_green` and `showcase` were measured on Nov 27 (job 1175611, 12 s): export `PRESET=extra VERIFY=0 EXTRA_ONLY=dragon_green,showcase` and run `sbatch -p gh-dev -t 00:30:00 scripts/tacc/sweep.sbatch`, because `--export=` splits on commas. `ffmpeg` on the compute nodes cannot start, so copy the GPU frames of the house walkthroughs to the laptop and encode them there.
 4. Copy the results out of `$SCRATCH` and update RESULTS.md from them.
 
 ## Work items
@@ -94,6 +94,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 
 | Item | PR |
 |---|---|
+| Extra benchmarks on the replaced scenes: `dragon_green` and the six-ball `showcase` at 4K on the laptop and Vista (CPU = GPU byte-identical; Vista CPU / GPU 6.9× to 8.6×, laptop 7.8× to 16.8×) | #98 and `mikail/vista-extra-new` |
 | Release assets: scene set `scenes-extra-v1` (`terrain_10k`, with a manifest entry, verified through `fetch_scenes.sh`) and the release `results-nov27` with 6 benchmark images and their provenance. Map_crew and house renders held back (third-party models) | `mikail/release-assets` |
 | Laptop sweep and final runs at `f9bdc3a`, run twice (the run with the lower 1M spread is reported): 2.94× CPU / GPU at 1M, PCIe transfers cost about 11 ms of the GPU's 68 ms T_br | `mikail/laptop-results` |
 | Nov 27 Vista run of `dev`: final ratios (all three targets met at every size, 2.43× at 1M), GH200 profile, light-count and extra benchmarks, walkthrough videos; `env.sh` puts Nsight on `PATH`; `extra.py` survives a broken ffmpeg | #93 and this branch |
