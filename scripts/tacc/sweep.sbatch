@@ -11,13 +11,15 @@
 # Submit from the repo root (logs/ must exist: mkdir -p logs). Inputs, all optional:
 #   PRESET   sweep.py preset (g2, core, cpu-threads, gpu-build-threads, size, bvh, resolution,
 #            lights, tapp, smoke), verify for verify.sh only, final for the interleaved final
-#            runs (sweep.py final), or profile for profile.sh. Default g2.
+#            runs (sweep.py final), profile for profile.sh, or extra for extra.py. Default g2.
 #   VERIFY   1 (default) runs verify.sh before a sweep; 0 skips it.
 #            PRESET may be a space-separated list ("core final profile"): one allocation runs
 #            verify.sh once, then each step in order, each into its own OUT/<preset> directory.
 #   FROM     final only: the sweep.csv to choose CPU* and GPU* from. Default: the sweep.csv of
 #            the last sweep preset earlier in the same PRESET list.
 #   ROUNDS   final only: interleaved rounds (default 5).
+#   FRAMES   extra only: walkthrough frames (default 240). EXTRA_ONLY: comma-separated
+#            extra.py --only list, e.g. terrain_1m,balls when the mesh scenes are not copied.
 #   OUT      results directory. Default $SCRATCH/rt-results/<presets joined by ->-<job id>.
 #   RT_BUILD build tree (default <repo>/build-vista); RT_SCENE_DEST scene directory
 #            (default <repo>/scenes/generated, where fetch_scenes.sh puts scenes-v1).
@@ -61,6 +63,14 @@ if [[ "$PRESET" != verify ]]; then
       profile)
         bash scripts/tacc/profile.sh --build "$RT_BUILD" --scenes "$RT_SCENE_DEST" \
           --out "$dest" || status=1
+        ;;
+      extra)
+        # terrain_1m and the mesh scenes are copied in from the laptop, never generated here
+        # (INTERFACES §2 "Generator determinism"); extra.py names any that are missing.
+        python3 scripts/tacc/extra.py run --machine vista \
+          --scenes "$RT_SCENE_DEST:$RT_REPO/scenes/meshes:$RT_REPO/scenes/extra" \
+          --rt-render "$RT_BUILD/apps/rt_render/rt_render" --frames "${FRAMES:-240}" \
+          ${EXTRA_ONLY:+--only "$EXTRA_ONLY"} --out "$dest" || status=1
         ;;
       *)
         # A failed sweep point stops this sweep; the steps after it still run.
