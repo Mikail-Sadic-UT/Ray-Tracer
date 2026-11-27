@@ -446,7 +446,7 @@ python3 scripts/tacc/sweep.py run --preset g2 --machine laptop --scenes scenes/g
   --rt-render build/apps/rt_render/rt_render --out out/sweep-g2
 ```
 
-The results are in `out/sweep-g2/sweep.csv`. Summarize it with `python3 scripts/tacc/ratios.py out/sweep-g2/sweep.csv`. The `lights` preset measures 1, 2 and 4 lights (through `--lights`); `ratios.py` prints those rows as a separate light-count table. On Vista, use `scripts/tacc/sweep.sbatch` instead ([BENCHMARKING.md](BENCHMARKING.md#sweeps)); the first Vista results are in [RESULTS.md](RESULTS.md).
+The results are in `out/sweep-g2/sweep.csv`. Summarize it with `python3 scripts/tacc/ratios.py out/sweep-g2/sweep.csv`. For report-quality ratios, rerun the configurations the sweep picked in interleaved rounds with `python3 scripts/tacc/sweep.py final --sweep out/sweep-g2/sweep.csv --machine laptop --scenes scenes/generated --rt-render build/apps/rt_render/rt_render --out out/final`, then run `ratios.py out/final/final.csv` ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)). GPU profiling is `bash scripts/tacc/profile.sh --build build --scenes scenes/generated --out out/profile` ([BENCHMARKING.md](BENCHMARKING.md#profiling)). The `lights` preset measures 1, 2 and 4 lights (through `--lights`); `ratios.py` prints those rows as a separate light-count table. On Vista, use `scripts/tacc/sweep.sbatch` instead ([BENCHMARKING.md](BENCHMARKING.md#sweeps)); the first Vista results are in [RESULTS.md](RESULTS.md).
 
 ## Build CUDA and render on the GPU
 

@@ -1,6 +1,6 @@
 # Plan (living)
 
-What is known about the remaining work after G2, as of **Nov 23**. This is a working list, not a commitment: items get added, reordered, dropped, and expanded as results come in. The fixed parts are the deadlines in [ROADMAP.md](ROADMAP.md#gates-and-schedule) and the Core deliverable in the [README](../README.md#required-deliverable). Everything else here can change.
+What is known about the remaining work after G2, as of **Nov 26**. This is a working list, not a commitment: items get added, reordered, dropped, and expanded as results come in. The fixed parts are the deadlines in [ROADMAP.md](ROADMAP.md#gates-and-schedule) and the Core deliverable in the [README](../README.md#required-deliverable). Everything else here can change.
 
 Where things stand: Core is built and verified. The CPU renderer, median and LBVH builders, and the CUDA megakernel are in, CPU and GPU images are byte-identical on the known and benchmark scenes, and there are first Vista measurements ([RESULTS.md](RESULTS.md)). What is left is making the numbers good, filling measurement gaps, and the final runs and report.
 
@@ -26,10 +26,27 @@ G3 is an internal checkpoint (target Nov 18, now past; [ROADMAP](ROADMAP.md#gate
 |---|---|---|
 | Preparation scaling, B = 1 to 72 | Done at all three sizes ([RESULTS.md](RESULTS.md)) | |
 | CPU render scaling | Done at all three sizes (70× on 72 threads at 1M) | |
-| GPU breakdown | T_br components measured (alloc, upload, render, download, kernel) | Kernel-level view needs profiling |
-| Profiling (`-Xptxas -v`, Nsight) | Not started | #70 |
+| GPU breakdown | T_br components measured (alloc, upload, render, download, kernel); kernel-level view on the laptop | Same on Vista |
+| Profiling (`-Xptxas -v`, Nsight) | `scripts/tacc/profile.sh` done; laptop profile in [RESULTS.md](RESULTS.md#profiling-laptop-nov-26-preliminary) | Vista run (`PRESET=profile`); check Nsight and counter access on a GH node |
 | Preliminary 10× / 2× / 20× ratios, with spread | Done, all three met at 1M (Nov 23) | 10K and 100K GPU T_br rows need a rerun (spread above 10%); final numbers come from C14 |
 | Scope and extensions reviewed | Open | #71 |
+
+## Next Vista job
+
+Everything below has been checked on the laptop at `5e6ea0a` plus the `mikail/final-runs` scripts:
+
+- ctest passes 356 of 356;
+- `verify.sh` has 0 failures, with CPU and CUDA byte-identical on 7 known and 3 benchmark scenes;
+- a `g2` sweep, `final` and `profile` ran end to end through `sweep.sbatch`.
+
+The Vista numbers in RESULTS.md come from `13321a5`, before the materials and the 128-register kernel, so all of them get replaced. The order:
+
+1. On a compute node (`idev -p gh-dev`): `git pull`, `source scripts/tacc/env.sh && bash scripts/tacc/build_vista.sh`. If `scenes/generated` has no `bench_*_s1` files, run `bash scripts/fetch_scenes.sh scenes-v1`. `verify.sh` checks their hashes.
+2. `sbatch --export=ALL,PRESET=verify scripts/tacc/sweep.sbatch` on `gh-dev`. This checks the new build: ctest, scene hashes, CPU vs CUDA on all 10 scenes. Optionally add `PRESET="verify profile"` to see early whether Nsight works there.
+3. `sbatch -p gh -t 02:00:00 --export=ALL,PRESET="core final profile" scripts/tacc/sweep.sbatch`. This runs the 50-point `core` sweep (which includes the light count), the interleaved final runs chosen from it (about 5 minutes) and the profile. Each step writes `ratios.md` or `summary.txt`.
+4. Copy `sweep.csv`, `final.csv`, `final_plan.json`, `identity/` and the profile `summary.txt` out of `$SCRATCH` into `docs/data/`, and update RESULTS.md from them.
+
+Rerun steps 3 and 4 if Core code changes again.
 
 ## Work items
 
@@ -40,7 +57,7 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 | Item | Issue | Why | Done when | Notes |
 |---|---|---|---|---|
 | Layout stage of the LBVH build | #68 | Now the largest preparation stage: 6.8 ms at B = 72, up from 3.6 ms at B = 16 | Optional: P near 5.6 ms (ratio near 3×) | Mostly emit and freeing the scratch. Emit is probably bound by the serial zero fill of `Bvh::nodes` (review of #75: emit 7.0 ms at B = 3, 9.3 at 8, 9.3 to 10.8 at 24 on the laptop); avoiding it means `Bvh::nodes` stops being a value-initialized `std::vector`, which is an interface change (an IC entry). Other ideas: a fused bottom-up (Apetrei-style) hierarchy + refit, a smaller temporary node, reusing scratch. The 2× target is already met, so this is only worth doing if time is left |
-| Measurement gaps | #70 | GPU T_app is unstable (spread 39% to 207%); no profiling; 10K and 100K GPU T_br rows have spread above 10% | Checklist in the issue | The thread sweeps at 10K and 100K are done. Profiling first checks whether the kernel is worth tuning at all (5.6 ms of the GPU's 16.4 ms) |
+| Measurement gaps | #70 | GPU T_app is unstable (spread 39% to 207%); no Vista profile yet; 10K and 100K GPU T_br rows have spread above 10% | Checklist in the issue | The thread sweeps at 10K and 100K are done. Profiling first checks whether the kernel is worth tuning at all (5.6 ms of the GPU's 16.4 ms) |
 
 ### Decisions still open
 
@@ -54,8 +71,8 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 ### Later
 
 - **Scenes (#72):** download without `gh`, Vista mirror path, cross-platform hash check.
-- **Profiling and tuning for G3:** `-Xptxas -v` (`RT_PTXAS_VERBOSE`), Nsight Compute, Nsight Systems.
-- **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 runs each, on the laptop and Vista. Node-hour log rows for the jobs so far (1142824, 1142829, 1142842, 1164735) through `scripts/tacc/node_hours.sh`.
+- **Profiling on Vista:** `profile.sh` (cuobjdump resources, Nsight Systems, Nsight Compute). On the laptop the kernel is latency- and divergence-bound at 128 registers, with 33% theoretical occupancy and no spills ([RESULTS.md](RESULTS.md#profiling-laptop-nov-26-preliminary)). Tuning is optional; the 2× target is met.
+- **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 rounds, on the laptop and Vista. Tooling done: `sweep.py final` and `PRESET=final` ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)). Node-hour log rows for the jobs so far (1142824, 1142829, 1142842, 1164735) through `scripts/tacc/node_hours.sh`.
 - **Quality review:** side-by-side review by 2 or more people ([BENCHMARKING.md](BENCHMARKING.md#quality-protocol)) and the report's validation section.
 - **Report, slides, release:** reproducible release with the scene archive, commit hash, and exact commands. Dates in the ROADMAP schedule.
 
@@ -85,6 +102,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 
 | Item | PR |
 |---|---|
+| Final-run and profiling tooling: `sweep.py final` (CPU\* and GPU\* from a sweep, 5 interleaved rounds, `final.csv` with roles), `ratios.py` reads final runs by role, `scripts/tacc/profile.sh` (cuobjdump, Nsight Systems, Nsight Compute), `sweep.sbatch` steps `final` and `profile` and a `ratios.md` per step; laptop profile in RESULTS.md | `mikail/final-runs` |
 | CUDA megakernel backend, `DeviceScene`, contraction off project-wide | #65 |
 | Vista sweep, verification and node-hour scripts; first Vista results | #66 |
 | Vista rerun of the branch: `verify.sh` 0 failures, ctest 307/307, `core` sweep at 46 points (job 1164735, data in `docs/data/`) | #75 |

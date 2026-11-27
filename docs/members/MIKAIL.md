@@ -102,7 +102,7 @@ Work in the order of "First three tasks" and the Deliverables table in docs/memb
 | Nov 6 | Traversal (`BvhQuery`) (landed, #46: byte-identical to brute force on host and device) | M |
 | Nov 6 | `Backend` interface (`backend.hpp`), CPU/CUDA dispatch in `rt_render` (CPU landed, #47; CUDA landed with C10) | M |
 | Nov 13 | `DeviceScene` (explicit) + megakernel (landed, Vista verified); sweep sbatch scripts and node-hour helper (landed, run on Vista); node-hour log (rows still to add) | M |
-| Nov 18 | GPU profiling (`-Xptxas -v`, Nsight) (not started; tracked in #70 and [PLAN.md](../PLAN.md)) | M |
+| Nov 18 | GPU profiling (`-Xptxas -v`, Nsight) (`scripts/tacc/profile.sh` landed, laptop profile done; Vista run next; #70 and [PLAN.md](../PLAN.md)) | M |
 | Weekly | Status table in [ROADMAP](../ROADMAP.md#status), weekly meeting | S |
 | Later | E1 memory modes (after G2); E5 trace kernels (after G3); OptiX (stretch) | |
 

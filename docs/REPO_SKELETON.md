@@ -55,7 +55,7 @@
 │   ├── make_video.sh           # rt_render --orbit / --path frames encoded as an MP4 (ffmpeg)
 │   ├── glb2obj.py              # glb model -> OBJ for obj2bin (stdlib only)
 │   ├── bake_glb.py             # glb base-color textures -> flat palette materials + a scene (Pillow, numpy)
-│   ├── tacc/                   # env.sh, build_vista.sh, sweep.py, sweep.sbatch, verify.sh, node_hours.sh
+│   ├── tacc/                   # env.sh, build_vista.sh, sweep.py, sweep.sbatch, verify.sh, profile.sh, ratios.py, node_hours.sh
 │   ├── plot/                   # matplotlib scripts
 │   └── blender/                # export_scene.py
 └── docs/

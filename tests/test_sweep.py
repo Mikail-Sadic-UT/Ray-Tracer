@@ -6,6 +6,7 @@ CPU-only build and in CI. Timing values are only checked for shape, never for si
 import argparse
 import csv
 import io
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -194,6 +195,185 @@ class RealSweep(unittest.TestCase):
         r = run_script('run', *self.argv, '--rt-render', str(SCRIPT), '--out', str(out),
                        env=self.env)  # not rt_render: ldd finds no libgomp
         self.assertEqual(r.returncode, 1)
+
+
+def sweep_row(scene, quantity, backend, threads, median, lights=1, prims=1000):
+    return {'scene': scene, 'quantity': quantity, 'backend': backend, 'bvh': 'lbvh',
+            'width': '1920', 'height': '1080', 'num_lights': str(lights),
+            'num_primitives': str(prims), 'build_threads': str(threads),
+            'render_threads': str(threads if backend == 'cpu' else 1),
+            'median_ms': str(median), 'commit': 'abc'}
+
+
+class FinalSelection(unittest.TestCase):
+    """sweep.py final: which configurations the final runs rerun (BENCHMARKING "Targets")."""
+
+    ROWS = ([sweep_row('s', 'T_br', 'cpu', t, m) for t, m in ((1, 900), (64, 20), (72, 25))] +
+            [sweep_row('s', 'T_br', 'cuda', b, m) for b, m in ((1, 50), (8, 9), (72, 10))] +
+            [sweep_row('s', 'T_frame', 'cpu', t, m) for t, m in ((1, 800), (64, 19), (72, 18))] +
+            [sweep_row('s', 'T_frame', 'cuda', b, m) for b, m in ((1, 5), (8, 6), (72, 6))] +
+            [sweep_row('s', 'T_app', 'cpu', t, m) for t, m in ((1, 950), (72, 60))] +
+            [sweep_row('s', 'T_app', 'cuda', 72, 300)] +
+            # A light-count row that is faster than every one-light row: must not be chosen.
+            [sweep_row('s', 'T_br', 'cpu', 72, 1, lights=4)])
+
+    def roles(self, selection, quantity):
+        return {sel['role']: sel['point'] for sel in selection if sel['quantity'] == quantity}
+
+    def test_lowest_sweep_median_per_quantity(self):
+        sel = sweep.final_selection(self.ROWS, 'vista')
+        br = self.roles(sel, 'T_br')
+        self.assertEqual(br['one_core'].build_threads, 1)
+        self.assertEqual(br['cpu_star'].build_threads, 64)
+        self.assertEqual(br['cpu_fixed'].build_threads, 72)
+        self.assertEqual((br['gpu_star'].backend, br['gpu_star'].build_threads), ('cuda', 8))
+        self.assertEqual(br['gpu_fixed'].build_threads, 72)
+        self.assertEqual(br['cpu_star'].lights, 1)
+        frame = self.roles(sel, 'T_frame')
+        self.assertEqual(frame['cpu_star'].build_threads, 72)
+        self.assertEqual(frame['gpu_star'].build_threads, 1)
+        app = self.roles(sel, 'T_app')
+        self.assertEqual({p.mode for p in app.values()}, {'app'})
+        self.assertEqual(app['cpu_star'].build_threads, 72)
+
+    def test_points_are_sweep_points_without_duplicates(self):
+        sel = sweep.final_selection(self.ROWS, 'vista')
+        points = sweep.final_points(sel)
+        names = [p.name for p in points]
+        self.assertEqual(len(names), len(set(names)))
+        self.assertIn('prepared_cpu_s_lbvh_B64R64_1920x1080', names)
+        self.assertIn('app_cuda_s_lbvh_B72_1920x1080', names)
+        # T_br and T_frame share a process: B72 CPU is one point for both quantities.
+        self.assertEqual(names.count('prepared_cpu_s_lbvh_B72R72_1920x1080'), 1)
+
+    def test_rounds_measure_every_point_once_in_rotated_order(self):
+        points = sweep.final_points(sweep.final_selection(self.ROWS, 'vista'))
+        orders = [sweep.round_order(points, r) for r in range(5)]
+        for order in orders:
+            self.assertEqual(sorted(p.name for p in order), sorted(p.name for p in points))
+        self.assertEqual(len({order[0].name for order in orders}), 5)
+
+    def test_missing_required_role_fails(self):
+        rows = [r for r in self.ROWS if not (r['backend'] == 'cpu' and r['build_threads'] == '1')]
+        with self.assertRaisesRegex(sweep.SweepError, 'no one_core row'):
+            sweep.final_selection(rows, 'vista')
+
+    def test_cpu_only(self):
+        rows = [r for r in self.ROWS if r['backend'] == 'cpu']
+        with self.assertRaisesRegex(sweep.SweepError, 'gpu_star'):
+            sweep.final_selection(rows, 'vista')
+        sel = sweep.final_selection(rows, 'vista', backends=['cpu'])
+        self.assertEqual({s['point'].backend for s in sel}, {'cpu'})
+
+    def test_unknown_scene(self):
+        with self.assertRaisesRegex(sweep.SweepError, 'nope'):
+            sweep.final_selection(self.ROWS, 'vista', scenes=['nope'])
+
+    def test_estimate_counts_warm_up_and_rounds(self):
+        sel = sweep.final_selection(self.ROWS, 'vista')
+        one = sweep.final_estimate_s(sel, runs=5, rounds=1)
+        self.assertAlmostEqual(sweep.final_estimate_s(sel, runs=5, rounds=3), 3 * one)
+        self.assertGreater(one, 6 * (900 + 800) / 1000.0)
+
+
+class RealFinal(unittest.TestCase):
+    """sweep.py final on a smoke sweep (CPU backend), 2 rounds of 2 runs, then ratios.py."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        tmp = Path(cls.tmp.name)
+        cls.env = dict(os.environ, OMP_PROC_BIND='close', OMP_PLACES='cores')
+        common = ['--machine', 'laptop', '--scenes', cls.tmp.name, '--backends', 'cpu',
+                  '--runs', '2']
+        cls.sweep = run_script('run', '--preset', 'smoke', *common, '--processes', '2',
+                               '--rt-render', args.render, '--out', str(tmp / 'sweep'),
+                               env=cls.env)
+        # The smoke preset has no 1-core T_app point; add its row so every role has a
+        # configuration (final measures each configuration itself, so the value does not matter).
+        with open(tmp / 'sweep' / 'sweep.csv', newline='') as f:
+            reader = csv.DictReader(f)
+            fields, rows = reader.fieldnames, list(reader)
+        app = next(r for r in rows if r['quantity'] == 'T_app')
+        rows.append(dict(app, build_threads='1', render_threads='1',
+                         median_ms=str(float(app['median_ms']) + 1.0)))
+        with open(tmp / 'sweep.csv', 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+        cls.argv = ['final', '--sweep', str(tmp / 'sweep.csv'), *common,
+                    '--width', '160', '--rounds', '2', '--rt-render', args.render,
+                    '--out', str(tmp / 'final')]
+        cls.first = run_script(*cls.argv, env=cls.env)
+        cls.out = tmp / 'final'
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def rows(self):
+        with open(self.out / 'final.csv') as f:
+            return list(csv.DictReader(f))
+
+    def plan(self):
+        return json.loads((self.out / 'final_plan.json').read_text())
+
+    def test_final_csv_has_roles_and_rounds(self):
+        self.assertEqual(self.sweep.returncode, 0, self.sweep.stderr)
+        self.assertEqual(self.first.returncode, 0, self.first.stderr)
+        rows = self.rows()
+        # Prepared and app configurations at B = R = 1 and 2. When the 1-thread run was the
+        # faster one in the sweep (a loaded machine, a tiny image), CPU* is that point too and
+        # only one prepared configuration is selected.
+        modes = [p['mode'] for p in self.plan()['points']]
+        self.assertIn(modes.count('prepared'), (1, 2))
+        self.assertEqual(modes.count('app'), 2)
+        self.assertEqual(sorted(r['quantity'] for r in rows),
+                         sorted(['T_app'] * 2 + ['T_br', 'T_frame'] * modes.count('prepared')))
+        for r in rows:
+            self.assertEqual(r['rounds'], '2')
+            self.assertEqual(r['runs'], '2' if r['quantity'] != 'T_app' else '1')
+            self.assertLessEqual(float(r['min_ms']), float(r['median_ms']))
+        one = next(r for r in rows if r['quantity'] == 'T_br' and r['build_threads'] == '1')
+        self.assertIn('one_core', one['roles'].split())
+        # CPU* is whichever thread count the sweep found faster; at 160x120 it can be either.
+        star = [r for r in rows if r['quantity'] == 'T_br' and 'cpu_star' in r['roles'].split()]
+        self.assertEqual(len(star), 1)
+        star = star[0]
+        for r in range(2):
+            self.assertTrue((self.out / 'points' / star['point'] / f'round_{r}' /
+                             'prepared.json').is_file())
+
+    def test_rerun_skips_finished_rounds(self):
+        again = run_script(*self.argv, env=self.env)
+        self.assertEqual(again.returncode, 0, again.stderr)
+        expected = 2 * len(self.plan()['points'])  # every configuration, 2 rounds
+        self.assertEqual(again.stderr.count('done earlier, skipped'), expected, again.stderr)
+
+    def test_refuses_other_configurations_in_the_same_directory(self):
+        argv = [a if a != '2' else '3' for a in self.argv]  # --runs 3, --rounds 3
+        r = run_script(*argv, env=self.env)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('other configurations', r.stderr)
+
+    def test_merge_recognizes_final_runs(self):
+        r = run_script('merge', '--out', str(self.out))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('final.csv', r.stderr)
+
+    def test_dry_run_measures_nothing(self):
+        argv = self.argv[:self.argv.index('--rt-render')] + ['--dry-run']
+        r = run_script(*argv, env=self.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('cpu_star', r.stdout)
+        self.assertIn('rounds', r.stderr)
+
+    def test_ratios_reads_roles(self):
+        r = subprocess.run([sys.executable, str(Path(args.scripts) / 'ratios.py'),
+                            str(self.out / 'final.csv')], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('Final target ratios', r.stdout)
+        self.assertIn('2 interleaved rounds', r.stdout)
 
 
 if __name__ == '__main__':

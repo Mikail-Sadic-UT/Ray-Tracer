@@ -1,6 +1,8 @@
 # Preliminary results
 
-**Status:** two sets of Vista measurements: the G2 sweep (Nov 13, 2026, commit `14db51d`) and a rerun after the preparation work in PR #75 (Nov 23, commit `13321a5`), which is the current one ([jump to it](#after-the-preparation-work-commit-13321a5-nov-23)). The G2 sections below are kept as the baseline. These are sweep medians, not the final report numbers: the final report reruns the selected configurations interleaved ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)). They are **not** G3 results: the profiling, the light-count and clustered-scene rows, and the profiling is still to do.
+**Status:** two sets of Vista measurements: the G2 sweep (Nov 13, 2026, commit `14db51d`) and a rerun after the preparation work in PR #75 (Nov 23, commit `13321a5`), which is the current one ([jump to it](#after-the-preparation-work-commit-13321a5-nov-23)). The G2 sections below are kept as the baseline. These are sweep medians, not the final report numbers: the final report reruns the selected configurations interleaved ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)). They are **not** G3 results. The light-count and clustered-scene rows are still to measure, and so is the Vista profile. A first laptop profile is [below](#profiling-laptop-nov-26-preliminary).
+
+**These numbers predate `dev` as of Nov 26 (`5e6ea0a`).** Since `13321a5`, the materials (Blinn-Phong, mirror, glass, tinted shadows) have landed in `shading.hpp`. They raised the lit BVH megakernel from 100 to 128 registers. The sphere-acne fix and `tan_det` also changed the lit benchmark images in their last bits. On the laptop at `5e6ea0a`, `verify.sh` has 0 failures, with CPU and CUDA byte-identical on all 7 known scenes and all 3 benchmark scenes, and ctest passes 356 of 356. Neither has been rerun on Vista. The next Vista job is `verify`, then the `core` sweep, the [final runs](BENCHMARKING.md#targets-from-proposal) and the [profile](BENCHMARKING.md#profiling), and it replaces the tables below.
 
 ## Setup
 
@@ -149,6 +151,33 @@ These findings describe the G2 runs; findings 2, 3 and 8 were acted on (see "Wha
 7. **Resolution shifts the balance.** At 640×480 (1M, B = R = 72) T_br is 54.6 ms on the CPU and 49.6 ms on the GPU (1.10×), and T_frame is 6.9 ms and 1.5 ms (4.6×). Less rendering work leaves preparation as almost the whole T_br.
 8. **T_app is mostly scene load and unattributed time, not rendering.** At 1M on the CPU with 72 threads, T_app is 991 ms: load 492 ms, unattributed 419 ms, and preparation and render about 80 ms. The unattributed time matches `validate_scene` running a second time in `rt_render` outside the `load` timer (it is also called inside `load_scene`); each call builds a path string per primitive. I read this from the code and have not timed that call by itself (#67). On the laptop at 10M primitives the unattributed time was about 5 s. The GPU adds 239 ms of `cuda_init` at 1M (1212 ms total).
 
+## Profiling (laptop, Nov 26, preliminary)
+
+`scripts/tacc/profile.sh` on the laptop (RTX 4070 Laptop, `sm_89`, driver 621.40, CUDA 13.3). The renderer is at `5e6ea0a`; the "dirty" build flag only reflects the uncommitted profiling script. Settings: lit LBVH megakernel, 1920×1080, B = 32. Nsight Compute ran `--set full` on one launch with clocks locked to base, so its durations are not benchmark numbers. This shows what limits the kernel. The GH200 numbers for the report still have to be measured.
+
+| | bench_10k_s1 | bench_100k_s1 | bench_1m_s1 |
+|---|---:|---:|---:|
+| Registers / thread (cuobjdump) | 128 | 128 | 128 |
+| Stack frame, bytes (traversal stack) | 832 | 832 | 832 |
+| Spill requests | 0 | 0 | 0 |
+| Theoretical / achieved occupancy | 33% / 28% | 33% / 26% | 33% / 26% |
+| Block limit from registers | 2 | 2 | 2 |
+| Compute (SM) throughput | 41% | 43% | 41% |
+| Memory throughput / DRAM throughput | 23% / 11% | 25% / 11% | 38% / 14% |
+| L1/TEX hit rate / L2 hit rate | 98% / 87% | 99% / 89% | 99% / 90% |
+| Active threads per warp (of 32) | 19.9 | 13.3 | 9.7 |
+| Warp cycles per issued instruction | 8.3 | 7.2 | 7.5 |
+| Kernel time, ncu (ms) | 3.1 | 8.3 | 21.6 |
+
+What it shows:
+
+1. **The kernel is limited by latency and divergence, not by bandwidth.** Compute is at about 41% of peak and DRAM at 11 to 14%. The working set is served from cache: L1 hit rate is 98 to 99% and L2 is 87 to 90%. This includes the traversal stack, which is in local memory.
+2. **Divergence grows with scene size.** On average 9.7 of 32 threads in a warp are active at 1M, against 19.9 at 10K. The likely cause, not yet checked, is that neighboring pixels take different paths through the deeper tree and that only some of them shoot shadow rays.
+3. **Occupancy is set by registers.** At 128 registers only 2 blocks of 256 threads fit per SM, which is 33% theoretical occupancy and 26 to 28% achieved. There are no spills. This is the limit PLAN.md describes: going over 128 registers would halve occupancy.
+4. Nsight Systems shows the kernel takes 100% of GPU kernel time. The transfers are PCIe copies, which on the GH200 are much shorter (alloc + upload 0.6 ms at 1M, above).
+
+The likeliest kernel improvements would therefore come from reducing divergence or latency rather than memory traffic, for example by sorting rays or using a wavefront pipeline (E5). PLAN.md leaves those out of scope. On the GH200 the kernel is 5.6 of the GPU's 16.4 ms T_br at 1M, and preparation is the rest.
+
 ## Limits of these numbers
 
 Tracked in #70 (measurement gaps), #67 (unattributed time) and #68 (build scaling); the extension choice is #71.
@@ -156,5 +185,5 @@ Tracked in #70 (measurement gaps), #67 (unattributed time) and #68 (build scalin
 - The G2 CPU\* at 10K and 100K came from two thread counts; the Nov 23 rerun has all eight at every size.
 - GPU T_app is still unstable (spread 207% at 10K, 103% at 100K, 39% at 1M in the rerun; 205%, 37%, 13% at G2). Run-to-run variation in `cuda_init` is the likely cause. The CSV keeps only the median run, so the per-process totals are in `points/app_cuda_*/tapp_*.json` on Vista.
 - GPU\* for T_frame at 1M is B = 8 only because the three B values (1, 8, 72) differ by noise; T_frame does not depend on B.
-- The light-count dimension, clustered scenes and seed 2 are not measured. There is no profiling data yet (`-Xptxas -v`, Nsight).
+- The light-count dimension, clustered scenes and seed 2 are not measured. Profiling exists for the laptop only (above); the Vista profile is still to do.
 - One node, one job per point. The spread column is the only noise estimate.
