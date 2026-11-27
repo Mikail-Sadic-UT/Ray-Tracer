@@ -117,14 +117,14 @@ Benchmark matrix (kept small):
 | Scene | Sizes | Seed | Use | When |
 |---|---|---|---|---|
 | `field_uniform` | 10K, 100K, 1M | 1 | All Core sweeps | Core (G1) |
-| `field_clustered` | 100K, 1M | 1 | Contrast case: uneven density, harder BVH | After G2, if time |
-| `field_uniform` | 1M | 2 | Sensitivity to scene generation | After G2, if time |
+| `field_clustered` | 100K, 1M | 1 | Contrast case: uneven density, harder BVH | Dropped (Nov 27, no time); `rt_gen` has no clustered layout |
+| `field_uniform` | 1M | 2 | Sensitivity to scene generation | Dropped (Nov 27, no time) |
 
 Camera fitting matters: a fixed camera position cropped the field in an earlier draft. With terrain heights in [−2.5, 2.5] and sphere tops ≤ 5.5, the fit gives about `D ≈ 1.29·S` at 10K and `1.15·S` at 1M. `rt_gen` tests that all 8 AABB corners land inside the 95% frame.
 
 Workload diagnostics, computed from the AOVs at no extra cost: **visible fraction** (distinct hit `prim_id` values ÷ N) and **hit fraction** (pixels with a hit ÷ all pixels). They show whether a size step actually added visible work. *Deferred:* BVH node-visit counts via an `RT_COUNTERS` build, if traversal cost needs explaining.
 
-If the seed-2 scene runs (after G2), its ratios are reported as "sensitivity to scene generation". They aren't expected to match seed 1 within spread, since the geometry differs.
+The seed-2 scene was dropped on Nov 27; had it run, its ratios are reported as "sensitivity to scene generation". They aren't expected to match seed 1 within spread, since the geometry differs.
 
 ## Sweeps
 
@@ -136,7 +136,7 @@ Core sweeps, varying one dimension at a time around a baseline. Baseline: `bench
 | B and R together | 1, 2, 4, 8, 16, 24, 32 | Laptop (P/E-core caveat) |
 | B alone (GPU runs) | 1, 8, 72 | Vista |
 | Scene size | 10K, 100K, 1M (`field_uniform`) | Both |
-| Layout / seed (after G2, if time) | `field_clustered` 100K and 1M; `field_uniform` 1M seed 2 | Vista |
+| Layout / seed (dropped Nov 27) | `field_clustered` 100K and 1M; `field_uniform` 1M seed 2 | Vista |
 | BVH method | `median`, `lbvh` (+ `sah` if built) | Both |
 | Light count L | 1, 2, 4 | Both |
 | Resolution | 640×480, 1920×1080 | Both |
@@ -250,6 +250,8 @@ Memory modes are compared as ratios within one machine. Cross-machine difference
 
 ## Memory-mode protocol (Extension E1, GH node only)
 
+*Not run: E1 was cut on Nov 27. The protocol is kept as designed.*
+
 Unified memory placement depends on who first touched the pages, prefetches, advice, and driver migration policy. Without recording these, warm and cold runs can silently measure different data placement.
 
 | Recorded field | Values |
@@ -339,6 +341,8 @@ Designed during review and **not required now**. Add these if a visibly wrong im
 ### 3. Side-by-side review
 
 At least 2 reviewers, native resolution, same display, per the proposal. Focus on edges and shadow boundaries. Record who reviewed what.
+
+**Done (Nov 27):** Mikail reviewed the pictures. That is one reviewer, not the two or more the proposal asks for, so the report's validation section says one reviewer, backed by the automated checks (byte-identical CPU and GPU images on every benchmark and extra scene, `rt_compare`, the goldens and the oracle).
 
 ### 4. Approximate modes
 

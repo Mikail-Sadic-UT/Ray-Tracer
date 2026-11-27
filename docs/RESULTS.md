@@ -1,6 +1,6 @@
 # Preliminary results
 
-**Status:** three sets of Vista measurements. The current one is the Nov 27 run of `dev` at `94fadfe` ([jump to it](#current-vista-run-of-dev-94fadfe-nov-27)): `verify`, the `core` sweep, the interleaved final runs, the Nsight profile and the extra benchmarks. Before it come a rerun after the preparation work in PR #75 (Nov 23, commit `13321a5`) and the G2 sweep (Nov 13, commit `14db51d`); both are kept as history. The headline ratios come from the final runs, which rerun the selected configurations interleaved ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)); sweep medians are preliminary. Not measured yet: the `field_clustered` and seed-2 scenes, and the extensions.
+**Status:** three sets of Vista measurements. The current one is the Nov 27 run of `dev` at `94fadfe` ([jump to it](#current-vista-run-of-dev-94fadfe-nov-27)): `verify`, the `core` sweep, the interleaved final runs, the Nsight profile and the extra benchmarks. Before it come a rerun after the preparation work in PR #75 (Nov 23, commit `13321a5`) and the G2 sweep (Nov 13, commit `14db51d`); both are kept as history. The headline ratios come from the final runs, which rerun the selected configurations interleaved ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)); sweep medians are preliminary. Not measured, by decision on Nov 27 (no time): the `field_clustered` and seed-2 scenes, and the extensions (SAH, memory modes, Embree, wavefront).
 
 ## Setup
 
@@ -124,8 +124,8 @@ The videos (`house_1920x1080.mp4`, `house_3840x2160.mp4`) are not in git. `ffmpe
 - One node (`c642-032`), except the profile (`c642-002`). The final runs are 5 interleaved rounds; the sweep is one job per point.
 - GPU T_app is still unstable between runs, as described above. `cuda_init` is the likely cause; the per-process totals are in `points/app_cuda_*/tapp_*.json` on Vista.
 - GPU\* for T_frame at 1M is B = 8 only because the three B values differ by noise.
-- `field_clustered` and the seed-2 scene are not measured.
-- Not measured on Vista: the SAH extension, memory modes, Embree and the wavefront pipeline, which have not been built.
+- `field_clustered` and the seed-2 scene are not measured; they were dropped on Nov 27 for lack of time.
+- The SAH extension, memory modes, Embree and the wavefront pipeline were not built (cut on Nov 27), so there is nothing to compare them against.
 
 ## Nov 23 rerun, before the materials (commit 13321a5)
 
@@ -290,5 +290,5 @@ Tracked in #70 (measurement gaps), #67 (unattributed time) and #68 (build scalin
 - The G2 CPU\* at 10K and 100K came from two thread counts; the Nov 23 rerun has all eight at every size.
 - GPU T_app is still unstable (spread 207% at 10K, 103% at 100K, 39% at 1M in the rerun; 205%, 37%, 13% at G2). Run-to-run variation in `cuda_init` is the likely cause. The CSV keeps only the median run, so the per-process totals are in `points/app_cuda_*/tapp_*.json` on Vista.
 - GPU\* for T_frame at 1M is B = 8 only because the three B values (1, 8, 72) differ by noise; T_frame does not depend on B.
-- Clustered scenes and seed 2 are not measured. The light count and the Vista profile came with the [Nov 27 run](#current-vista-run-of-dev-94fadfe-nov-27).
+- Clustered scenes and seed 2 are not measured (dropped Nov 27). The light count and the Vista profile came with the [Nov 27 run](#current-vista-run-of-dev-94fadfe-nov-27).
 - One node, one job per point. The spread column is the only noise estimate.
