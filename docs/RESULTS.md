@@ -1,8 +1,6 @@
 # Preliminary results
 
-**Status:** two sets of Vista measurements: the G2 sweep (Nov 13, 2026, commit `14db51d`) and a rerun after the preparation work in PR #75 (Nov 23, commit `13321a5`), which is the current one ([jump to it](#after-the-preparation-work-commit-13321a5-nov-23)). The G2 sections below are kept as the baseline. These are sweep medians, not the final report numbers: the final report reruns the selected configurations interleaved ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)). They are **not** G3 results. The light-count and clustered-scene rows are still to measure, and so is the Vista profile. A first laptop profile is [below](#profiling-laptop-nov-26-preliminary).
-
-**These numbers predate `dev` as of Nov 26 (`5e6ea0a`).** Since `13321a5`, the materials (Blinn-Phong, mirror, glass, tinted shadows) have landed in `shading.hpp`. They raised the lit BVH megakernel from 100 to 128 registers. The sphere-acne fix and `tan_det` also changed the lit benchmark images in their last bits. On the laptop at `5e6ea0a`, `verify.sh` has 0 failures, with CPU and CUDA byte-identical on all 7 known scenes and all 3 benchmark scenes, and ctest passes 356 of 356. Neither has been rerun on Vista. The next Vista job is `verify`, then the `core` sweep, the [final runs](BENCHMARKING.md#targets-from-proposal) and the [profile](BENCHMARKING.md#profiling), and it replaces the tables below.
+**Status:** three sets of Vista measurements. The current one is the Nov 27 run of `dev` at `94fadfe` ([jump to it](#current-vista-run-of-dev-94fadfe-nov-27)): `verify`, the `core` sweep, the interleaved final runs, the Nsight profile and the extra benchmarks. Before it come a rerun after the preparation work in PR #75 (Nov 23, commit `13321a5`) and the G2 sweep (Nov 13, commit `14db51d`); both are kept as history. The headline ratios come from the final runs, which rerun the selected configurations interleaved ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)); sweep medians are preliminary. Not measured yet: the `field_clustered` and seed-2 scenes, and the extensions.
 
 ## Setup
 
@@ -22,7 +20,114 @@
 
 `scripts/tacc/verify.sh` on the GPU node: ctest 306/306, scene hashes match the manifest, and CPU vs CUDA passes all five `rt_compare` checks on the three known scenes and the three benchmark scenes. The CPU and CUDA PFM and AOV files are **byte-identical** on every one of them, and repeated CUDA runs are byte-identical. The starting `rt_compare` tolerances are unchanged (see [BENCHMARKING.md](BENCHMARKING.md#2-image-comparison-rt_compare)).
 
-## After the preparation work (commit 13321a5, Nov 23)
+## Current: Vista run of `dev` (94fadfe, Nov 27)
+
+The first Vista numbers for the code with the materials (Blinn-Phong, mirror, glass, tinted shadows), the sphere-acne fix and `tan_det`; the lit BVH megakernel is at 128 registers (it was 100 on Nov 23). Every row below except the profile comes from one `gh-dev` node, `c642-032` (Grace, 72 cores, GH200, driver 615.71.09), one clean build of `94fadfe`, `gcc/13.2.0`, `cuda/13.3`, `RT_CUDA_ARCH=90`, and the settings in [Setup](#setup). Jobs: `1175084` (`verify`, `core`, `final`, the stills of `extra`), `1175157` (`profile` again, once Nsight was on `PATH`; node `c642-002`, repo at `4330533`, same binary) and `1175169` (the 4K walkthroughs). Data: [vista-core-1175084.csv](data/vista-core-1175084.csv) (sweep), [vista-final-1175084.csv](data/vista-final-1175084.csv) and [the plan it ran](data/vista-final-plan-1175084.json), [vista-profile-1175084.txt](data/vista-profile-1175084.txt), [vista-extra-1175084.csv](data/vista-extra-1175084.csv) and [walks](data/vista-extra-walks-1175084.csv). Regenerate the tables with `python3 scripts/tacc/ratios.py docs/data/<file>.csv`.
+
+### Correctness on Vista
+
+`verify.sh`: 0 failures. ctest passes 358 of 358, the three benchmark scene hashes match the manifest, and CPU and CUDA PFM and AOV files are byte-identical on the 7 known scenes and the 3 benchmark scenes, with repeated CUDA runs identical. The same holds for the extra benchmarks: the CPU and GPU images of every still, and all 240 PNG frames of each house walkthrough, are byte-identical.
+
+### Headline ratios (final runs, T_br, lbvh, 1920 px wide)
+
+CPU\* is the 72-thread CPU at every size, and GPU\* is B = 8 at 10K and B = 72 at 100K and 1M, as the sweep chose them. Each value is the median over 5 interleaved rounds; the spread over the rounds is at most 6% for T_br, so the 10K and 100K rows that needed a rerun on Nov 23 are settled. Inside a single process the 5 runs can still spread more (up to 39% for GPU T_br at 100K, 36% for CPU T_br at 10K); the median over the rounds is what agrees.
+
+| Target | 10K | 100K | 1M | Nov 23 at 1M |
+|---|---:|---:|---:|---:|
+| ~10×: 1 core / CPU\* | 61.5× | 62.1× | 56.2× | 56.3× |
+| ~2×: CPU\* / GPU\* | 5.76× | 3.60× | **2.43×** | 2.40× |
+| ~20×: 1 core / GPU\* | 354× | 224× | 137× | 135× |
+
+All three targets are met at every size. With B = 72 fixed instead of the best GPU thread count, CPU / GPU is 4.04×, 3.60× and 2.43× at 10K, 100K and 1M. T_frame and T_app:
+
+| Scene | T_frame: 1 core / CPU\* | T_frame: CPU\* / GPU\* | T_app: 1 core (ms) | T_app: CPU\* (ms) | T_app: GPU\* (ms) |
+|---|---:|---:|---:|---:|---:|
+| bench_10k_s1 | 70.0× | 7.77× | 522.0 | 12.1 | 250.5 |
+| bench_100k_s1 | 68.8× | 5.99× | 1020.6 | 28.0 | 257.4 |
+| bench_1m_s1 | 69.2× | 5.17× | 2404.9 | 123.3 | 470.1 |
+
+The CPU still wins T_app at every size, because CUDA context creation costs 130 to 250 ms. GPU T_app is not stable between runs: at 100K and 1M the final runs give 257 and 470 ms, against 146 and 352 ms in the sweep a few minutes earlier (the sweep's own spread was 174% and 41%).
+
+### What the new code cost
+
+The 2× result is unchanged (2.43× against 2.40×), and so is preparation: at B = 72 and 1M it is 10.2 ms (bounds 0.5, build 2.7, layout 7.0), with 0.7 ms of alloc and upload, a 5.9 ms render and 0.1 ms of download. T_frame at 1M rose from 29.4 to 31.4 ms on the CPU (+7%) and from 5.7 to 6.1 ms on the GPU (+7%), on a different node of the same type. Both backends slowed by the same amount, so the shading code accounts for it, and the move from 100 to 128 registers does not show up as a larger GPU slowdown.
+
+### Other sweep dimensions (1M, B = 72, sweep medians)
+
+| | CPU T_br | GPU T_br | CPU / GPU | CPU T_frame | GPU T_frame | CPU / GPU |
+|---|---:|---:|---:|---:|---:|---:|
+| lbvh, 1920×1080 | 41.3 | 16.9 | 2.44× | 31.3 | 6.1 | 5.16× |
+| median, 1920×1080 | 352.0 | 337.6 | 1.04× | 15.4 | 2.3 | 6.73× |
+| lbvh, 640×480 | 17.1 | 12.4 | 1.37× | 7.4 | 1.6 | 4.63× |
+
+The median tree still renders 2× as fast as the LBVH on the CPU and 2.6× as fast on the GPU, and its serial build makes T_br 8.5× (CPU) and 20× (GPU) the LBVH values. Light count (copies of the one light on a ring, total power fixed):
+
+| Backend | Quantity | L = 1 | L = 2 | L = 4 |
+|---|---|---:|---:|---:|
+| CPU | T_frame (ms) | 31.3 | 43.7 | 66.6 |
+| GPU | T_frame (ms) | 6.1 | 8.5 | 13.5 |
+| CPU | T_br (ms) | 41.3 | 54.7 | 77.5 |
+| GPU | T_br (ms) | 16.9 | 19.4 | 24.2 |
+
+Each extra light adds about 12 ms to a CPU frame and 2.5 ms to a GPU frame, so the GPU's lead in T_br grows with the number of lights (2.44×, 2.82×, 3.20×).
+
+### Profiling (GH200)
+
+`scripts/tacc/profile.sh` with Nsight Systems 2026.4.1 and Nsight Compute 2026.2.1 (from the HPC SDK `nvidia/26.9`; see [BUILD.md](BUILD.md#profiling-tools)). Lit LBVH megakernel, 1920×1080, B = 72. Nsight Compute ran `--set full` on one launch with clocks locked to base, so its durations are not benchmark numbers. The laptop profile ([below](#profiling-laptop-nov-26-preliminary)) is the comparison.
+
+| | bench_10k_s1 | bench_100k_s1 | bench_1m_s1 | Laptop at 1M |
+|---|---:|---:|---:|---:|
+| Registers / thread (cuobjdump) | 128 | 128 | 128 | 128 |
+| Stack frame, bytes | 832 | 832 | 832 | 832 |
+| Spill requests | 0 | 0 | 0 | 0 |
+| Theoretical / achieved occupancy | 25% / 20% | 25% / 19% | 25% / 19% | 33% / 26% |
+| Block limit from registers | 2 | 2 | 2 | 2 |
+| Compute (SM) throughput | 46% | 43% | 42% | 41% |
+| Memory throughput / DRAM throughput | 17% / 0.1% | 25% / 0.1% | 38% / 0.3% | 38% / 14% |
+| L1/TEX hit rate / L2 hit rate | 98% / 99% | 99% / 99% | 99% / 97% | 99% / 90% |
+| Active threads per warp (of 32) | 20.1 | 13.4 | 9.8 | 9.7 |
+| Warp cycles per issued instruction | 6.7 | 6.7 | 7.1 | 7.5 |
+| Kernel time, ncu at base clocks (ms) | 0.84 | 2.32 | 5.92 | 21.6 |
+| Kernel time, nsys average (ms) | 0.85 | 2.31 | 5.91 | |
+
+1. **The result of the laptop profile holds on the GH200: the kernel waits on latency and divergence, not on bandwidth.** SM throughput is 42 to 46%, the same as the laptop. DRAM throughput is under 0.3% because the GH200's L2 hit rate is 97 to 99% (the laptop's DRAM traffic was 11 to 14%).
+2. **Divergence is the same on both GPUs.** 9.8 of 32 threads per warp are active at 1M (9.7 on the laptop), against 20.1 at 10K, so it comes from the scene and the shading, not from the GPU.
+3. **Registers set the occupancy.** 128 registers allow 2 blocks of 256 threads per SM, which is 25% theoretical occupancy on Hopper's 64 warps per SM (33% on the laptop's 48), and 19 to 20% achieved. No spills.
+4. The kernel takes 100% of GPU kernel time. At 1M the average launch in Nsight Systems is 5.91 ms, which matches the 5.9 ms render in the T_br breakdown. Host-to-device copies are 1.1 ms in total over 36 copies.
+
+A faster kernel would come from less divergence or latency, such as sorting rays or the wavefront pipeline (E5), and not from memory traffic. The 2× target is already met, and the kernel is 5.9 ms of the GPU's 17.0 ms T_br at 1M, so it would save little there.
+
+### Extra benchmarks
+
+CPU at 72 threads against the GPU at B = 72, lbvh, lit, medians of 5 runs for the stills. See [BENCHMARKING.md](BENCHMARKING.md#extra-benchmarks) for what each one is and how it is checked. Spread above 10% on `terrain_10k` (18%) and `map_crew` (22%) comes from GPU T_br.
+
+| Scene | Primitives | Resolution | CPU T_br | GPU T_br | CPU / GPU | CPU T_frame | GPU T_frame | CPU / GPU | CPU = GPU |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---|
+| terrain_10k | 9,800 | 1920×1080 | 8.3 | 2.1 | 4.0× | 7.4 | 0.9 | 8.3× | yes |
+| map_crew | 3,024,680 | 3840×2160 | 130.4 | 37.5 | 3.5× | 106.2 | 13.1 | 8.1× | yes |
+| dragon_gold | 249,892 | 3840×2160 | 100.7 | 26.3 | 3.8× | 96.8 | 22.7 | 4.3× | yes |
+| balls | 50 | 3840×2160 | 74.2 | 13.3 | 5.6× | 73.5 | 13.0 | 5.6× | yes |
+
+House walkthrough, one preparation then one timed frame per camera (render and download), 240 frames along `house_walk.json` (2,145,083 triangles, 3 point lights):
+
+| Resolution | CPU frame median (min–max) ms | GPU frame median (min–max) ms | CPU / GPU | CPU total (s) | GPU total (s) | Frames identical |
+|---|---:|---:|---:|---:|---:|---|
+| 1920×1080 | 63.8 (51.7–83.5) | 8.6 (5.6–15.9) | 7.0× | 15.3 | 2.2 | 240 of 240 |
+| 3840×2160 | 231.8 (189.0–304.4) | 25.2 (17.8–35.3) | 9.2× | 55.8 | 6.0 | 240 of 240 |
+
+The GPU renders the 8 seconds of 4K video (240 frames at 30 fps) in 6.0 s, which is faster than real time, and the CPU takes 56 s. The T_frame and walkthrough ratios are smaller than on the laptop (6.8× to 17.7× there, from short runs, and 4.3× to 9.2× here), because the 72 Grace cores are a much stronger CPU baseline than the laptop's 32 threads.
+
+The videos (`house_1920x1080.mp4`, `house_3840x2160.mp4`) are not in git. `ffmpeg` on the Vista compute nodes cannot start (`libunwind.so.8` is missing), so the GPU frames were copied to the laptop and encoded there with the settings of `make_video.sh`.
+
+### Limits of the Nov 27 run
+
+- One node (`c642-032`), except the profile (`c642-002`). The final runs are 5 interleaved rounds; the sweep is one job per point.
+- GPU T_app is still unstable between runs, as described above. `cuda_init` is the likely cause; the per-process totals are in `points/app_cuda_*/tapp_*.json` on Vista.
+- GPU\* for T_frame at 1M is B = 8 only because the three B values differ by noise.
+- `field_clustered` and the seed-2 scene are not measured.
+- Not measured on Vista: the SAH extension, memory modes, Embree and the wavefront pipeline, which have not been built.
+
+## Nov 23 rerun, before the materials (commit 13321a5)
 
 PR #75 parallelized the serial stages of the LBVH build (#68), removed the second `validate_scene` pass and its string building (#67), and made the thread sweeps run at every size (#70). Output bytes are unchanged. `verify.sh` on node c642-062: ctest 307/307, scene hashes match the manifest, and CPU and CUDA PFM and AOV files are byte-identical on the three known scenes and all three benchmark scenes, with repeated CUDA runs identical. Same machine type, settings and run counts as the G2 table below. Every size now has all eight thread counts for CPU\* and the three B values for GPU\*.
 
@@ -178,12 +283,12 @@ What it shows:
 
 The likeliest kernel improvements would therefore come from reducing divergence or latency rather than memory traffic, for example by sorting rays or using a wavefront pipeline (E5). PLAN.md leaves those out of scope. On the GH200 the kernel is 5.6 of the GPU's 16.4 ms T_br at 1M, and preparation is the rest.
 
-## Limits of these numbers
+## Limits of the Nov 23 and G2 numbers
 
 Tracked in #70 (measurement gaps), #67 (unattributed time) and #68 (build scaling); the extension choice is #71.
 
 - The G2 CPU\* at 10K and 100K came from two thread counts; the Nov 23 rerun has all eight at every size.
 - GPU T_app is still unstable (spread 207% at 10K, 103% at 100K, 39% at 1M in the rerun; 205%, 37%, 13% at G2). Run-to-run variation in `cuda_init` is the likely cause. The CSV keeps only the median run, so the per-process totals are in `points/app_cuda_*/tapp_*.json` on Vista.
 - GPU\* for T_frame at 1M is B = 8 only because the three B values (1, 8, 72) differ by noise; T_frame does not depend on B.
-- The light-count dimension, clustered scenes and seed 2 are not measured. Profiling exists for the laptop only (above); the Vista profile is still to do.
+- Clustered scenes and seed 2 are not measured. The light count and the Vista profile came with the [Nov 27 run](#current-vista-run-of-dev-94fadfe-nov-27).
 - One node, one job per point. The spread column is the only noise estimate.

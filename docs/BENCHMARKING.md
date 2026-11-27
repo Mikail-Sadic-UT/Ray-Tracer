@@ -191,7 +191,7 @@ It writes:
 - `walks.csv`;
 - `extra.md`: the CPU-against-GPU tables.
 
-On the laptop at `5e6ea0a`, all four stills are byte-identical between CPU and GPU, and every walkthrough frame is identical.
+On the laptop at `5e6ea0a`, and on Vista at `94fadfe` (Nov 27, [RESULTS.md](RESULTS.md#extra-benchmarks)), all four stills are byte-identical between CPU and GPU, and every walkthrough frame is identical (240 of 240 at both resolutions on Vista).
 
 ```bash
 python3 scripts/tacc/extra.py plan --machine vista                         # commands, and which scenes are missing

@@ -1,0 +1,5 @@
+name,scene,backend,build_threads,render_threads,width,height,frames,median_ms,min_ms,max_ms,spread,total_ms,bounds_ms,build_ms,layout_ms,alloc_ms,upload_ms,wall_s,host,commit,dirty
+walk_cuda_house_lbvh_B72_1920x1080,house,cuda,72,1,1920,1080,240,8.58948,5.60654,15.9471,1.20386,2176.97,2.12427,6.28231,12.2876,0.426301,0.45046,40.04548718803562,c642-032.vista.tacc.utexas.edu,94fadfe2e4f56434e1cb38aea3a2848b01a29d7d,False
+walk_cpu_house_lbvh_B72R72_1920x1080,house,cpu,72,72,1920,1080,240,63.754,51.7471,83.4626,0.497467,15297.9,2.00373,6.17873,12.2555,0.0,0.0,53.06638431409374,c642-032.vista.tacc.utexas.edu,94fadfe2e4f56434e1cb38aea3a2848b01a29d7d,False
+walk_cuda_house_lbvh_B72_3840x2160,house,cuda,72,1,3840,2160,240,25.2202,17.791,35.3133,0.694771,6033.23,1.99611,6.38968,11.6607,0.413564,0.447101,124.86377112497576,c642-032.vista.tacc.utexas.edu,433053361e8b98369dfde88af1e5d9de3c5520f1,False
+walk_cpu_house_lbvh_B72R72_3840x2160,house,cpu,72,72,3840,2160,240,231.816,188.993,304.365,0.497689,55792.3,1.89944,6.23109,11.22,0.0,0.0,175.09934974485077,c642-032.vista.tacc.utexas.edu,433053361e8b98369dfde88af1e5d9de3c5520f1,False

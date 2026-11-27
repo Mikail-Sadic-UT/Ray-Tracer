@@ -1,22 +1,22 @@
 # Plan (living)
 
-What is known about the remaining work after G2, as of **Nov 26**. This is a working list, not a commitment: items get added, reordered, dropped, and expanded as results come in. The fixed parts are the deadlines in [ROADMAP.md](ROADMAP.md#gates-and-schedule) and the Core deliverable in the [README](../README.md#required-deliverable). Everything else here can change.
+What is known about the remaining work after G2, as of **Nov 27**. This is a working list, not a commitment: items get added, reordered, dropped, and expanded as results come in. The fixed parts are the deadlines in [ROADMAP.md](ROADMAP.md#gates-and-schedule) and the Core deliverable in the [README](../README.md#required-deliverable). Everything else here can change.
 
-Where things stand: Core is built and verified. The CPU renderer, median and LBVH builders, and the CUDA megakernel are in, CPU and GPU images are byte-identical on the known and benchmark scenes, and there are first Vista measurements ([RESULTS.md](RESULTS.md)). What is left is making the numbers good, filling measurement gaps, and the final runs and report.
+Where things stand: Core is built and verified. The CPU renderer, median and LBVH builders, and the CUDA megakernel are in, CPU and GPU images are byte-identical on the known and benchmark scenes, and the Nov 27 Vista run of `dev` has the final ratios, the GH200 profile and the extra benchmarks ([RESULTS.md](RESULTS.md#current-vista-run-of-dev-94fadfe-nov-27)). What is left is the extension decision (#71), the remaining measurement gaps, the quality review, and the report and slides.
 
 Rules for this file: edit it freely, keep it short, and move finished items to the "Done" list with the PR. Interface changes go in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md); [INTERFACES.md](INTERFACES.md) is frozen.
 
 ## Where the headline ratios stand
 
-Preliminary, Vista GH200, 1M primitives, 1080p, LBVH (T_br, median of 5; commit `13321a5`, job 1164735; [details](RESULTS.md)):
+Vista GH200, 1M primitives, 1080p, LBVH (T_br, median of 5 interleaved rounds; `dev` at `94fadfe`, job 1175084, Nov 27; [details](RESULTS.md#current-vista-run-of-dev-94fadfe-nov-27)):
 
 | Target | Now | Note |
 |---|---:|---|
-| ~10×: 1 core / best CPU | 56.3× | Met (was 29.8× at G2) |
-| ~2×: best CPU / GPU | 2.40× | **Met at 1M** (was 1.46×); 5.9× at 10K and 3.7× at 100K, whose GPU rows have spread above 10% |
-| ~20×: 1 core / GPU | 135× | Met (was 43.4×) |
+| ~10×: 1 core / best CPU | 56.2× | Met (was 29.8× at G2) |
+| ~2×: best CPU / GPU | 2.43× | **Met at 1M** (was 1.46× at G2); 5.76× at 10K and 3.60× at 100K, with spread at most 6% |
+| ~20×: 1 core / GPU | 137× | Met (was 43.4× at G2) |
 
-The 2× target was missed at G2 because of preparation, not rendering (47 ms of the GPU's 53.8 ms). PR #75 (#68, #67) cut preparation to 10.0 ms at B = 72, and the Nov 23 Vista rerun measures 2.40× at 1M ([RESULTS.md](RESULTS.md#after-the-preparation-work-commit-13321a5-nov-23)). Layout (6.8 ms, grows past 16 threads) is now the largest preparation stage; at about 2 ms the ratio would be near 3×.
+The 2× target was missed at G2 because of preparation, not rendering (47 ms of the GPU's 53.8 ms). PR #75 (#68, #67) cut preparation to 10.0 ms at B = 72, and the Nov 23 and Nov 27 Vista runs measure 2.40× and 2.43× at 1M; the materials and the 128-register kernel changed T_frame by 7% on both backends and did not move the ratio. Layout (7.0 ms at B = 72, grows past 16 threads) is now the largest preparation stage; at about 2 ms the ratio would be near 3×.
 
 ## G3 checklist
 
@@ -26,28 +26,19 @@ G3 is an internal checkpoint (target Nov 18, now past; [ROADMAP](ROADMAP.md#gate
 |---|---|---|
 | Preparation scaling, B = 1 to 72 | Done at all three sizes ([RESULTS.md](RESULTS.md)) | |
 | CPU render scaling | Done at all three sizes (70× on 72 threads at 1M) | |
-| GPU breakdown | T_br components measured (alloc, upload, render, download, kernel); kernel-level view on the laptop | Same on Vista |
-| Profiling (`-Xptxas -v`, Nsight) | `scripts/tacc/profile.sh` done; laptop profile in [RESULTS.md](RESULTS.md#profiling-laptop-nov-26-preliminary) | Vista run (`PRESET=profile`); check Nsight and counter access on a GH node |
-| Preliminary 10× / 2× / 20× ratios, with spread | Done, all three met at 1M (Nov 23) | 10K and 100K GPU T_br rows need a rerun (spread above 10%); final numbers come from C14 |
+| GPU breakdown | Done: T_br components, and the kernel-level view on the laptop and the GH200 | |
+| Profiling (`-Xptxas -v`, Nsight) | Done on both machines: 128 registers, no spills, latency- and divergence-bound ([RESULTS.md](RESULTS.md#profiling-gh200)); Nsight and the GPU counters work on a GH node | |
+| Preliminary 10× / 2× / 20× ratios, with spread | Done: all three met at every size, from the final runs (Nov 27) | |
 | Scope and extensions reviewed | Open | #71 |
 
-## Next Vista job
+## Vista runs
 
-Everything below has been checked on the laptop at `5e6ea0a` plus the `mikail/final-runs` scripts:
+Done Nov 27 on `gh-dev` (jobs 1175084, 1175157, 1175169): `verify` (ctest 358/358, CPU = GPU byte-identical), the 50-point `core` sweep, the final runs, the profile and the extra benchmarks. Data is in `docs/data/vista-*-1175084.*`. To rerun after a Core code change:
 
-- ctest passes 356 of 356;
-- `verify.sh` has 0 failures, with CPU and CUDA byte-identical on 7 known and 3 benchmark scenes;
-- a `g2` sweep, `final` and `profile` ran end to end through `sweep.sbatch`.
-
-The Vista numbers in RESULTS.md come from `13321a5`, before the materials and the 128-register kernel, so all of them get replaced. The order:
-
-1. On a compute node (`idev -p gh-dev`): `git pull`, `source scripts/tacc/env.sh && bash scripts/tacc/build_vista.sh`. If `scenes/generated` has no `bench_*_s1` files, run `bash scripts/fetch_scenes.sh scenes-v1`. `verify.sh` checks their hashes.
-2. `sbatch --export=ALL,PRESET=verify scripts/tacc/sweep.sbatch` on `gh-dev`. This checks the new build: ctest, scene hashes, CPU vs CUDA on all 10 scenes. Optionally add `PRESET="verify profile"` to see early whether Nsight works there.
-3. Copy the extra benchmark scenes from the laptop (`terrain_10k` and the mesh scenes, 218 MB; [BENCHMARKING.md](BENCHMARKING.md#extra-benchmarks)) and check their hashes with `scene_dump --verify`.
-4. `sbatch -p gh -t 02:30:00 --export=ALL,PRESET="core final profile extra" scripts/tacc/sweep.sbatch`. This runs the 50-point `core` sweep (which includes the light count), the interleaved final runs chosen from it (about 5 minutes), the profile, and the extra CPU-against-GPU benchmarks with the house walkthrough. Each step writes `ratios.md`, `summary.txt` or `extra.md`.
-5. Copy `sweep.csv`, `final.csv`, `final_plan.json`, `identity/`, the profile `summary.txt`, and the extra step's `extra.md`, `sweep.csv` and `walks.csv` out of `$SCRATCH` into `docs/data/`, and update RESULTS.md from them. The walkthrough videos are in the extra step's `videos/` if ffmpeg was available, and otherwise its GPU frames are kept.
-
-Rerun steps 4 and 5 if Core code changes again.
+1. On a compute node: `git pull`, then `source scripts/tacc/env.sh && bash scripts/tacc/build_vista.sh` (the build takes about a minute when only a few files changed).
+2. `sbatch -p gh-dev -t 02:00:00 --export=ALL,PRESET="core final profile extra" scripts/tacc/sweep.sbatch`. The whole job took about 15 minutes on Nov 27. Use `gh-dev`: on Nov 27 `gh` had about 500 jobs pending and no start estimate.
+3. The extra step needs `terrain_10k` and the mesh scenes in place (BENCHMARKING.md "Extra benchmarks"). `ffmpeg` on the compute nodes cannot start, so copy the GPU frames of the house walkthroughs to the laptop and encode them there.
+4. Copy the results out of `$SCRATCH` and update RESULTS.md from them.
 
 ## Work items
 
@@ -58,7 +49,7 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 | Item | Issue | Why | Done when | Notes |
 |---|---|---|---|---|
 | Layout stage of the LBVH build | #68 | Now the largest preparation stage: 6.8 ms at B = 72, up from 3.6 ms at B = 16 | Optional: P near 5.6 ms (ratio near 3×) | Mostly emit and freeing the scratch. Emit is probably bound by the serial zero fill of `Bvh::nodes` (review of #75: emit 7.0 ms at B = 3, 9.3 at 8, 9.3 to 10.8 at 24 on the laptop); avoiding it means `Bvh::nodes` stops being a value-initialized `std::vector`, which is an interface change (an IC entry). Other ideas: a fused bottom-up (Apetrei-style) hierarchy + refit, a smaller temporary node, reusing scratch. The 2× target is already met, so this is only worth doing if time is left |
-| Measurement gaps | #70 | GPU T_app is unstable (spread 39% to 207%); no Vista profile yet; 10K and 100K GPU T_br rows have spread above 10% | Checklist in the issue | The thread sweeps at 10K and 100K are done. Profiling first checks whether the kernel is worth tuning at all (5.6 ms of the GPU's 16.4 ms) |
+| Measurement gaps | #70 | GPU T_app is unstable between runs (spread 41% to 174% in the Nov 27 sweep; 146 ms in the sweep and 257 ms in the final runs at 100K) | Checklist in the issue | The thread sweeps at 10K and 100K are done. Profiling first checks whether the kernel is worth tuning at all (5.6 ms of the GPU's 16.4 ms) |
 
 ### Decisions still open
 
@@ -72,8 +63,8 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 ### Later
 
 - **Scenes (#72):** download without `gh`, Vista mirror path, cross-platform hash check.
-- **Profiling on Vista:** `profile.sh` (cuobjdump resources, Nsight Systems, Nsight Compute). On the laptop the kernel is latency- and divergence-bound at 128 registers, with 33% theoretical occupancy and no spills ([RESULTS.md](RESULTS.md#profiling-laptop-nov-26-preliminary)). Tuning is optional; the 2× target is met.
-- **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 rounds, on the laptop and Vista. Tooling done: `sweep.py final` and `PRESET=final` ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)). Node-hour log rows for the jobs so far (1142824, 1142829, 1142842, 1164735) through `scripts/tacc/node_hours.sh`.
+- **Kernel tuning (optional):** the profile shows the lit BVH kernel is latency- and divergence-bound at 128 registers (25% theoretical occupancy on the GH200, no spills; [RESULTS.md](RESULTS.md#profiling-gh200)). The 2× target is met and the kernel is 5.9 of the GPU's 17.0 ms T_br at 1M, so there is little to gain in T_br.
+- **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 rounds, on the laptop and Vista. Done on Vista on Nov 27 (`sweep.py final`, `PRESET=final`; [BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)); the laptop run is still to do. Node-hour log rows for the jobs so far (1142824, 1142829, 1142842, 1164735) through `scripts/tacc/node_hours.sh`.
 - **Quality review:** side-by-side review by 2 or more people ([BENCHMARKING.md](BENCHMARKING.md#quality-protocol)) and the report's validation section.
 - **Report, slides, release:** reproducible release with the scene archive, commit hash, and exact commands. Dates in the ROADMAP schedule.
 
@@ -96,13 +87,14 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 - **Noise.** The sweep records spread. GPU T_app has 13% to 205% spread depending on size. Don't quote a ratio whose spread is above 10% without a rerun.
 - **Contraction is off project-wide.** Any new numeric code is compiled with `-ffp-contract=off` and `--fmad=false`. Write `fmaf()` where a fused result is wanted.
 - **No libm in shared code.** `tanf`, `sinf`, `powf` and friends round differently in glibc and CUDA, so a call in code that runs on both backends breaks byte-identical images for some inputs. `camera_ray` used `tanf` and did so for about a third of all fields of view (70 degrees among them) until `tan_det`; every scene we ship uses 45 degrees, which happens to agree, so it went unseen. Shared code uses `spec_pow` and `tan_det` (basic IEEE operations only); `test_camera_device` and the shading device tests compare host and device bit for bit.
-- **Megakernel registers.** The lit BVH megakernel is at 128 registers on sm_89 and sm_90 (no spills), the most that still fits two 256-thread blocks per SM. Anything more in `shading.hpp` likely halves occupancy and slows every GPU number; check `cuobjdump --dump-resource-usage` (or `RT_PTXAS_VERBOSE`) before adding to it. The Vista numbers in RESULTS.md predate the materials (100 registers); the final runs should confirm T_frame is unchanged there too.
+- **Megakernel registers.** The lit BVH megakernel is at 128 registers on sm_89 and sm_90 (no spills), the most that still fits two 256-thread blocks per SM. Anything more in `shading.hpp` likely halves occupancy and slows every GPU number; check `cuobjdump --dump-resource-usage` (or `RT_PTXAS_VERBOSE`) before adding to it. The Nov 27 Vista run at 128 registers has GPU T_frame 7% above the 100-register run, the same as the CPU's rise, so the registers have not cost anything visible so far.
 - **Node hours.** Vista jobs go in the node-hour log ([BENCHMARKING.md](BENCHMARKING.md#node-hour-budget)).
 
 ## Done since G2
 
 | Item | PR |
 |---|---|
+| Nov 27 Vista run of `dev`: final ratios (all three targets met at every size, 2.43× at 1M), GH200 profile, light-count and extra benchmarks, walkthrough videos; `env.sh` puts Nsight on `PATH`; `extra.py` survives a broken ffmpeg | #93 and this branch |
 | Extra benchmarks: `scripts/tacc/extra.py` (CPU against GPU at the top thread count on `terrain_10k`, `map_crew`, `dragon_gold` and `balls`, and the house walkthrough at 1080p and 4K, with CPU = GPU byte checks and the video), `PRESET=extra`; `rt_gen --layout terrain` (IC8); `scenes/extra/balls.json` from `scripts/bench/make_balls.py`; `rt_render --path` prints the total frame time. Laptop: every still and walkthrough frame CPU = GPU byte-identical | `mikail/extra-benchmarks` |
 | Final-run and profiling tooling: `sweep.py final` (CPU\* and GPU\* from a sweep, 5 interleaved rounds, `final.csv` with roles), `ratios.py` reads final runs by role, `scripts/tacc/profile.sh` (cuobjdump, Nsight Systems, Nsight Compute), `sweep.sbatch` steps `final` and `profile` and a `ratios.md` per step; laptop profile in RESULTS.md | `mikail/final-runs` |
 | CUDA megakernel backend, `DeviceScene`, contraction off project-wide | #65 |
@@ -113,7 +105,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 | Device tests and `rt_render_cuda_cli` skip when no NVIDIA driver is installed (checked with a stand-in `libcuda`) | `mikail/lbvh-scaling` (#73) |
 | IC2 overflow flag in `BvhQuery` (closes W8) and IC3 `AABB::empty()` and constants in `math.hpp` | `mikail/lbvh-scaling` (#69, #4) |
 | Thread sweeps at every scene size | `mikail/lbvh-scaling` (#70, first item) |
-| Light-count sweep: `rt_render --lights N` (N copies of light 0 on a ring, 1/N intensity), `lights` sweep preset, `num_lights` CSV column, light table in `ratios.py`. Laptop run works; Vista run still to do | `mikail/lights-orbit` (#70) |
+| Light-count sweep: `rt_render --lights N` (N copies of light 0 on a ring, 1/N intensity), `lights` sweep preset, `num_lights` CSV column, light table in `ratios.py`. Measured on Vista on Nov 27 | `mikail/lights-orbit` (#70) |
 | Misc tools: `scripts/bake_glb.py` bakes a glb's base-color textures into flat per-piece palette materials (per-material subdivision, alpha cut-outs, scene setup; Pillow and numpy; test skipped without them), `glb2obj.py --group-by material`, and three more materials in the mesh stage template. No renderer change | `mikail/misc-tools` |
 | Camera paths: `rt_render --path FILE --path-frames N --frames DIR` renders along waypoints (centripetal Catmull-Rom through position, look-at and field of view; constant speed or equal time per segment; optional ease), `make_video.sh --path`. Host-only, first and last frames byte-identical to plain renders at the end waypoints; unit and CLI tests | `mikail/camera-path` |
 | `camera_ray` no longer uses `tanf`: CPU and GPU rounded it differently for about a third of all fields of view (found with a 70-degree camera on a 2.3M-triangle map; CPU and GPU images differed in 3 pixels). New `tan_det` (double precision, basic operations only) is the correctly rounded float at every angle tried and equals the old value at 45 degrees, so benchmark and golden images are byte-identical; lit BVH kernel still 128 registers; `bench_1m` T_frame within noise on the laptop. Tests: host accuracy, and host vs device bit for bit | `mikail/camera-tan` |
