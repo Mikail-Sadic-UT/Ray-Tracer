@@ -171,7 +171,7 @@ These are CPU-against-GPU comparisons on scenes outside the Core matrix. They ar
 
 | Benchmark | Scene | Primitives | Resolution | Measures |
 |---|---|---:|---|---|
-| `terrain_1m` | `bench_1m`'s terrain without spheres (`rt_gen --layout terrain --primitives 1000000`, IC8) | 999,698 triangles | 1920×1080 | T_br, T_frame |
+| `terrain_10k` | `bench_10k`'s terrain without spheres (`rt_gen --layout terrain --primitives 10000`, IC8), small enough to see the individual triangles | 9,800 triangles | 1920×1080 | T_br, T_frame |
 | `map_crew` | Among Us map with crew models (`scenes/meshes`) | 3,024,680 triangles | 3840×2160 | T_br, T_frame |
 | `dragon_gold` | XYZ RGB dragon, gold mirror, on the mesh stage (`scenes/meshes`) | 249,884 triangles + 8 spheres | 3840×2160 | T_br, T_frame |
 | `balls` | 48 scattered spheres: matte, glossy, mirror and glass; 4 point lights (`scenes/extra/balls.json`, from `scripts/bench/make_balls.py`) | 48 spheres + 2 triangles | 3840×2160 | T_br, T_frame |
@@ -199,10 +199,10 @@ python3 scripts/tacc/extra.py run --machine laptop --rt-render build/apps/rt_ren
 sbatch -p gh -t 01:00:00 --export=ALL,PRESET=extra scripts/tacc/sweep.sbatch
 ```
 
-**Scene files.** `scenes/meshes` is not in git, and generated scenes are never regenerated on another machine (INTERFACES §2), so the scenes are copied from the laptop to the same paths in the Vista clone. That is 9 files and about 258 MB. `<$WORK>` stands for the output of `echo $WORK` on Vista:
+**Scene files.** `scenes/meshes` is not in git, and generated scenes are never regenerated on another machine (INTERFACES §2), so the scenes are copied from the laptop to the same paths in the Vista clone. That is 9 files and about 218 MB. `<$WORK>` stands for the output of `echo $WORK` on Vista:
 
 ```bash
-rsync -av scenes/generated/terrain_1m.{json,bin} <user>@vista.tacc.utexas.edu:<$WORK>/Ray-Tracer/scenes/generated/
+rsync -av scenes/generated/terrain_10k.{json,bin} <user>@vista.tacc.utexas.edu:<$WORK>/Ray-Tracer/scenes/generated/
 rsync -av scenes/meshes/{house,map_crew,dragon_gold}.{json,bin} scenes/meshes/house_walk.json \
   <user>@vista.tacc.utexas.edu:<$WORK>/Ray-Tracer/scenes/meshes/
 ```
@@ -211,13 +211,13 @@ Check each copy with `scene_dump --verify` against these hashes (laptop, Nov 26)
 
 | Scene | content_hash | scene_hash |
 |---|---|---|
-| `terrain_1m` | `0xa17eecc17367b18c` | `0x8d1a897ff24f3ab1` |
+| `terrain_10k` | `0x032dec4a8b57a0cf` | `0x71221c8fec1d09e8` |
 | `map_crew` | `0x3d90535998d7c173` | `0x5777c336bd354655` |
 | `dragon_gold` | `0xcad8a1eb6ed7215f` | `0xecf2b1bcbdba53d6` |
 | `house` | `0xb5fef591984e6c7b` | `0xf0812e6b01d51b0f` |
 | `balls` (in git) | `0x4db24d7645a3739b` | `0x8842f81161e3c4d2` |
 
-`extra.py` fails before measuring if a scene is missing. `EXTRA_ONLY=terrain_1m,balls` in the job, or `--only` on the command line, runs a subset.
+`extra.py` fails before measuring if a scene is missing. `EXTRA_ONLY=terrain_10k,balls` in the job, or `--only` on the command line, runs a subset.
 
 ## Machine identity
 

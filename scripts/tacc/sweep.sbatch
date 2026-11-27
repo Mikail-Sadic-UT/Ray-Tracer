@@ -19,7 +19,7 @@
 #            the last sweep preset earlier in the same PRESET list.
 #   ROUNDS   final only: interleaved rounds (default 5).
 #   FRAMES   extra only: walkthrough frames (default 240). EXTRA_ONLY: comma-separated
-#            extra.py --only list, e.g. terrain_1m,balls when the mesh scenes are not copied.
+#            extra.py --only list, e.g. terrain_10k,balls when the mesh scenes are not copied.
 #   OUT      results directory. Default $SCRATCH/rt-results/<presets joined by ->-<job id>.
 #   RT_BUILD build tree (default <repo>/build-vista); RT_SCENE_DEST scene directory
 #            (default <repo>/scenes/generated, where fetch_scenes.sh puts scenes-v1).
@@ -65,7 +65,7 @@ if [[ "$PRESET" != verify ]]; then
           --out "$dest" || status=1
         ;;
       extra)
-        # terrain_1m and the mesh scenes are copied in from the laptop, never generated here
+        # terrain_10k and the mesh scenes are copied in from the laptop, never generated here
         # (INTERFACES §2 "Generator determinism"); extra.py names any that are missing.
         python3 scripts/tacc/extra.py run --machine vista \
           --scenes "$RT_SCENE_DEST:$RT_REPO/scenes/meshes:$RT_REPO/scenes/extra" \

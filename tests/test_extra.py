@@ -35,7 +35,7 @@ class Plan(unittest.TestCase):
             self.assertEqual(p.build_threads, 72)
             self.assertEqual(p.render_threads, 72 if p.backend == 'cpu' else 1)
         sizes = {p.scene: (p.width, p.height) for p in points}
-        self.assertEqual(sizes['terrain_1m'], (1920, 1080))
+        self.assertEqual(sizes['terrain_10k'], (1920, 1080))
         for name in ('map_crew', 'dragon_gold', 'balls'):
             self.assertEqual(sizes[name], (3840, 2160))
 

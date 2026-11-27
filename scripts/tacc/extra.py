@@ -7,7 +7,7 @@ machine's top thread count only (B = R = 72 on Vista), plus a camera-path walkth
                   [--only NAME,...] [--backends cpu,cuda] [--no-video] [--keep-frames] [--fresh]
 
 Stills (T_br and T_frame, 1 warm-up and --runs runs, as in a sweep):
-    terrain_1m   the bench_1m terrain without spheres (rt_gen --layout terrain), 1920x1080
+    terrain_10k  the bench_10k terrain without spheres (rt_gen --layout terrain), 1920x1080
     map_crew     the Among Us map with crew models, 3840x2160
     dragon_gold  the gold XYZ RGB dragon on the mesh stage, 3840x2160
     balls        scattered spheres of every material, 4 point lights (make_balls.py), 3840x2160
@@ -15,8 +15,8 @@ Walkthrough (rt_render --path, one preparation, then one timed frame per camera)
     house        house.json along house_walk.json, 1920x1080 and 3840x2160
 
 DIRS is an os.pathsep-separated list searched in order for <name>.json; the default is
-scenes/generated, scenes/meshes and scenes/extra. terrain_1m is generated with
-`rt_gen --layout terrain --primitives 1000000 --out scenes/generated/terrain_1m`; the mesh
+scenes/generated, scenes/meshes and scenes/extra. terrain_10k is generated with
+`rt_gen --layout terrain --primitives 10000 --out scenes/generated/terrain_10k`; the mesh
 scenes are local (scenes/meshes is not in git; see USER_GUIDE "Meshes") and have to be copied to
 Vista. A scene that is not found fails the run before anything is measured, unless it is left
 out with --only.
@@ -66,7 +66,7 @@ class Walk:
     resolutions: tuple
 
 
-STILLS = (Still('terrain_1m', sweep.FULL_HD), Still('map_crew', UHD),
+STILLS = (Still('terrain_10k', sweep.FULL_HD), Still('map_crew', UHD),
           Still('dragon_gold', UHD), Still('balls', UHD))
 WALKS = (Walk('house', 'house_walk', (sweep.FULL_HD, UHD)),)
 NAMES = tuple(s.scene for s in STILLS) + tuple(w.scene for w in WALKS)
@@ -313,8 +313,8 @@ def check_scenes(args):
             missing.append(n)
     if missing:
         raise sweep.SweepError(
-            f'not found in {args.scenes}: {", ".join(missing)}. terrain_1m: rt_gen --layout '
-            'terrain --primitives 1000000 --out scenes/generated/terrain_1m; the mesh scenes '
+            f'not found in {args.scenes}: {", ".join(missing)}. terrain_10k: rt_gen --layout '
+            'terrain --primitives 10000 --out scenes/generated/terrain_10k; the mesh scenes '
             'come from scenes/meshes on the laptop (copy them to Vista); or leave them out '
             'with --only')
 
