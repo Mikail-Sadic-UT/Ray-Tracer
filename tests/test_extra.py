@@ -73,6 +73,66 @@ class Plan(unittest.TestCase):
             extra.main(['plan', '--machine', 'laptop', '--only', 'nope'])
 
 
+class FakeFfmpeg(unittest.TestCase):
+    """A missing, unrunnable or failing ffmpeg costs the video, never the run."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.bin = self.root / 'bin'
+        self.bin.mkdir()
+        self.old_path = os.environ['PATH']
+        os.environ['PATH'] = f'{self.bin}{os.pathsep}/usr/bin:/bin'
+        walk = self.root / 'walks' / 'w' / 'frames'
+        walk.mkdir(parents=True)
+        (walk / 'frame_0000.png').write_bytes(b'x')
+        self.frames = walk
+        self.args = argparse.Namespace(no_video=False, keep_frames=False)
+        self.walk = extra.Walk('house', 'house_walk', ((8, 8),))
+
+    def tearDown(self):
+        os.environ['PATH'] = self.old_path
+        self.tmp.cleanup()
+
+    def fake(self, body):
+        exe = self.bin / 'ffmpeg'
+        exe.write_text(f'#!/bin/sh\n{body}\n')
+        exe.chmod(0o755)
+
+    def finish(self):
+        err = io.StringIO()
+        with redirect_stderr(err):
+            extra.finish_frames(self.args, self.root, self.walk, (8, 8), 'w', None)
+        return err.getvalue()
+
+    def test_missing(self):
+        # No ffmpeg in the fake bin; the system PATH tail may have one, so hide it.
+        os.environ['PATH'] = str(self.bin)
+        self.assertFalse(extra.ffmpeg_works())
+        self.assertIn('frames kept', self.finish())
+        self.assertTrue(self.frames.is_dir())
+
+    def test_installed_but_cannot_start(self):
+        # What Vista compute nodes do: the binary exists, the dynamic loader fails (exit 127).
+        self.fake('echo "error while loading shared libraries: libunwind.so.8" >&2; exit 127')
+        self.assertFalse(extra.ffmpeg_works())
+        self.assertIn('cannot run', self.finish())
+        self.assertTrue(self.frames.is_dir())
+
+    def test_encoding_fails(self):
+        self.fake('[ "$1" = "-version" ] && exit 0; echo "boom" >&2; exit 1')
+        self.assertTrue(extra.ffmpeg_works())
+        out = self.finish()  # must not raise
+        self.assertIn('ffmpeg failed', out)
+        self.assertTrue(self.frames.is_dir(), 'frames are kept for encoding later')
+
+    def test_encoding_works(self):
+        self.fake('for last; do :; done; [ "$1" = "-version" ] || : > "$last"; exit 0')
+        self.assertIn('video:', self.finish())
+        self.assertTrue((self.root / 'videos' / 'house_8x8.mp4').is_file())
+        self.assertFalse(self.frames.exists(), 'frames are deleted after a good encode')
+
+
 class Balls(unittest.TestCase):
     def test_committed_scene_is_up_to_date(self):
         r = subprocess.run([sys.executable, str(MAKE_BALLS), '--check'], capture_output=True,
