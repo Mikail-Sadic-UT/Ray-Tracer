@@ -24,6 +24,7 @@
 #include <iostream>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <vector>
@@ -376,7 +377,8 @@ int main(int argc, char** argv) {
                       << " ms, alloc " << prep.alloc << " ms, upload " << prep.upload << " ms\n";
             std::cerr << "  T_frame over the path: median " << stats.median_ms << " ms (min "
                       << stats.min_ms << ", max " << stats.max_ms << ", spread " << stats.spread
-                      << ", " << totals.size() << " frames)\n";
+                      << ", " << totals.size() << " frames, total "
+                      << std::accumulate(totals.begin(), totals.end(), 0.0) << " ms)\n";
             return 0;
         }
 

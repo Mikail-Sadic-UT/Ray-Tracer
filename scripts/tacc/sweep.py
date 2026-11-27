@@ -151,12 +151,17 @@ KNOWN_SCENES = Path(__file__).resolve().parent.parent.parent / 'scenes' / 'known
 
 
 def scene_path(scenes, name):
-    """`scenes/<name>.json`; the hand-written known_* scenes always come from the repo."""
-    path = (KNOWN_SCENES if name.startswith('known_') else Path(scenes)) / f'{name}.json'
-    if not path.is_file():
-        raise SweepError(f'scene {path} not found (fetch it with scripts/fetch_scenes.sh '
-                         'scenes-v1, or pass --scenes)')
-    return path
+    """`<dir>/<name>.json` from the first of the `os.pathsep`-separated directories in `scenes`
+    that has it; the hand-written known_* scenes always come from the repo."""
+    dirs = [KNOWN_SCENES] if name.startswith('known_') else \
+        [Path(d) for d in str(scenes).split(os.pathsep) if d]
+    for d in dirs:
+        if (d / f'{name}.json').is_file():
+            return d / f'{name}.json'
+    where = dirs[0] / f'{name}.json' if len(dirs) == 1 else \
+        f'{name}.json in {", ".join(str(d) for d in dirs)}'
+    raise SweepError(f'scene {where} not found (fetch it with scripts/fetch_scenes.sh '
+                     'scenes-v1, or pass --scenes)')
 
 
 def render_args(point, scenes, runs=None, images_dir=None):

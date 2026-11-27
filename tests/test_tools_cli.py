@@ -64,4 +64,13 @@ with tempfile.TemporaryDirectory(prefix='rt-cli-') as directory:
         cwd=prefix.parent)
     assert before == hashes()
     run([args.dump, '--verify', str(prefix.with_suffix('.json'))])
+    # --layout terrain: triangles only, no seed recorded, and --seed rejected.
+    terrain = root / 'terrain'
+    run([args.generator, '--layout', 'terrain', '--primitives', '1000', '--out', str(terrain)])
+    metadata = json.loads(terrain.with_suffix('.json').read_text())['generator']
+    assert metadata['layout'] == 'terrain' and 'seed' not in metadata
+    assert (metadata['num_spheres'], metadata['num_triangles']) == (0, 968)
+    run([args.dump, '--verify', str(terrain.with_suffix('.json'))])
+    run([args.generator, '--layout', 'terrain', '--primitives', '1000', '--seed', '2', '--out',
+         str(terrain)], expected=1)
 print('CPU files, 1/N determinism, comparator failure exits and generator bytes verified')

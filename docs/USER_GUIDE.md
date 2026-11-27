@@ -304,7 +304,9 @@ mkdir -p out/generated
   --out out/generated/dev_10k.png
 ```
 
-The generator writes JSON metadata and binary geometry. `--out` accepts a prefix or a `.json` path. `--primitives` is the exact total number of spheres plus triangles and must be at least 4 and below `2^31`. Only `uniform` is currently supported.
+The generator writes JSON metadata and binary geometry. `--out` accepts a prefix or a `.json` path. `--primitives` is the exact total number of spheres plus triangles and must be at least 4 and below `2^31`.
+
+`--layout terrain` writes the same field without the spheres: only the height-field triangles, about `--primitives` of them (999,698 for 1,000,000), with the same extent, light and camera as `uniform`. It takes no `--seed`. The extra benchmark `terrain_10k` is `rt_gen --layout terrain --primitives 10000 --out scenes/generated/terrain_10k` (9,800 triangles).
 
 Scenes contain colored spheres over a height-field terrain, a point light, and a fitted 1920×1080 camera. A fixed seed controls sphere placement; terrain shape is fixed. Generation is repeatable on the same recorded environment, but math-library differences can change bytes across machines. Use local generation for development; use the published files for comparable benchmarks.
 
@@ -446,7 +448,9 @@ python3 scripts/tacc/sweep.py run --preset g2 --machine laptop --scenes scenes/g
   --rt-render build/apps/rt_render/rt_render --out out/sweep-g2
 ```
 
-The results are in `out/sweep-g2/sweep.csv`. Summarize it with `python3 scripts/tacc/ratios.py out/sweep-g2/sweep.csv`. For report-quality ratios, rerun the configurations the sweep picked in interleaved rounds with `python3 scripts/tacc/sweep.py final --sweep out/sweep-g2/sweep.csv --machine laptop --scenes scenes/generated --rt-render build/apps/rt_render/rt_render --out out/final`, then run `ratios.py out/final/final.csv` ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)). GPU profiling is `bash scripts/tacc/profile.sh --build build --scenes scenes/generated --out out/profile` ([BENCHMARKING.md](BENCHMARKING.md#profiling)). The `lights` preset measures 1, 2 and 4 lights (through `--lights`); `ratios.py` prints those rows as a separate light-count table. On Vista, use `scripts/tacc/sweep.sbatch` instead ([BENCHMARKING.md](BENCHMARKING.md#sweeps)); the first Vista results are in [RESULTS.md](RESULTS.md).
+The results are in `out/sweep-g2/sweep.csv`. Summarize it with `python3 scripts/tacc/ratios.py out/sweep-g2/sweep.csv`. For report-quality ratios, rerun the configurations the sweep picked in interleaved rounds with `python3 scripts/tacc/sweep.py final --sweep out/sweep-g2/sweep.csv --machine laptop --scenes scenes/generated --rt-render build/apps/rt_render/rt_render --out out/final`, then run `ratios.py out/final/final.csv` ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)). GPU profiling is `bash scripts/tacc/profile.sh --build build --scenes scenes/generated --out out/profile` ([BENCHMARKING.md](BENCHMARKING.md#profiling)).
+
+The extra benchmarks compare the CPU and the GPU on `terrain_10k`, `map_crew`, `dragon_gold` and `balls`, and on the house walkthrough video at 1080p and 4K. Run them with `python3 scripts/tacc/extra.py run --machine laptop --rt-render build/apps/rt_render/rt_render --out out/extra`. It writes `out/extra/extra.md` and the videos ([BENCHMARKING.md](BENCHMARKING.md#extra-benchmarks)). `scripts/bench/make_balls.py` regenerates `scenes/extra/balls.json`, and `--check` confirms the committed file is current. The `lights` preset measures 1, 2 and 4 lights (through `--lights`); `ratios.py` prints those rows as a separate light-count table. On Vista, use `scripts/tacc/sweep.sbatch` instead ([BENCHMARKING.md](BENCHMARKING.md#sweeps)); the first Vista results are in [RESULTS.md](RESULTS.md).
 
 ## Build CUDA and render on the GPU
 
