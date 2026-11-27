@@ -6,6 +6,7 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 
+#include "core/error.hpp"
 #include "scene/generator.hpp"
 #include "scene/scene_io.hpp"
 
@@ -28,27 +29,33 @@ int main(int argc, char** argv) {
         CLI::App app{"Generate uniform benchmark scenes with height-field terrain"};
         rt::UniformSettings settings;
         std::string layout = "uniform", output;
-        app.add_option("--layout", layout, "Sphere layout")->check(CLI::IsMember({"uniform"}));
-        app.add_option("--primitives", settings.primitives, "Exact total primitive count")
+        app.add_option("--layout", layout,
+                       "uniform: spheres on the terrain, exactly N primitives; terrain: the "
+                       "terrain triangles only, about N (no spheres, no seed)")
+            ->check(CLI::IsMember({"uniform", "terrain"}));
+        app.add_option("--primitives", settings.primitives,
+                       "Total primitive count (exact for uniform)")
             ->required();
-        app.add_option("--seed", settings.seed, "PCG32 seed");
+        auto* seed = app.add_option("--seed", settings.seed, "PCG32 seed (uniform only)");
         app.add_option("--out", output, "Output prefix or .json path")->required();
         CLI11_PARSE(app, argc, argv);
+        if (layout == "terrain" && seed->count() != 0)
+            throw rt::Error("rt_gen: --seed applies only to --layout uniform");
         // Record the program as `rt_gen`, not argv[0]: the invocation path is not an input,
         // and the JSON bytes (and their manifest SHA-256) must not depend on it.
         std::string command = "rt_gen";
         for (int i = 1; i < argc; ++i) command += " " + quote(argv[i]);
-        const auto scene = rt::generate_uniform(settings);
+        const auto scene = layout == "terrain" ? rt::generate_terrain(settings.primitives)
+                                               : rt::generate_uniform(settings);
         auto path = std::filesystem::path(output);
         if (path.extension() != ".json") path += ".json";
-        const nlohmann::json metadata = {{"command", command},
-                                         {"layout", layout},
-                                         {"seed", settings.seed},
-                                         {"num_spheres", scene.spheres.size()},
-                                         {"num_triangles", scene.triangles.size()}};
+        nlohmann::json metadata = {{"command", command}, {"layout", layout}};
+        if (layout == "uniform") metadata["seed"] = settings.seed;
+        metadata["num_spheres"] = scene.spheres.size();
+        metadata["num_triangles"] = scene.triangles.size();
         rt::save_binary_scene(path.string(), scene, metadata);
-        std::cerr << "Generated " << settings.primitives << " primitives at " << path.string()
-                  << '\n';
+        std::cerr << "Generated " << scene.spheres.size() + scene.triangles.size()
+                  << " primitives at " << path.string() << '\n';
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << '\n';

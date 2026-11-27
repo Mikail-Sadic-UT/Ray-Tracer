@@ -68,21 +68,66 @@ Camera fit_camera(const AABB& bounds) {
     return camera;
 }
 
-SceneHost generate_uniform(const UniformSettings& settings) {
-    if (settings.primitives < 4 || settings.primitives >= 0x80000000u)
-        throw Error("generator: primitive count must be in [4, 2^31)");
-    const uint32_t budget = settings.primitives / 4;
+namespace {
+
+/// Largest g with g * g <= budget.
+uint32_t grid_size(uint32_t budget) {
     uint32_t grid = static_cast<uint32_t>(std::sqrt(static_cast<float>(budget)));
     while (uint64_t{grid} * grid > budget) --grid;
     while (uint64_t{grid + 1} * (grid + 1) <= budget) ++grid;
-    const uint32_t triangles = 2 * grid * grid;
-    const uint32_t spheres = settings.primitives - triangles;
-    const float side = 400.0f * std::sqrt(static_cast<float>(settings.primitives) / 1000000.0f);
+    return grid;
+}
+
+/// Extent of the field for N requested primitives (BENCHMARKING "Scene families").
+float field_side(uint32_t primitives) {
+    return 400.0f * std::sqrt(static_cast<float>(primitives) / 1000000.0f);
+}
+
+void add_palette(SceneHost& scene) {
     const color palette[8] = {{0.8f, 0.1f, 0.1f}, {0.1f, 0.7f, 0.2f}, {0.1f, 0.2f, 0.8f},
                               {0.8f, 0.7f, 0.1f}, {0.6f, 0.1f, 0.7f}, {0.1f, 0.7f, 0.7f},
                               {0.7f, 0.7f, 0.7f}, {0.3f, 0.3f, 0.3f}};
-    SceneHost scene;
     for (const auto& albedo : palette) scene.materials.push_back({albedo, {0, 0, 0}, 1, 0});
+}
+
+/// The light, background, ambient term and fitted camera shared by every layout, then
+/// validation and the hash.
+void finish_field(SceneHost& scene, float side) {
+    const float intensity = 0.5f * side * side;
+    scene.lights.push_back({LIGHT_POINT,
+                            {0.3f * side, 0.8f * side, 0.2f * side},
+                            {intensity, intensity, intensity},
+                            0});
+    scene.background = {0.1f, 0.1f, 0.15f};
+    scene.ambient = 0.05f;
+    scene.camera = fit_camera(scene_bounds(scene));
+    validate_scene(scene);
+    scene.hash = scene_hash(scene.view());
+}
+
+}  // namespace
+
+SceneHost generate_terrain(uint32_t primitives) {
+    if (primitives < 2 || primitives >= 0x80000000u)
+        throw Error("generator: primitive count must be in [2, 2^31)");
+    const uint32_t grid = grid_size(primitives / 2);
+    const float side = field_side(primitives);
+    SceneHost scene;
+    add_palette(scene);
+    scene.triangles = terrain_grid(grid, side, 0);
+    finish_field(scene, side);
+    return scene;
+}
+
+SceneHost generate_uniform(const UniformSettings& settings) {
+    if (settings.primitives < 4 || settings.primitives >= 0x80000000u)
+        throw Error("generator: primitive count must be in [4, 2^31)");
+    const uint32_t grid = grid_size(settings.primitives / 4);
+    const uint32_t triangles = 2 * grid * grid;
+    const uint32_t spheres = settings.primitives - triangles;
+    const float side = field_side(settings.primitives);
+    SceneHost scene;
+    add_palette(scene);
     scene.triangles = terrain_grid(grid, side, spheres);
     scene.spheres.reserve(spheres);
     Pcg32 random(settings.seed);
@@ -94,16 +139,7 @@ SceneHost generate_uniform(const UniformSettings& settings) {
         const float y = terrain_height(x, z) + radius + random.uniform();
         scene.spheres.push_back({{x, y, z}, radius, i % 8});
     }
-    const float intensity = 0.5f * side * side;
-    scene.lights.push_back({LIGHT_POINT,
-                            {0.3f * side, 0.8f * side, 0.2f * side},
-                            {intensity, intensity, intensity},
-                            0});
-    scene.background = {0.1f, 0.1f, 0.15f};
-    scene.ambient = 0.05f;
-    scene.camera = fit_camera(scene_bounds(scene));
-    validate_scene(scene);
-    scene.hash = scene_hash(scene.view());
+    finish_field(scene, side);
     return scene;
 }
 

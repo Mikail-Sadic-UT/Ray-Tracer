@@ -99,6 +99,28 @@ TEST(Terrain, GeneratorIntegration) {
     }
 }
 
+TEST(Terrain, TerrainLayoutIsTheUniformFieldWithoutSpheres) {
+    const auto terrain = rt::generate_terrain(1000);
+    const auto uniform = rt::generate_uniform({1000, 1});
+    EXPECT_TRUE(terrain.spheres.empty());
+    ASSERT_EQ(terrain.triangles.size(), 2u * 22 * 22);  // g = floor(sqrt(500)) = 22
+    EXPECT_LE(terrain.triangles.size(), 1000u);
+    // Same extent as the uniform field for the same N: the outer grid corners agree.
+    const float half = 0.5f * 400.0f * std::sqrt(1000.0f / 1000000.0f);
+    EXPECT_EQ(terrain.triangles.front().v0.x, -half);
+    EXPECT_EQ(terrain.triangles.front().v0.z, -half);
+    EXPECT_EQ(terrain.triangles.front().v0.x, uniform.triangles.front().v0.x);
+    for (size_t i = 0; i < terrain.triangles.size(); ++i)
+        EXPECT_EQ(terrain.triangles[i].material_id, i % 8u);
+    ASSERT_EQ(terrain.lights.size(), 1u);
+    EXPECT_EQ(terrain.lights[0].pos_or_dir.x, uniform.lights[0].pos_or_dir.x);
+    EXPECT_EQ(terrain.materials.size(), uniform.materials.size());
+    // No random numbers: two calls give the same scene.
+    EXPECT_EQ(rt::generate_terrain(1000).hash, terrain.hash);
+    EXPECT_EQ(rt::generate_terrain(2).triangles.size(), 2u);
+    EXPECT_THROW(rt::generate_terrain(1), rt::Error);
+}
+
 /// PCG's published demo sequence for seed 42 and stream 54.
 TEST(Generator, PcgReferenceVector) {
     rt::Pcg32 random(42, 54);
