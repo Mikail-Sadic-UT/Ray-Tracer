@@ -1,4 +1,4 @@
-"""Tests for scripts/tacc/extra.py and scripts/bench/make_balls.py.
+"""Tests for scripts/tacc/extra.py, scripts/bench/make_showcase.py and make_balls.py.
 
 The real extra scenes are large or local (scenes/meshes is not in git), so the end-to-end run
 swaps in a known scene at a tiny resolution and a two-waypoint camera path, on the CPU backend,
@@ -25,6 +25,7 @@ import extra  # noqa: E402
 import sweep  # noqa: E402
 
 MAKE_BALLS = Path(args.scripts) / 'bench' / 'make_balls.py'
+MAKE_SHOWCASE = Path(args.scripts) / 'bench' / 'make_showcase.py'
 
 
 class Plan(unittest.TestCase):
@@ -36,7 +37,7 @@ class Plan(unittest.TestCase):
             self.assertEqual(p.render_threads, 72 if p.backend == 'cpu' else 1)
         sizes = {p.scene: (p.width, p.height) for p in points}
         self.assertEqual(sizes['terrain_10k'], (1920, 1080))
-        for name in ('map_crew', 'dragon_gold', 'balls'):
+        for name in ('map_crew', 'dragon_green', 'showcase'):
             self.assertEqual(sizes[name], (3840, 2160))
 
     def test_walks_render_cuda_before_cpu_at_each_resolution(self):
@@ -44,7 +45,7 @@ class Plan(unittest.TestCase):
         self.assertEqual([(r[1], r[2]) for r in runs],
                          [((1920, 1080), 'cuda'), ((1920, 1080), 'cpu'),
                           ((3840, 2160), 'cuda'), ((3840, 2160), 'cpu')])
-        self.assertEqual(extra.walk_runs('vista', ['cpu'], ['balls']), [])
+        self.assertEqual(extra.walk_runs('vista', ['cpu'], ['showcase']), [])
 
     def test_parse_walk(self):
         stderr = ('rt_render: cpu, bvh lbvh, 160x90, lit, lights 1, B=2 R=2, path 3 frames -> d\n'
@@ -154,6 +155,43 @@ class Balls(unittest.TestCase):
                 gap = ((a['center'][0] - b['center'][0]) ** 2 +
                        (a['center'][2] - b['center'][2]) ** 2) ** 0.5
                 self.assertGreater(gap, a['radius'] + b['radius'])
+
+
+class Showcase(unittest.TestCase):
+    def test_committed_scene_is_up_to_date(self):
+        r = subprocess.run([sys.executable, str(MAKE_SHOWCASE), '--check'], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_six_spheres_of_every_material_kind_on_a_checkerboard(self):
+        scene = json.loads(extra.sweep.scene_path(extra.DEFAULT_SCENES, 'showcase').read_text())
+        spheres = scene['geometry']['spheres']
+        self.assertEqual(len(spheres), 6)
+        self.assertEqual(len(scene['lights']), 3)
+        mats = scene['materials']
+
+        def kind(m):
+            if m.get('mirror'):
+                return 'mirror'
+            if m.get('glass'):
+                return 'glass'
+            return 'glossy' if m.get('specular') else 'matte'
+        kinds = sorted(kind(mats[s['material']]) for s in spheres)
+        self.assertEqual(kinds, ['glass', 'glass', 'glossy', 'matte', 'mirror', 'mirror'])
+        glass = [mats[s['material']] for s in spheres if mats[s['material']].get('glass')]
+        self.assertEqual(len({tuple(m['ks']) for m in glass}), 2, 'one clear and one colored glass')
+        self.assertEqual(len({t['material'] for t in scene['geometry']['triangles']}), 2,
+                         'two alternating floor materials')
+        for i, a in enumerate(spheres):
+            self.assertEqual(a['center'][1], a['radius'], 'rests on the floor')
+            for b in spheres[i + 1:]:
+                gap = ((a['center'][0] - b['center'][0]) ** 2 + (a['center'][2] - b['center'][2]) ** 2) ** 0.5
+                self.assertGreater(gap, a['radius'] + b['radius'], 'no two touch')
+
+    def test_stage_template_for_the_dragon_has_no_sample_balls_and_a_fill_light(self):
+        t = json.loads((extra.REPO / 'scenes' / 'templates' / 'mesh_solo.json').read_text())
+        self.assertEqual(t['geometry']['spheres'], [])
+        self.assertEqual(len(t['lights']), 3)
+        self.assertEqual((t['camera']['width'], t['camera']['height']), (3840, 2160))
 
 
 class RealRun(unittest.TestCase):

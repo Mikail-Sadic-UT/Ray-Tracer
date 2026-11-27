@@ -45,9 +45,9 @@
 │   └── oracle/                 # independent checks: double-precision intersection (Arek), shading expected values (Jett)
 ├── scenes/
 │   ├── known/                  # Small hand-written inline JSON scenes
-│   ├── extra/                  # Extra benchmark scenes in git (balls.json, from scripts/bench/make_balls.py)
+│   ├── extra/                  # Extra benchmark scenes in git (showcase.json, from scripts/bench/make_showcase.py; balls.json, from make_balls.py)
 │   ├── golden/                 # Small golden PFM + .u32img files, compared with normal tolerances
-│   ├── templates/              # Template scenes for obj2bin (mesh_stage.json)
+│   ├── templates/              # Template scenes for obj2bin (mesh_stage.json; mesh_solo.json: no sample balls, fill light, 4K camera)
 │   ├── meshes/                 # Downloaded OBJ meshes and their obj2bin scenes (gitignored)
 │   └── manifest.json           # Benchmark scenes: rt_gen command, generator environment, hashes (files themselves not committed)
 ├── scripts/
