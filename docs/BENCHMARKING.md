@@ -199,10 +199,15 @@ python3 scripts/tacc/extra.py run --machine laptop --rt-render build/apps/rt_ren
 sbatch -p gh -t 01:00:00 --export=ALL,PRESET=extra scripts/tacc/sweep.sbatch
 ```
 
-**Scene files.** `scenes/meshes` is not in git, and generated scenes are never regenerated on another machine (INTERFACES §2), so the scenes are copied from the laptop to the same paths in the Vista clone. That is 9 files and about 218 MB. `<$WORK>` stands for the output of `echo $WORK` on Vista:
+**Scene files.** Generated scenes are never regenerated on another machine (INTERFACES §2), so `terrain_10k` is published as the scene set `scenes-extra-v1` (release assets, with an entry in `scenes/manifest.json`) and fetched with the usual script, which checks the archive hashes and the scene's content and scene hashes:
 
 ```bash
-rsync -av scenes/generated/terrain_10k.{json,bin} <user>@vista.tacc.utexas.edu:<$WORK>/Ray-Tracer/scenes/generated/
+bash scripts/fetch_scenes.sh scenes-extra-v1
+```
+
+`balls.json` is in git. `scenes/meshes` is not, and the mesh scenes use third-party models, so they are not archived. Copy them from the laptop to the same paths in the Vista clone. That is 7 files and about 218 MB. `<$WORK>` stands for the output of `echo $WORK` on Vista:
+
+```bash
 rsync -av scenes/meshes/{house,map_crew,dragon_gold}.{json,bin} scenes/meshes/house_walk.json \
   <user>@vista.tacc.utexas.edu:<$WORK>/Ray-Tracer/scenes/meshes/
 ```
@@ -216,6 +221,8 @@ Check each copy with `scene_dump --verify` against these hashes (laptop, Nov 26)
 | `dragon_gold` | `0xcad8a1eb6ed7215f` | `0xecf2b1bcbdba53d6` |
 | `house` | `0xb5fef591984e6c7b` | `0xf0812e6b01d51b0f` |
 | `balls` (in git) | `0x4db24d7645a3739b` | `0x8842f81161e3c4d2` |
+
+**Published images.** The release `results-nov27` holds renders of `bench_10k_s1`, `bench_100k_s1`, `bench_1m_s1`, `terrain_10k`, `balls` and `dragon_gold` (6 PNGs and a `PROVENANCE.txt` with the settings, scene hashes and image hashes). Renders of `map_crew` and the house are not published, because the models are third-party (see [USER_GUIDE.md](USER_GUIDE.md#from-a-gltf-model-glb)). The images are release assets and not in git, because `.gitignore` excludes PNG files outside `scenes/golden` and `docs/`.
 
 `extra.py` fails before measuring if a scene is missing. `EXTRA_ONLY=terrain_10k,balls` in the job, or `--only` on the command line, runs a subset.
 

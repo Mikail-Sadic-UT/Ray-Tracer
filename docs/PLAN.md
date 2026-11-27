@@ -37,7 +37,7 @@ Done Nov 27 on `gh-dev` (jobs 1175084, 1175157, 1175169): `verify` (ctest 358/35
 
 1. On a compute node: `git pull`, then `source scripts/tacc/env.sh && bash scripts/tacc/build_vista.sh` (the build takes about a minute when only a few files changed).
 2. `sbatch -p gh-dev -t 02:00:00 --export=ALL,PRESET="core final profile extra" scripts/tacc/sweep.sbatch`. The whole job took about 15 minutes on Nov 27. Use `gh-dev`: on Nov 27 `gh` had about 500 jobs pending and no start estimate.
-3. The extra step needs `terrain_10k` and the mesh scenes in place (BENCHMARKING.md "Extra benchmarks"). `ffmpeg` on the compute nodes cannot start, so copy the GPU frames of the house walkthroughs to the laptop and encode them there.
+3. The extra step needs `terrain_10k` (`bash scripts/fetch_scenes.sh scenes-extra-v1`) and the mesh scenes (copied from the laptop) in place (BENCHMARKING.md "Extra benchmarks"). `ffmpeg` on the compute nodes cannot start, so copy the GPU frames of the house walkthroughs to the laptop and encode them there.
 4. Copy the results out of `$SCRATCH` and update RESULTS.md from them.
 
 ## Work items
@@ -66,7 +66,7 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 - **Kernel tuning (optional):** the profile shows the lit BVH kernel is latency- and divergence-bound at 128 registers (25% theoretical occupancy on the GH200, no spills; [RESULTS.md](RESULTS.md#profiling-gh200)). The 2× target is met and the kernel is 5.9 of the GPU's 17.0 ms T_br at 1M, so there is little to gain in T_br.
 - **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 rounds, on the laptop and Vista. Done on Vista and on the laptop on Nov 27 (`sweep.py final`, `PRESET=final`; [BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal); [RESULTS.md](RESULTS.md#laptop-run-rtx-4070-laptop-nov-27)). Node-hour log rows for the jobs so far (1142824, 1142829, 1142842, 1164735) through `scripts/tacc/node_hours.sh`.
 - **Quality review:** done Nov 27 (Mikail reviewed the pictures; one reviewer, where [BENCHMARKING.md](BENCHMARKING.md#quality-protocol) asks for two or more, so the report should say so). Still to do: the report's validation section.
-- **Report, slides, release:** reproducible release with the scene archive, commit hash, and exact commands. Dates in the ROADMAP schedule.
+- **Report, slides, release:** reproducible release with the scene archive, commit hash, and exact commands. Dates in the ROADMAP schedule. The `final` tag (PR `dev` to `main`, [WORKFLOW.md](WORKFLOW.md#checkpoints-and-check-ins)) waits for the report: the numbers in RESULTS.md come from `94fadfe` (Vista) and `f9bdc3a` (laptop), and the tag should sit on the commit the report cites.
 
 ## Parked
 
@@ -94,6 +94,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 
 | Item | PR |
 |---|---|
+| Release assets: scene set `scenes-extra-v1` (`terrain_10k`, with a manifest entry, verified through `fetch_scenes.sh`) and the release `results-nov27` with 6 benchmark images and their provenance. Map_crew and house renders held back (third-party models) | `mikail/release-assets` |
 | Laptop sweep and final runs at `f9bdc3a`, run twice (the run with the lower 1M spread is reported): 2.94× CPU / GPU at 1M, PCIe transfers cost about 11 ms of the GPU's 68 ms T_br | `mikail/laptop-results` |
 | Nov 27 Vista run of `dev`: final ratios (all three targets met at every size, 2.43× at 1M), GH200 profile, light-count and extra benchmarks, walkthrough videos; `env.sh` puts Nsight on `PATH`; `extra.py` survives a broken ffmpeg | #93 and this branch |
 | Extra benchmarks: `scripts/tacc/extra.py` (CPU against GPU at the top thread count on `terrain_10k`, `map_crew`, `dragon_gold` and `balls`, and the house walkthrough at 1080p and 4K, with CPU = GPU byte checks and the video), `PRESET=extra`; `rt_gen --layout terrain` (IC8); `scenes/extra/balls.json` from `scripts/bench/make_balls.py`; `rt_render --path` prints the total frame time. Laptop: every still and walkthrough frame CPU = GPU byte-identical | `mikail/extra-benchmarks` |

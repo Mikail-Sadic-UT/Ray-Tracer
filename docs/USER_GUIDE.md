@@ -306,7 +306,7 @@ mkdir -p out/generated
 
 The generator writes JSON metadata and binary geometry. `--out` accepts a prefix or a `.json` path. `--primitives` is the exact total number of spheres plus triangles and must be at least 4 and below `2^31`.
 
-`--layout terrain` writes the same field without the spheres: only the height-field triangles, about `--primitives` of them (999,698 for 1,000,000), with the same extent, light and camera as `uniform`. It takes no `--seed`. The extra benchmark `terrain_10k` is `rt_gen --layout terrain --primitives 10000 --out scenes/generated/terrain_10k` (9,800 triangles).
+`--layout terrain` writes the same field without the spheres: only the height-field triangles, about `--primitives` of them (999,698 for 1,000,000), with the same extent, light and camera as `uniform`. It takes no `--seed`. The extra benchmark `terrain_10k` is `rt_gen --layout terrain --primitives 10000 --out scenes/generated/terrain_10k` (9,800 triangles); the published copy is `bash scripts/fetch_scenes.sh scenes-extra-v1`.
 
 Scenes contain colored spheres over a height-field terrain, a point light, and a fitted 1920×1080 camera. A fixed seed controls sphere placement; terrain shape is fixed. Generation is repeatable on the same recorded environment, but math-library differences can change bytes across machines. Use local generation for development; use the published files for comparable benchmarks.
 
