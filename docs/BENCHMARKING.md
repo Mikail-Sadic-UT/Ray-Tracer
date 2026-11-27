@@ -183,7 +183,7 @@ Stills are measured like sweep points, with 1 warm-up, then the median of 5 runs
 
 - Every still's CPU and GPU PFM and AOV files are compared byte for byte. The files are deleted when they match and kept when they differ.
 - Every walkthrough frame's PNG is compared between the two backends.
-- With ffmpeg available, the GPU frames are encoded into `videos/house_<W>x<H>.mp4`, with the same settings as `make_video.sh`. Without ffmpeg, the frames are kept for later encoding.
+- With ffmpeg available, the GPU frames are encoded into `videos/house_<W>x<H>.mp4`, with the same settings as `make_video.sh`. If ffmpeg is missing, cannot start, or fails, the run only warns and keeps the GPU frames for later encoding. On a Vista `gh-dev` compute node (Nov 27), `/usr/bin/ffmpeg` exists but fails with `libunwind.so.8: cannot open shared object file`, so on Vista the frames are kept: copy them to the laptop and encode them there with the command below.
 
 It writes:
 
@@ -379,7 +379,7 @@ It writes `summary.txt` with the numbers worth quoting:
 - the Nsight Systems kernel and memcpy totals;
 - the main Nsight Compute metrics: occupancy, throughputs, hit rates and active threads per warp.
 
-The full reports (`.nsys-rep`, `.ncu-rep`) are next to it, for `nsys-ui` and `ncu-ui`. Times measured under a profiler are not benchmark numbers. Nsight Compute replays the kernel and locks clocks to base, and Nsight Systems adds tracing overhead. On the laptop both tools work under WSL2 (nsys 2026.1.3, ncu 2026.2.1, from the CUDA 13.3 toolkit). The 1M run takes about 15 s. **Still to verify on Vista:** that `nsys` and `ncu` from `cuda/13.3` run on a GH node, and that users can read the GPU performance counters there. `profile.sh` names `ERR_NVGPUCTRPERM` in its summary if they can't.
+The full reports (`.nsys-rep`, `.ncu-rep`) are next to it, for `nsys-ui` and `ncu-ui`. Times measured under a profiler are not benchmark numbers. Nsight Compute replays the kernel and locks clocks to base, and Nsight Systems adds tracing overhead. On the laptop both tools work under WSL2 (nsys 2026.1.3, ncu 2026.2.1, from the CUDA 13.3 toolkit). The 1M run takes about 15 s. **On Vista (Nov 27, `gh-dev`):** after `env.sh`, `nsys` and `ncu` were not on `PATH`, so `profile.sh` could only write the `cuobjdump` resources (128 registers for the lit BVH kernel on `sm_90`, as on the laptop). Where they are, and whether users can read the GPU performance counters there, is still to find out; `profile.sh` names `ERR_NVGPUCTRPERM` in its summary if they can't.
 
 Which machine to use:
 

@@ -25,7 +25,9 @@ out with --only.
 the CPU-against-GPU tables. Every still is also checked for CPU and GPU byte equality (PFM and
 AOVs), and every walkthrough frame for PNG byte equality. With ffmpeg, the GPU frames are
 encoded into DIR/videos/<scene>_<W>x<H>.mp4 (as scripts/make_video.sh does); the frames are
-then deleted unless --keep-frames, and kept for later encoding when ffmpeg is missing.
+then deleted unless --keep-frames, and kept for later encoding when ffmpeg is missing or
+cannot run (a compute node can lack a library the login node has) or fails: that costs the
+video only, never the measurements.
 Finished stills and walks are skipped on resubmission (--fresh measures them again).
 
 Exit status: 0 on success, 1 if a measurement fails or CPU and GPU output differ, 2 for a usage
@@ -188,6 +190,18 @@ def compare_frames(out, cuda_name, cpu_name):
         return (0, max(len(names), 1))
     same = sum(filecmp.cmp(a / n, b / n, shallow=False) for n in names)
     return (same, len(names))
+
+
+def ffmpeg_works():
+    """True if `ffmpeg` is on PATH and starts: /usr/bin/ffmpeg on a Vista compute node can fail
+    to load a shared library (libunwind.so.8), which `shutil.which` does not notice."""
+    exe = shutil.which('ffmpeg')
+    if exe is None:
+        return False
+    try:
+        return subprocess.run([exe, '-version'], capture_output=True).returncode == 0
+    except OSError:
+        return False
 
 
 def encode(frames_dir, video):
@@ -438,17 +452,22 @@ def cmd_run(args):
 def finish_frames(args, out, w, res, video_name, other_name):
     """Encodes the video from `video_name`'s frames, then deletes frames as asked."""
     video_frames = out / 'walks' / video_name / 'frames' if video_name else None
-    have_ffmpeg = shutil.which('ffmpeg') is not None
+    have_ffmpeg = ffmpeg_works()
     video = out / 'videos' / f'{w.scene}_{res[0]}x{res[1]}.mp4'
     keep_video_frames = args.keep_frames
     if video_frames and video_frames.is_dir() and not args.no_video:
+        reason = None if have_ffmpeg else 'ffmpeg is missing or cannot run'
         if have_ffmpeg:
-            encode(video_frames, video)
-            print(f'video: {video}', file=sys.stderr)
-        else:
+            try:
+                encode(video_frames, video)
+                print(f'video: {video}', file=sys.stderr)
+            except sweep.SweepError as error:
+                reason = str(error)
+        if reason:
             keep_video_frames = True
-            print(f'video: ffmpeg not found; frames kept in {video_frames} for '
-                  'scripts/make_video.sh-style encoding later', file=sys.stderr)
+            print(f'warning: no video for {w.scene} {res[0]}x{res[1]}: {reason}; frames kept '
+                  f'in {video_frames} for encoding later (BENCHMARKING.md "Extra benchmarks")',
+                  file=sys.stderr)
     for name, keep in ((video_name, keep_video_frames), (other_name, args.keep_frames)):
         d = out / 'walks' / name / 'frames' if name else None
         if d and d.is_dir() and not keep:
