@@ -4,6 +4,15 @@
 # (BENCHMARKING.md "Thread pinning"), and records `module list` for sweep.py's identity files.
 module reset
 module load gcc/13.2.0 cuda/13.3 cmake
+# Nsight is not in the cuda/13.3 module. The HPC SDK that cuda/13.3 comes from (nvidia/26.9) ships
+# it; nsys 2026.4.1 and ncu 2026.2.1 start from this directory on a GH node (Nov 27). The
+# directory is appended, never prepended: it also holds that SDK's compilers, which must not
+# shadow the gcc and CUDA tools loaded above. (The old SDK under /opt/apps/nvidia/24.5 has
+# wrappers that fail with "Version 12_4 ... is not available".) RT_NSIGHT_DIR overrides the path.
+RT_NSIGHT_DIR="${RT_NSIGHT_DIR:-/home1/apps/nvidia/Linux_aarch64/26.9/compilers/bin}"
+if ! command -v nsys >/dev/null 2>&1 && [[ -d "$RT_NSIGHT_DIR" ]]; then
+  export PATH="$PATH:$RT_NSIGHT_DIR"
+fi
 export OMP_PROC_BIND=close
 export OMP_PLACES=cores
 # TACC shells set OMP_NUM_THREADS=1. The project never reads it (every parallel region passes
