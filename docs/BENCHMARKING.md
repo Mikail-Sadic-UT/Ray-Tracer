@@ -165,6 +165,60 @@ python3 scripts/tacc/sweep.py final --sweep docs/data/vista-core-1164735.csv --m
 
 The final step reruns 21 configurations in 5 rounds. That is about 5 minutes of measuring on Vista, estimated from the Nov 23 sweep. It warns if the sweep it chose from was measured at a different commit. Finished rounds are skipped on resubmission. The laptop runs `g2` in about 1.5 minutes (`--machine laptop`); copy `sweep.csv` and `identity/` out of `$SCRATCH` before it is purged. `python3 scripts/tacc/ratios.py sweep.csv` prints the target ratios (CPU\* and GPU\* chosen by the rule above, with the number of thread counts CPU\* came from) and the T_br breakdown; results so far are in [RESULTS.md](RESULTS.md).
 
+## Extra benchmarks
+
+These are CPU-against-GPU comparisons on scenes outside the Core matrix. They are not swept: each scene runs once on the CPU at B = R = the top thread count (72 on Vista) and once on the GPU at B = the top count, with lbvh and lit shading. They don't count toward the targets. `scripts/tacc/extra.py` runs them, and `PRESET=extra` does so in a Vista job.
+
+| Benchmark | Scene | Primitives | Resolution | Measures |
+|---|---|---:|---|---|
+| `terrain_1m` | `bench_1m`'s terrain without spheres (`rt_gen --layout terrain --primitives 1000000`, IC8) | 999,698 triangles | 1920×1080 | T_br, T_frame |
+| `map_crew` | Among Us map with crew models (`scenes/meshes`) | 3,024,680 triangles | 3840×2160 | T_br, T_frame |
+| `dragon_gold` | XYZ RGB dragon, gold mirror, on the mesh stage (`scenes/meshes`) | 249,884 triangles + 8 spheres | 3840×2160 | T_br, T_frame |
+| `balls` | 48 scattered spheres: matte, glossy, mirror and glass; 4 point lights (`scenes/extra/balls.json`, from `scripts/bench/make_balls.py`) | 48 spheres + 2 triangles | 3840×2160 | T_br, T_frame |
+| `house` walkthrough | `house.json` along `house_walk.json` (`scenes/meshes`) | 2,145,083 triangles | 1920×1080 and 3840×2160 | Per-frame time over 240 frames, and the total |
+
+Stills are measured like sweep points, with 1 warm-up, then the median of 5 runs. The walkthrough uses `rt_render --path`, which prepares once and then times one render and download per camera; PNG writing is not included. Frame time varies along the path because the view changes, so its min and max describe the path rather than noise. The headline walkthrough number is the total render time of the 240 frames (8 s of video at 30 fps).
+
+`extra.py` also checks correctness as it runs:
+
+- Every still's CPU and GPU PFM and AOV files are compared byte for byte. The files are deleted when they match and kept when they differ.
+- Every walkthrough frame's PNG is compared between the two backends.
+- With ffmpeg available, the GPU frames are encoded into `videos/house_<W>x<H>.mp4`, with the same settings as `make_video.sh`. Without ffmpeg, the frames are kept for later encoding.
+
+It writes:
+
+- `sweep.csv`: the stills, in the sweep format;
+- `walks.csv`;
+- `extra.md`: the CPU-against-GPU tables.
+
+On the laptop at `5e6ea0a`, all four stills are byte-identical between CPU and GPU, and every walkthrough frame is identical.
+
+```bash
+python3 scripts/tacc/extra.py plan --machine vista                         # commands, and which scenes are missing
+python3 scripts/tacc/extra.py run --machine laptop --rt-render build/apps/rt_render/rt_render --out out/extra
+sbatch -p gh -t 01:00:00 --export=ALL,PRESET=extra scripts/tacc/sweep.sbatch
+```
+
+**Scene files.** `scenes/meshes` is not in git, and generated scenes are never regenerated on another machine (INTERFACES §2), so the scenes are copied from the laptop to the same paths in the Vista clone. That is 9 files and about 258 MB. `<$WORK>` stands for the output of `echo $WORK` on Vista:
+
+```bash
+rsync -av scenes/generated/terrain_1m.{json,bin} <user>@vista.tacc.utexas.edu:<$WORK>/Ray-Tracer/scenes/generated/
+rsync -av scenes/meshes/{house,map_crew,dragon_gold}.{json,bin} scenes/meshes/house_walk.json \
+  <user>@vista.tacc.utexas.edu:<$WORK>/Ray-Tracer/scenes/meshes/
+```
+
+Check each copy with `scene_dump --verify` against these hashes (laptop, Nov 26):
+
+| Scene | content_hash | scene_hash |
+|---|---|---|
+| `terrain_1m` | `0xa17eecc17367b18c` | `0x8d1a897ff24f3ab1` |
+| `map_crew` | `0x3d90535998d7c173` | `0x5777c336bd354655` |
+| `dragon_gold` | `0xcad8a1eb6ed7215f` | `0xecf2b1bcbdba53d6` |
+| `house` | `0xb5fef591984e6c7b` | `0xf0812e6b01d51b0f` |
+| `balls` (in git) | `0x4db24d7645a3739b` | `0x8842f81161e3c4d2` |
+
+`extra.py` fails before measuring if a scene is missing. `EXTRA_ONLY=terrain_1m,balls` in the job, or `--only` on the command line, runs a subset.
+
 ## Machine identity
 
 Record from the allocated node, not from documentation:

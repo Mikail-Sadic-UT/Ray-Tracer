@@ -43,10 +43,11 @@ The Vista numbers in RESULTS.md come from `13321a5`, before the materials and th
 
 1. On a compute node (`idev -p gh-dev`): `git pull`, `source scripts/tacc/env.sh && bash scripts/tacc/build_vista.sh`. If `scenes/generated` has no `bench_*_s1` files, run `bash scripts/fetch_scenes.sh scenes-v1`. `verify.sh` checks their hashes.
 2. `sbatch --export=ALL,PRESET=verify scripts/tacc/sweep.sbatch` on `gh-dev`. This checks the new build: ctest, scene hashes, CPU vs CUDA on all 10 scenes. Optionally add `PRESET="verify profile"` to see early whether Nsight works there.
-3. `sbatch -p gh -t 02:00:00 --export=ALL,PRESET="core final profile" scripts/tacc/sweep.sbatch`. This runs the 50-point `core` sweep (which includes the light count), the interleaved final runs chosen from it (about 5 minutes) and the profile. Each step writes `ratios.md` or `summary.txt`.
-4. Copy `sweep.csv`, `final.csv`, `final_plan.json`, `identity/` and the profile `summary.txt` out of `$SCRATCH` into `docs/data/`, and update RESULTS.md from them.
+3. Copy the extra benchmark scenes from the laptop (`terrain_1m` and the mesh scenes, 258 MB; [BENCHMARKING.md](BENCHMARKING.md#extra-benchmarks)) and check their hashes with `scene_dump --verify`.
+4. `sbatch -p gh -t 02:30:00 --export=ALL,PRESET="core final profile extra" scripts/tacc/sweep.sbatch`. This runs the 50-point `core` sweep (which includes the light count), the interleaved final runs chosen from it (about 5 minutes), the profile, and the extra CPU-against-GPU benchmarks with the house walkthrough. Each step writes `ratios.md`, `summary.txt` or `extra.md`.
+5. Copy `sweep.csv`, `final.csv`, `final_plan.json`, `identity/`, the profile `summary.txt`, and the extra step's `extra.md`, `sweep.csv` and `walks.csv` out of `$SCRATCH` into `docs/data/`, and update RESULTS.md from them. The walkthrough videos are in the extra step's `videos/` if ffmpeg was available, and otherwise its GPU frames are kept.
 
-Rerun steps 3 and 4 if Core code changes again.
+Rerun steps 4 and 5 if Core code changes again.
 
 ## Work items
 
@@ -102,6 +103,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 
 | Item | PR |
 |---|---|
+| Extra benchmarks: `scripts/tacc/extra.py` (CPU against GPU at the top thread count on `terrain_1m`, `map_crew`, `dragon_gold` and `balls`, and the house walkthrough at 1080p and 4K, with CPU = GPU byte checks and the video), `PRESET=extra`; `rt_gen --layout terrain` (IC8); `scenes/extra/balls.json` from `scripts/bench/make_balls.py`; `rt_render --path` prints the total frame time. Laptop: every still and walkthrough frame CPU = GPU byte-identical | `mikail/extra-benchmarks` |
 | Final-run and profiling tooling: `sweep.py final` (CPU\* and GPU\* from a sweep, 5 interleaved rounds, `final.csv` with roles), `ratios.py` reads final runs by role, `scripts/tacc/profile.sh` (cuobjdump, Nsight Systems, Nsight Compute), `sweep.sbatch` steps `final` and `profile` and a `ratios.md` per step; laptop profile in RESULTS.md | `mikail/final-runs` |
 | CUDA megakernel backend, `DeviceScene`, contraction off project-wide | #65 |
 | Vista sweep, verification and node-hour scripts; first Vista results | #66 |
