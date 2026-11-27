@@ -19,7 +19,7 @@
 #            the last sweep preset earlier in the same PRESET list.
 #   ROUNDS   final only: interleaved rounds (default 5).
 #   FRAMES   extra only: walkthrough frames (default 240). EXTRA_ONLY: comma-separated
-#            extra.py --only list, e.g. terrain_10k,balls when the mesh scenes are not copied.
+#            extra.py --only list, e.g. terrain_10k,showcase when the mesh scenes are not copied.
 #   OUT      results directory. Default $SCRATCH/rt-results/<presets joined by ->-<job id>.
 #   RT_BUILD build tree (default <repo>/build-vista); RT_SCENE_DEST scene directory
 #            (default <repo>/scenes/generated, where fetch_scenes.sh puts scenes-v1).

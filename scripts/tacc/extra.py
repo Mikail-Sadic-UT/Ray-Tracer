@@ -9,8 +9,9 @@ machine's top thread count only (B = R = 72 on Vista), plus a camera-path walkth
 Stills (T_br and T_frame, 1 warm-up and --runs runs, as in a sweep):
     terrain_10k  the bench_10k terrain without spheres (rt_gen --layout terrain), 1920x1080
     map_crew     the Among Us map with crew models, 3840x2160
-    dragon_gold  the gold XYZ RGB dragon on the mesh stage, 3840x2160
-    balls        scattered spheres of every material, 4 point lights (make_balls.py), 3840x2160
+    dragon_green the XYZ RGB dragon in green, seen from the side, lit by 3 lights, 3840x2160
+    showcase     chrome, gold mirror, glass and glossy red spheres on a checkerboard, 3 lights
+                 (make_showcase.py), 3840x2160
 Walkthrough (rt_render --path, one preparation, then one timed frame per camera):
     house        house.json along house_walk.json, 1920x1080 and 3840x2160
 
@@ -69,7 +70,7 @@ class Walk:
 
 
 STILLS = (Still('terrain_10k', sweep.FULL_HD), Still('map_crew', UHD),
-          Still('dragon_gold', UHD), Still('balls', UHD))
+          Still('dragon_green', UHD), Still('showcase', UHD))
 WALKS = (Walk('house', 'house_walk', (sweep.FULL_HD, UHD)),)
 NAMES = tuple(s.scene for s in STILLS) + tuple(w.scene for w in WALKS)
 
@@ -374,8 +375,10 @@ def cmd_run(args):
             print(f'{prefix}: FAILED: {error}', file=sys.stderr)
     # CPU = GPU on every still; the large image files are kept only when they differ.
     equal = {}
+    # Every still of the list, not only those of this run (--only): a finished one keeps its
+    # verdict, which is saved next to its results.
     for s in STILLS:
-        pair = [p for p in points if p.scene == s.scene]
+        pair = [p for p in still_points(args.machine, args.backends, None) if p.scene == s.scene]
         if len(pair) == 2:
             cpu_p, gpu_p = sorted(pair, key=lambda p: p.backend != 'cpu')
             same = still_images_equal(out, cpu_p, gpu_p)
