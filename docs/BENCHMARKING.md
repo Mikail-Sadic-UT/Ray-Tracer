@@ -173,8 +173,8 @@ These are CPU-against-GPU comparisons on scenes outside the Core matrix. They ar
 |---|---|---:|---|---|
 | `terrain_10k` | `bench_10k`'s terrain without spheres (`rt_gen --layout terrain --primitives 10000`, IC8), small enough to see the individual triangles | 9,800 triangles | 1920×1080 | T_br, T_frame |
 | `map_crew` | Among Us map with crew models (`scenes/meshes`) | 3,024,680 triangles | 3840×2160 | T_br, T_frame |
-| `dragon_gold` | XYZ RGB dragon, gold mirror, on the mesh stage (`scenes/meshes`) | 249,884 triangles + 8 spheres | 3840×2160 | T_br, T_frame |
-| `balls` | 48 scattered spheres: matte, glossy, mirror and glass; 4 point lights (`scenes/extra/balls.json`, from `scripts/bench/make_balls.py`) | 48 spheres + 2 triangles | 3840×2160 | T_br, T_frame |
+| `dragon_green` | XYZ RGB dragon in green, seen from the side, lowered so its feet touch the floor, with a fill light on the camera side (`scenes/templates/mesh_solo.json`; scene in `scenes/meshes`) | 249,884 triangles | 3840×2160 | T_br, T_frame |
+| `showcase` | Six spheres on a checkerboard, lit by 3 point lights: chrome and gold mirror, clear and emerald glass, a matte red ball and a glossy blue one (`scenes/extra/showcase.json`, from `scripts/bench/make_showcase.py`). Heavy on mirror and glass bounces | 6 spheres + 3,200 triangles | 3840×2160 | T_br, T_frame |
 | `house` walkthrough | `house.json` along `house_walk.json` (`scenes/meshes`) | 2,145,083 triangles | 1920×1080 and 3840×2160 | Per-frame time over 240 frames, and the total |
 
 Stills are measured like sweep points, with 1 warm-up, then the median of 5 runs. The walkthrough uses `rt_render --path`, which prepares once and then times one render and download per camera; PNG writing is not included. Frame time varies along the path because the view changes, so its min and max describe the path rather than noise. The headline walkthrough number is the total render time of the 240 frames (8 s of video at 30 fps).
@@ -205,26 +205,28 @@ sbatch -p gh -t 01:00:00 --export=ALL,PRESET=extra scripts/tacc/sweep.sbatch
 bash scripts/fetch_scenes.sh scenes-extra-v1
 ```
 
-`balls.json` is in git. `scenes/meshes` is not, and the mesh scenes use third-party models, so they are not archived. Copy them from the laptop to the same paths in the Vista clone. That is 7 files and about 218 MB. `<$WORK>` stands for the output of `echo $WORK` on Vista:
+`showcase.json` is in git. `scenes/meshes` is not, and the mesh scenes use third-party models, so they are not archived. Copy them from the laptop to the same paths in the Vista clone. That is 7 files and about 218 MB. `<$WORK>` stands for the output of `echo $WORK` on Vista:
 
 ```bash
-rsync -av scenes/meshes/{house,map_crew,dragon_gold}.{json,bin} scenes/meshes/house_walk.json \
+rsync -av scenes/meshes/{house,map_crew,dragon_green}.{json,bin} scenes/meshes/house_walk.json \
   <user>@vista.tacc.utexas.edu:<$WORK>/Ray-Tracer/scenes/meshes/
 ```
 
-Check each copy with `scene_dump --verify` against these hashes (laptop, Nov 26):
+Check each copy with `scene_dump --verify` against these hashes (laptop, Nov 27):
 
 | Scene | content_hash | scene_hash |
 |---|---|---|
 | `terrain_10k` | `0x032dec4a8b57a0cf` | `0x71221c8fec1d09e8` |
 | `map_crew` | `0x3d90535998d7c173` | `0x5777c336bd354655` |
-| `dragon_gold` | `0xcad8a1eb6ed7215f` | `0xecf2b1bcbdba53d6` |
+| `dragon_green` | `0x35e872558e42d6e5` | `0x4810505687a8fb96` |
 | `house` | `0xb5fef591984e6c7b` | `0xf0812e6b01d51b0f` |
-| `balls` (in git) | `0x4db24d7645a3739b` | `0x8842f81161e3c4d2` |
+| `showcase` (in git) | `0xa77d5c8a9cb0bab4` | `0x39a85215255e4fa9` |
 
-**Published images.** The release `results-nov27` holds renders of `bench_10k_s1`, `bench_100k_s1`, `bench_1m_s1`, `terrain_10k`, `balls` and `dragon_gold` (6 PNGs and a `PROVENANCE.txt` with the settings, scene hashes and image hashes). Renders of `map_crew` and the house are not published, because the models are third-party (see [USER_GUIDE.md](USER_GUIDE.md#from-a-gltf-model-glb)). The images are release assets and not in git, because `.gitignore` excludes PNG files outside `scenes/golden` and `docs/`.
+**Replaced scenes.** The first versions of these two benchmarks were `dragon_gold` (the gold dragon among the stage's 8 sample balls) and `balls` (48 scattered spheres, `scenes/extra/balls.json` from `scripts/bench/make_balls.py`). The Nov 27 Vista run measured those ([RESULTS.md](RESULTS.md#extra-benchmarks)). They were replaced the same day by `dragon_green` and `showcase`, which look better in slides. `balls.json` and `make_balls.py` stay in the repo so that run can be reproduced.
 
-`extra.py` fails before measuring if a scene is missing. `EXTRA_ONLY=terrain_10k,balls` in the job, or `--only` on the command line, runs a subset.
+**Published images.** The release `results-nov27` holds renders of `bench_10k_s1`, `bench_100k_s1`, `bench_1m_s1`, `terrain_10k`, `balls` and `dragon_gold` (6 PNGs and a `PROVENANCE.txt` with the settings, scene hashes and image hashes), and the 4K renders of `dragon_green` and `showcase` with `PROVENANCE-presentation.txt`. Renders of `map_crew` and the house are not published, because the models are third-party (see [USER_GUIDE.md](USER_GUIDE.md#from-a-gltf-model-glb)). The images are release assets and not in git, because `.gitignore` excludes PNG files outside `scenes/golden` and `docs/`.
+
+`extra.py` fails before measuring if a scene is missing. `EXTRA_ONLY=terrain_10k,showcase` in the job, or `--only` on the command line, runs a subset.
 
 ## Machine identity
 

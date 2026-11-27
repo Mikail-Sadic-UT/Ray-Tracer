@@ -108,6 +108,15 @@ CPU at 72 threads against the GPU at B = 72, lbvh, lit, medians of 5 runs for th
 | dragon_gold | 249,892 | 3840×2160 | 100.7 | 26.3 | 3.8× | 96.8 | 22.7 | 4.3× | yes |
 | balls | 50 | 3840×2160 | 74.2 | 13.3 | 5.6× | 73.5 | 13.0 | 5.6× | yes |
 
+`dragon_gold` and `balls` are the first versions of two of these benchmarks. They were replaced on Nov 27 by `dragon_green` and `showcase` ([BENCHMARKING.md](BENCHMARKING.md#extra-benchmarks)), so the two rows above stay as measured and the new scenes have no Vista numbers yet. The new scenes on the laptop (RTX 4070 Laptop, 32 threads, `2b3e59b`, medians of 5 runs; both are byte-identical between CPU and GPU; [data](data/laptop-extra-dragon-green-showcase.csv)):
+
+| Scene | Primitives | Resolution | CPU T_br | GPU T_br | CPU / GPU | CPU T_frame | GPU T_frame | CPU / GPU | Spread (max) |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| dragon_green | 249,884 | 3840×2160 | 640.6 | 81.9 | 7.8× | 629.9 | 58.5 | 10.8× | 18% |
+| showcase | 3,206 | 3840×2160 | 495.1 | 37.5 | 13.2× | 503.8 | 30.0 | 16.8× | 19% |
+
+The showcase has the fewest primitives of the extra scenes and the highest CPU / GPU ratio on the laptop. Its pixels follow mirror and glass bounces (up to 4) and shadow rays to 3 lights through a very small BVH; why the GPU gains more here than on the dragon has not been measured. The laptop's GPU spread is noisy (see the laptop section).
+
 House walkthrough, one preparation then one timed frame per camera (render and download), 240 frames along `house_walk.json` (2,145,083 triangles, 3 point lights):
 
 | Resolution | CPU frame median (min–max) ms | GPU frame median (min–max) ms | CPU / GPU | CPU total (s) | GPU total (s) | Frames identical |
