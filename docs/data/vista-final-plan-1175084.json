@@ -1,0 +1,662 @@
+{
+  "sweep": "/scratch/11832/el_mikster/rt-results/core-final-profile-extra-1175084/core/sweep.csv",
+  "machine": "vista",
+  "bvh": "lbvh",
+  "width": 1920,
+  "runs": 5,
+  "rounds": 5,
+  "scenes": "/home1/11832/el_mikster/Ray-Tracer/scenes/generated",
+  "rt_render": "/home1/11832/el_mikster/Ray-Tracer/build-vista/apps/rt_render/rt_render",
+  "sweep_commits": [
+    "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+  ],
+  "points": [
+    {
+      "backend": "cpu",
+      "scene": "bench_10k_s1",
+      "bvh": "lbvh",
+      "build_threads": 1,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cpu_bench_10k_s1_lbvh_B1R1_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_10k_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 72,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cpu_bench_10k_s1_lbvh_B72R72_1920x1080"
+    },
+    {
+      "backend": "cuda",
+      "scene": "bench_10k_s1",
+      "bvh": "lbvh",
+      "build_threads": 8,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cuda_bench_10k_s1_lbvh_B8_1920x1080"
+    },
+    {
+      "backend": "cuda",
+      "scene": "bench_10k_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cuda_bench_10k_s1_lbvh_B72_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_10k_s1",
+      "bvh": "lbvh",
+      "build_threads": 1,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "app",
+      "lights": 1,
+      "name": "app_cpu_bench_10k_s1_lbvh_B1R1_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_10k_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 72,
+      "width": 1920,
+      "height": 1080,
+      "mode": "app",
+      "lights": 1,
+      "name": "app_cpu_bench_10k_s1_lbvh_B72R72_1920x1080"
+    },
+    {
+      "backend": "cuda",
+      "scene": "bench_10k_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "app",
+      "lights": 1,
+      "name": "app_cuda_bench_10k_s1_lbvh_B72_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_100k_s1",
+      "bvh": "lbvh",
+      "build_threads": 1,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cpu_bench_100k_s1_lbvh_B1R1_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_100k_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 72,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cpu_bench_100k_s1_lbvh_B72R72_1920x1080"
+    },
+    {
+      "backend": "cuda",
+      "scene": "bench_100k_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cuda_bench_100k_s1_lbvh_B72_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_100k_s1",
+      "bvh": "lbvh",
+      "build_threads": 1,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "app",
+      "lights": 1,
+      "name": "app_cpu_bench_100k_s1_lbvh_B1R1_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_100k_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 72,
+      "width": 1920,
+      "height": 1080,
+      "mode": "app",
+      "lights": 1,
+      "name": "app_cpu_bench_100k_s1_lbvh_B72R72_1920x1080"
+    },
+    {
+      "backend": "cuda",
+      "scene": "bench_100k_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "app",
+      "lights": 1,
+      "name": "app_cuda_bench_100k_s1_lbvh_B72_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_1m_s1",
+      "bvh": "lbvh",
+      "build_threads": 1,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cpu_bench_1m_s1_lbvh_B1R1_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_1m_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 72,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cpu_bench_1m_s1_lbvh_B72R72_1920x1080"
+    },
+    {
+      "backend": "cuda",
+      "scene": "bench_1m_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cuda_bench_1m_s1_lbvh_B72_1920x1080"
+    },
+    {
+      "backend": "cuda",
+      "scene": "bench_1m_s1",
+      "bvh": "lbvh",
+      "build_threads": 8,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "prepared",
+      "lights": 1,
+      "name": "prepared_cuda_bench_1m_s1_lbvh_B8_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_1m_s1",
+      "bvh": "lbvh",
+      "build_threads": 1,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "app",
+      "lights": 1,
+      "name": "app_cpu_bench_1m_s1_lbvh_B1R1_1920x1080"
+    },
+    {
+      "backend": "cpu",
+      "scene": "bench_1m_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 72,
+      "width": 1920,
+      "height": 1080,
+      "mode": "app",
+      "lights": 1,
+      "name": "app_cpu_bench_1m_s1_lbvh_B72R72_1920x1080"
+    },
+    {
+      "backend": "cuda",
+      "scene": "bench_1m_s1",
+      "bvh": "lbvh",
+      "build_threads": 72,
+      "render_threads": 1,
+      "width": 1920,
+      "height": 1080,
+      "mode": "app",
+      "lights": 1,
+      "name": "app_cuda_bench_1m_s1_lbvh_B72_1920x1080"
+    }
+  ],
+  "selection": [
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_br",
+      "role": "one_core",
+      "point": "prepared_cpu_bench_10k_s1_lbvh_B1R1_1920x1080",
+      "sweep_median_ms": 520.172348,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_br",
+      "role": "cpu_star",
+      "point": "prepared_cpu_bench_10k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 8.456607,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_br",
+      "role": "gpu_star",
+      "point": "prepared_cuda_bench_10k_s1_lbvh_B8_1920x1080",
+      "sweep_median_ms": 1.527477,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_br",
+      "role": "cpu_fixed",
+      "point": "prepared_cpu_bench_10k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 8.456607,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_br",
+      "role": "gpu_fixed",
+      "point": "prepared_cuda_bench_10k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 2.105904,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_frame",
+      "role": "one_core",
+      "point": "prepared_cpu_bench_10k_s1_lbvh_B1R1_1920x1080",
+      "sweep_median_ms": 519.05466,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_frame",
+      "role": "cpu_star",
+      "point": "prepared_cpu_bench_10k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 7.425575,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_frame",
+      "role": "gpu_star",
+      "point": "prepared_cuda_bench_10k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 0.951961,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_frame",
+      "role": "cpu_fixed",
+      "point": "prepared_cpu_bench_10k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 7.425575,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_frame",
+      "role": "gpu_fixed",
+      "point": "prepared_cuda_bench_10k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 0.951961,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_app",
+      "role": "one_core",
+      "point": "app_cpu_bench_10k_s1_lbvh_B1R1_1920x1080",
+      "sweep_median_ms": 521.891662,
+      "tested": 2,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_app",
+      "role": "cpu_star",
+      "point": "app_cpu_bench_10k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 12.042243,
+      "tested": 2,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_app",
+      "role": "gpu_star",
+      "point": "app_cuda_bench_10k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 248.070315,
+      "tested": 1,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_app",
+      "role": "cpu_fixed",
+      "point": "app_cpu_bench_10k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 12.042243,
+      "tested": 2,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_10k_s1",
+      "quantity": "T_app",
+      "role": "gpu_fixed",
+      "point": "app_cuda_bench_10k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 248.070315,
+      "tested": 1,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_br",
+      "role": "one_core",
+      "point": "prepared_cpu_bench_100k_s1_lbvh_B1R1_1920x1080",
+      "sweep_median_ms": 1009.78477,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_br",
+      "role": "cpu_star",
+      "point": "prepared_cpu_bench_100k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 16.254339,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_br",
+      "role": "gpu_star",
+      "point": "prepared_cuda_bench_100k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 4.458334,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_br",
+      "role": "cpu_fixed",
+      "point": "prepared_cpu_bench_100k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 16.254339,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_br",
+      "role": "gpu_fixed",
+      "point": "prepared_cuda_bench_100k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 4.458334,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_frame",
+      "role": "one_core",
+      "point": "prepared_cpu_bench_100k_s1_lbvh_B1R1_1920x1080",
+      "sweep_median_ms": 999.330899,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_frame",
+      "role": "cpu_star",
+      "point": "prepared_cpu_bench_100k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 14.479281,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_frame",
+      "role": "gpu_star",
+      "point": "prepared_cuda_bench_100k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 2.433997,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_frame",
+      "role": "cpu_fixed",
+      "point": "prepared_cpu_bench_100k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 14.479281,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_frame",
+      "role": "gpu_fixed",
+      "point": "prepared_cuda_bench_100k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 2.433997,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_app",
+      "role": "one_core",
+      "point": "app_cpu_bench_100k_s1_lbvh_B1R1_1920x1080",
+      "sweep_median_ms": 1017.32436,
+      "tested": 2,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_app",
+      "role": "cpu_star",
+      "point": "app_cpu_bench_100k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 28.113735,
+      "tested": 2,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_app",
+      "role": "gpu_star",
+      "point": "app_cuda_bench_100k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 146.449753,
+      "tested": 1,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_app",
+      "role": "cpu_fixed",
+      "point": "app_cpu_bench_100k_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 28.113735,
+      "tested": 2,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_100k_s1",
+      "quantity": "T_app",
+      "role": "gpu_fixed",
+      "point": "app_cuda_bench_100k_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 146.449753,
+      "tested": 1,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_br",
+      "role": "one_core",
+      "point": "prepared_cpu_bench_1m_s1_lbvh_B1R1_1920x1080",
+      "sweep_median_ms": 2321.803757,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_br",
+      "role": "cpu_star",
+      "point": "prepared_cpu_bench_1m_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 41.333602,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_br",
+      "role": "gpu_star",
+      "point": "prepared_cuda_bench_1m_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 16.91251,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_br",
+      "role": "cpu_fixed",
+      "point": "prepared_cpu_bench_1m_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 41.333602,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_br",
+      "role": "gpu_fixed",
+      "point": "prepared_cuda_bench_1m_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 16.91251,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_frame",
+      "role": "one_core",
+      "point": "prepared_cpu_bench_1m_s1_lbvh_B1R1_1920x1080",
+      "sweep_median_ms": 2177.876993,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_frame",
+      "role": "cpu_star",
+      "point": "prepared_cpu_bench_1m_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 31.288912,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_frame",
+      "role": "gpu_star",
+      "point": "prepared_cuda_bench_1m_s1_lbvh_B8_1920x1080",
+      "sweep_median_ms": 6.050962,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_frame",
+      "role": "cpu_fixed",
+      "point": "prepared_cpu_bench_1m_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 31.288912,
+      "tested": 8,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_frame",
+      "role": "gpu_fixed",
+      "point": "prepared_cuda_bench_1m_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 6.058193,
+      "tested": 3,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_app",
+      "role": "one_core",
+      "point": "app_cpu_bench_1m_s1_lbvh_B1R1_1920x1080",
+      "sweep_median_ms": 2403.928021,
+      "tested": 2,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_app",
+      "role": "cpu_star",
+      "point": "app_cpu_bench_1m_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 122.836719,
+      "tested": 2,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_app",
+      "role": "gpu_star",
+      "point": "app_cuda_bench_1m_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 351.731533,
+      "tested": 1,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_app",
+      "role": "cpu_fixed",
+      "point": "app_cpu_bench_1m_s1_lbvh_B72R72_1920x1080",
+      "sweep_median_ms": 122.836719,
+      "tested": 2,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    },
+    {
+      "scene": "bench_1m_s1",
+      "quantity": "T_app",
+      "role": "gpu_fixed",
+      "point": "app_cuda_bench_1m_s1_lbvh_B72_1920x1080",
+      "sweep_median_ms": 351.731533,
+      "tested": 1,
+      "commit": "94fadfe2e4f56434e1cb38aea3a2848b01a29d7d"
+    }
+  ]
+}
