@@ -29,7 +29,7 @@ G3 is an internal checkpoint (target Nov 18, now past; [ROADMAP](ROADMAP.md#gate
 | GPU breakdown | Done: T_br components, and the kernel-level view on the laptop and the GH200 | |
 | Profiling (`-Xptxas -v`, Nsight) | Done on both machines: 128 registers, no spills, latency- and divergence-bound ([RESULTS.md](RESULTS.md#profiling-gh200)); Nsight and the GPU counters work on a GH node | |
 | Preliminary 10× / 2× / 20× ratios, with spread | Done: all three met at every size, from the final runs (Nov 27) | |
-| Scope and extensions reviewed | Open | #71 |
+| Scope and extensions reviewed | Done (Nov 27): no further extensions, no clustered or seed-2 scenes | |
 
 ## Vista runs
 
@@ -51,13 +51,13 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 | Layout stage of the LBVH build | #68 | Now the largest preparation stage: 6.8 ms at B = 72, up from 3.6 ms at B = 16 | Optional: P near 5.6 ms (ratio near 3×) | Mostly emit and freeing the scratch. Emit is probably bound by the serial zero fill of `Bvh::nodes` (review of #75: emit 7.0 ms at B = 3, 9.3 at 8, 9.3 to 10.8 at 24 on the laptop); avoiding it means `Bvh::nodes` stops being a value-initialized `std::vector`, which is an interface change (an IC entry). Other ideas: a fused bottom-up (Apetrei-style) hierarchy + refit, a smaller temporary node, reusing scratch. The 2× target is already met, so this is only worth doing if time is left |
 | Measurement gaps | #70 | GPU T_app is unstable between runs (spread 41% to 174% in the Nov 27 sweep; 146 ms in the sweep and 257 ms in the final runs at 100K) | Checklist in the issue | The thread sweeps at 10K and 100K are done. Profiling first checks whether the kernel is worth tuning at all (5.6 ms of the GPU's 16.4 ms) |
 
-### Decisions still open
+### Decisions
 
-- **Which extensions to run (#71).** Leaning (Nov 23, working solo): camera-path video first (done, see below), then E2 Blinn-Phong (done), then mirror reflections (done), then colored glass with tinted shadows (done), and a showcase scene and orbit video for the slides (done). All behind material flags, so the benchmark scenes, goldens and CPU/GPU byte equality stay unchanged; mirror images turned out byte-identical between CPU and GPU, so they need no separate comparison category. E1, E3, E4 and E5 are likely cut. Candidates and what the data says. Sizes are the ROADMAP timeboxes; the owners listed there assumed a four-person team, so treat them as sizes only:
+- **Extensions (#71): decided Nov 27 to run none beyond those already done, for lack of time.** E1, E3, E4 and E5 are cut. The plan on Nov 23 (working solo) was: camera-path video first (done, see below), then E2 Blinn-Phong (done), then mirror reflections (done), then colored glass with tinted shadows (done), and a showcase scene and orbit video for the slides (done). All behind material flags, so the benchmark scenes, goldens and CPU/GPU byte equality stay unchanged; mirror images turned out byte-identical between CPU and GPU, so they need no separate comparison category. Candidates and what the data says, kept for the report's future-work section. Sizes are the ROADMAP timeboxes; the owners listed there assumed a four-person team, so treat them as sizes only:
   - **E3 parallel binned SAH (1 week):** addresses the tree-quality tradeoff. The median tree renders 2× faster than LBVH on the CPU and 2.6× on the GPU, but its serial build makes T_br 8.9× (CPU) and 20× (GPU) slower after #68. The most a better tree can save is about 3.5 ms of GPU render, so SAH helps GPU T_br only if its build costs less than that on top of LBVH; the case rests on T_frame and the CPU render.
   - **E1 memory modes (4 days):** the proposal's data-movement question. With explicit memory on the GH200, transfer is already about 0.3 ms at 1M, so there may be little to show. The comparison could still be informative.
   - **E2 Blinn-Phong (2 days), E4 Embree (4 days), E5 wavefront (1 week), E6 `obj2bin` + Blender export (3 days):** all independent of the above. E4 would strengthen the "best CPU" tier. E5 and E6 start only after G3, and E5 depends on the profile. ROADMAP expected E1 to E3 to fit and the rest to be cut.
-  - **Core optimization only.** A valid choice if time is short.
+  - **Core optimization only.** This is the choice.
   - Extensions must not block final runs and the report.
 
 ### Later
@@ -65,7 +65,7 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 - **Scenes (#72):** download without `gh`, Vista mirror path, cross-platform hash check.
 - **Kernel tuning (optional):** the profile shows the lit BVH kernel is latency- and divergence-bound at 128 registers (25% theoretical occupancy on the GH200, no spills; [RESULTS.md](RESULTS.md#profiling-gh200)). The 2× target is met and the kernel is 5.9 of the GPU's 17.0 ms T_br at 1M, so there is little to gain in T_br.
 - **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 rounds, on the laptop and Vista. Done on Vista on Nov 27 (`sweep.py final`, `PRESET=final`; [BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)); the laptop run is still to do. Node-hour log rows for the jobs so far (1142824, 1142829, 1142842, 1164735) through `scripts/tacc/node_hours.sh`.
-- **Quality review:** side-by-side review by 2 or more people ([BENCHMARKING.md](BENCHMARKING.md#quality-protocol)) and the report's validation section.
+- **Quality review:** done Nov 27 (Mikail reviewed the pictures; one reviewer, where [BENCHMARKING.md](BENCHMARKING.md#quality-protocol) asks for two or more, so the report should say so). Still to do: the report's validation section.
 - **Report, slides, release:** reproducible release with the scene archive, commit hash, and exact commands. Dates in the ROADMAP schedule.
 
 ## Parked
@@ -78,7 +78,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
   - exact goldens in a pinned CI container: tolerance goldens miss a regression;
   - `RT_COUNTERS` traversal counters: traversal cost needs explaining in the report;
   - `--no-components` overhead check: instrumentation seems to distort small scenes;
-  - `field_clustered` and seed-2 scenes: time remains (also in #70);
+  - `field_clustered` and seed-2 scenes: dropped Nov 27 for lack of time; the report lists them as not measured;
   - heavier review and CI process: the problem it solves actually happens.
 
 ## Things to watch

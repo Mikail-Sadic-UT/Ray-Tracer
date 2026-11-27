@@ -30,7 +30,7 @@ Triangles are Core: the floor in every known-case scene is two triangles, and tr
 | E5 | Wavefront pipeline | Arek, Mikail | After G3 | 1 week | Per-stage GPU timing; first to cut |
 | E6 | `obj2bin` + Blender export | Jett | After G3 | 3 days | Demo images only |
 
-**No extension starts before G2.** After G2 the team picks which extensions to run, based on remaining time and on what the preliminary results raise. Realistically E1–E3 fit; the rest are likely cut. Extensions never block a Core gate.
+**No extension starts before G2.** After G2 the team picks which extensions to run, based on remaining time and on what the preliminary results raise. Realistically E1–E3 fit; the rest are likely cut. Extensions never block a Core gate. **Decision (Nov 27): no extension beyond those already landed (see [PLAN.md](PLAN.md#decisions)); E1, E3, E4 and E5 are cut.**
 
 ### Stretch (not planned)
 
@@ -46,7 +46,7 @@ Worked out during review, but not needed for the parts to fit together. Pick one
 | Exact goldens in a pinned CI container | [BUILD.md](BUILD.md#golden-image-environment-deferred) | Tolerance goldens miss a regression |
 | `RT_COUNTERS` traversal counters | [BUILD.md](BUILD.md#cmake-options) | Traversal cost needs explaining in the report |
 | `--no-components` overhead check | [BENCHMARKING.md](BENCHMARKING.md#timing-quantities) | Instrumentation seems to distort small scenes |
-| `field_clustered` and seed-2 scenes | [BENCHMARKING.md](BENCHMARKING.md#scene-families) | Time remains after G2 |
+| `field_clustered` and seed-2 scenes | [BENCHMARKING.md](BENCHMARKING.md#scene-families) | Dropped Nov 27 (no time) |
 | Heavier review and CI process | [WORKFLOW.md](WORKFLOW.md#deferred-process) | The listed problem actually occurs |
 
 ## Gates and schedule
@@ -383,4 +383,4 @@ Updated by Mikail weekly.
 | Mirror reflections (stretch) | **Done (Nov 23)** | `MAT_MIRROR` (reflectance `ks`, optional `"mirror"` JSON key) and up to 4 bounces in `shade_hit` (IC5). AOVs stay on the primary hit. CPU and GPU byte-identical; existing goldens byte-identical; new `known_mirror` scene and golden; oracle case. Lit BVH megakernel 100 → 108 registers, same occupancy, no measurable change on `bench_1m` |
 | E2 Blinn-Phong + directional lights | **Done (Nov 23)** | `MAT_SPECULAR` highlights and directional lights in `light_sample`, loaded and saved by `scene_io` (IC4, closes W3). The power uses a deterministic `spec_pow`, so CPU and GPU stay byte-identical. New known scene `known_specular` with a golden (existing goldens byte-identical); independent oracle case added. Benchmark scenes are unaffected |
 | Post-G2 (Nov 22) | Interfaces frozen; rules relaxed | [INTERFACES.md](INTERFACES.md) is frozen at v1.0 and changes go in [INTERFACE_CHANGES.md](INTERFACE_CHANGES.md). [WORKFLOW.md](WORKFLOW.md) has a post-G2 note relaxing review and approval rules. Remaining work is tracked in [PLAN.md](PLAN.md), a living list |
-| C13–C14 | Started | [RESULTS.md](RESULTS.md): preliminary Vista ratios and breakdowns (not G3 results). Still to do, tracked in #70: thread sweep at 10K and 100K, profiling, light count, clustered scenes. Build scaling lead: #68. Extension choice: #71 |
+| C13–C14 | Mostly done | Vista (Nov 27): final ratios, profile, light count and extra benchmarks ([RESULTS.md](RESULTS.md#current-vista-run-of-dev-94fadfe-nov-27)); laptop final runs next. Quality review done (one reviewer). Clustered scenes, seed 2 and the extensions dropped (no time). Still to do: the report and slides |
