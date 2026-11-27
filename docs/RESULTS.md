@@ -108,14 +108,16 @@ CPU at 72 threads against the GPU at B = 72, lbvh, lit, medians of 5 runs for th
 | dragon_gold | 249,892 | 3840×2160 | 100.7 | 26.3 | 3.8× | 96.8 | 22.7 | 4.3× | yes |
 | balls | 50 | 3840×2160 | 74.2 | 13.3 | 5.6× | 73.5 | 13.0 | 5.6× | yes |
 
-`dragon_gold` and `balls` are the first versions of two of these benchmarks. They were replaced on Nov 27 by `dragon_green` and `showcase` ([BENCHMARKING.md](BENCHMARKING.md#extra-benchmarks)), so the two rows above stay as measured and the new scenes have no Vista numbers yet. The new scenes on the laptop (RTX 4070 Laptop, 32 threads, `2b3e59b`, medians of 5 runs; both are byte-identical between CPU and GPU; [data](data/laptop-extra-dragon-green-showcase.csv)):
+`dragon_gold` and `balls` are the first versions of two of these benchmarks. They were replaced on Nov 27 by `dragon_green` and `showcase` ([BENCHMARKING.md](BENCHMARKING.md#extra-benchmarks)), so the two rows above stay as measured. The new scenes, on Vista (job `1175611`, node `c642-072`, the same `94fadfe` build, medians of 5 runs; [data](data/vista-extra-1175611.csv)) and on the laptop (RTX 4070 Laptop, 32 threads, `2b3e59b`; [data](data/laptop-extra-dragon-green-showcase.csv)). CPU and GPU images are byte-identical in all four runs:
 
-| Scene | Primitives | Resolution | CPU T_br | GPU T_br | CPU / GPU | CPU T_frame | GPU T_frame | CPU / GPU | Spread (max) |
-|---|---:|---|---:|---:|---:|---:|---:|---:|---:|
-| dragon_green | 249,884 | 3840×2160 | 640.6 | 81.9 | 7.8× | 629.9 | 58.5 | 10.8× | 18% |
-| showcase | 3,206 | 3840×2160 | 495.1 | 37.5 | 13.2× | 503.8 | 30.0 | 16.8× | 19% |
+| Machine | Scene | Primitives | Resolution | CPU T_br | GPU T_br | CPU / GPU | CPU T_frame | GPU T_frame | CPU / GPU | Spread (max) |
+|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| Vista | dragon_green | 249,884 | 3840×2160 | 113.3 | 16.4 | 6.9× | 110.6 | 13.2 | 8.4× | 7% |
+| Vista | showcase | 3,206 | 3840×2160 | 61.1 | 7.6 | 8.0× | 61.2 | 7.1 | 8.6× | 6% |
+| Laptop | dragon_green | 249,884 | 3840×2160 | 640.6 | 81.9 | 7.8× | 629.9 | 58.5 | 10.8× | 18% |
+| Laptop | showcase | 3,206 | 3840×2160 | 495.1 | 37.5 | 13.2× | 503.8 | 30.0 | 16.8× | 19% |
 
-The showcase has the fewest primitives of the extra scenes and the highest CPU / GPU ratio on the laptop. Its pixels follow mirror and glass bounces (up to 4) and shadow rays to 3 lights through a very small BVH; why the GPU gains more here than on the dragon has not been measured. The laptop's GPU spread is noisy (see the laptop section).
+The showcase has the fewest primitives of the extra scenes. Its pixels follow mirror and glass bounces (up to 4) and shadow rays to 3 lights through a very small BVH. On the laptop it has the highest CPU / GPU ratio of the extra scenes (13.2× and 16.8×), but on Vista it is about the same as the dragon's (8.0× and 8.6× against 6.9× and 8.4×), so the larger ratio does not carry over to the 72 Grace cores. Why has not been measured. The Vista spread is 6% to 7%, against 18% to 19% on the laptop.
 
 House walkthrough, one preparation then one timed frame per camera (render and download), 240 frames along `house_walk.json` (2,145,083 triangles, 3 point lights):
 
