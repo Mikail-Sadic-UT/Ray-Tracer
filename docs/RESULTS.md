@@ -1,6 +1,6 @@
 # Preliminary results
 
-**Status:** three sets of Vista measurements. The current one is the Nov 27 run of `dev` at `94fadfe` ([jump to it](#current-vista-run-of-dev-94fadfe-nov-27)): `verify`, the `core` sweep, the interleaved final runs, the Nsight profile and the extra benchmarks. Before it come a rerun after the preparation work in PR #75 (Nov 23, commit `13321a5`) and the G2 sweep (Nov 13, commit `14db51d`); both are kept as history. The headline ratios come from the final runs, which rerun the selected configurations interleaved ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)); sweep medians are preliminary. Not measured, by decision on Nov 27 (no time): the `field_clustered` and seed-2 scenes, and the extensions (SAH, memory modes, Embree, wavefront).
+**Status:** three sets of Vista measurements. The current one is the Nov 27 run of `dev` at `94fadfe` ([jump to it](#current-vista-run-of-dev-94fadfe-nov-27)): `verify`, the `core` sweep, the interleaved final runs, the Nsight profile and the extra benchmarks. The same runs on the laptop are [below it](#laptop-run-rtx-4070-laptop-nov-27). Before them come a rerun after the preparation work in PR #75 (Nov 23, commit `13321a5`) and the G2 sweep (Nov 13, commit `14db51d`); both are kept as history. The headline ratios come from the final runs, which rerun the selected configurations interleaved ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)); sweep medians are preliminary. Not measured, by decision on Nov 27 (no time): the `field_clustered` and seed-2 scenes, and the extensions (SAH, memory modes, Embree, wavefront).
 
 ## Setup
 
@@ -126,6 +126,44 @@ The videos (`house_1920x1080.mp4`, `house_3840x2160.mp4`) are not in git. `ffmpe
 - GPU\* for T_frame at 1M is B = 8 only because the three B values differ by noise.
 - `field_clustered` and the seed-2 scene are not measured; they were dropped on Nov 27 for lack of time.
 - The SAH extension, memory modes, Embree and the wavefront pipeline were not built (cut on Nov 27), so there is nothing to compare them against.
+
+## Laptop run (RTX 4070 Laptop, Nov 27)
+
+The same sweep and final runs on the development laptop, from a clean reboot. Machine: `El-Studiobook`, i9-13980HX (8 P-cores and 16 E-cores, 32 threads), RTX 4070 Laptop GPU (8 GB, `sm_89`, driver 621.40, PCIe), WSL2 Ubuntu 24.04. Build: `dev` at `f9bdc3a`, clean, CUDA 13.3, Release, contraction off. Settings as in [Setup](#setup), with the laptop thread counts of [BENCHMARKING.md](BENCHMARKING.md#sweeps) (CPU 1, 2, 4, 8, 16, 24, 32; GPU build threads 1, 8, 32). The `core` sweep has 47 points. The final runs are 24 configurations in interleaved rounds, and were done **twice**: run 1 with 5 rounds and run 2 with 7. Data: [laptop-run1-core.csv](data/laptop-run1-core.csv), [laptop-run1-final.csv](data/laptop-run1-final.csv), [laptop-run2-core.csv](data/laptop-run2-core.csv), [laptop-run2-final.csv](data/laptop-run2-final.csv) and the two plans.
+
+**Which run is reported.** Decided before run 2: report the run with the lower spread on the headline 1M T_br row. That is run 1 (8%, against 18% in run 2, where the 32-thread CPU row drifted). Run 2 is shown beside it as the repeat. The runs agree to within 8% on the 1M T_br ratios. CPU\* is 24 or 32 threads in different rows and runs, and GPU\* is B = 1 or 8 (or 32 for T_frame at 100K in run 1) where those values differ by noise.
+
+### Headline ratios (final runs, lbvh, 1920 px wide)
+
+| Scene | Quantity | CPU 1 core (ms) | CPU\* (ms, threads) | GPU\* (ms, B) | 1 core / CPU\* | CPU\* / GPU\* | 1 core / GPU\* | Spread (max) | Run 2: 1 core / CPU\* | CPU\* / GPU\* | 1 core / GPU\* | Spread (max) |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| bench_10k_s1 | T_br | 458.3 | 41.7 (24) | 7.7 (1) | 11.0× | 5.39× | 59× | 10% | 11.5× | 5.10× | 59× | 44% |
+| bench_100k_s1 | T_br | 867.5 | 83.8 (32) | 17.1 (8) | 10.4× | 4.89× | 51× | 14% | 11.3× | 4.27× | 48× | 11% |
+| bench_1m_s1 | T_br | 1958.3 | 207.3 (24) | 70.4 (8) | 9.4× | **2.94×** | 28× | 8% | 9.6× | 2.74× | 26× | 18% |
+| bench_10k_s1 | T_frame | 451.1 | 42.8 (32) | 5.3 (1) | 10.6× | 8.07× | 85× | 12% | 11.4× | 7.27× | 83× | 11% |
+| bench_100k_s1 | T_frame | 832.6 | 79.0 (32) | 9.6 (32) | 10.5× | 8.24× | 87× | 7% | 10.9× | 7.50× | 82× | 6% |
+| bench_1m_s1 | T_frame | 1789.6 | 164.1 (32) | 23.1 (1) | 10.9× | 7.11× | 78× | 9% | 11.1× | 7.10× | 79× | 8% |
+| bench_10k_s1 | T_app | 474.4 | 48.6 (32) | 209.3 (32) | 9.8× | 0.23× | 2× | 105% | 9.3× | 0.26× | 2× | 116% |
+| bench_100k_s1 | T_app | 875.2 | 85.8 (32) | 212.0 (32) | 10.2× | 0.40× | 4× | 58% | 10.0× | 0.42× | 4× | 66% |
+| bench_1m_s1 | T_app | 2083.9 | 297.7 (32) | 359.3 (32) | 7.0× | 0.83× | 6× | 17% | 8.0× | 0.74× | 6× | 27% |
+
+- **The three targets** hold on the laptop too: CPU / GPU is 2.94× at 1M (4.89× at 100K and 5.39× at 10K), and 1 core / GPU is 28× at 1M. The multicore speedup is 9.4× at 1M and 10.4× to 11.0× at the smaller sizes, a little under 10× at 1M.
+- **Multicore speedup on this CPU** is capped by its design. Past 8 P-cores (16 threads) the E-cores add less, and at 1M the sweep's best T_br is at 24 threads (213.6 ms), with 32 threads slower (246.3 ms, the build alone rises from 15.2 to 36.4 ms). So CPU\* is not the highest thread count here, which is what the "fastest tested CPU" rule is for.
+- **Noise.** Rows measured in milliseconds jitter on a laptop: at 10K and 100K the GPU B = 32 T_br rows reach 56% to 119% spread, and GPU T_app is again unstable. The 1M T_br and T_frame rows used for the targets are within 18% in both runs and within 10% in run 1. Treat the 10K and 100K T_br ratios as indicative only.
+- The CPU wins T_app at every size, for the same reason as on Vista: CUDA initialization is most of the GPU's 209 ms at 10K.
+
+### What changes on a PCIe laptop
+
+At 1M with B = 8 (sweep run 1) the GPU's T_br is 68.3 ms, made of bounds 3.9, build 17.6, layout 16.4, **alloc and upload 8.7**, render 19.4 and **download 2.3**. On the GH200 the same two transfer stages take 0.7 and 0.1 ms. The laptop's render stage is also 3.3× longer (19.4 against 5.9 ms), and its preparation 38 ms against 10 ms on Grace's 72 cores. This is the data-movement question of the proposal, answered without the memory-mode extension: over PCIe the transfers cost about 11 ms of a 68 ms T_br, over NVLink-C2C about 0.8 ms of 17 ms.
+
+### Light count and other dimensions (1M, B = 32, sweep run 1)
+
+| | L = 1 | L = 2 | L = 4 |
+|---|---:|---:|---:|
+| CPU T_frame (ms) | 174.3 | 232.2 | 361.2 |
+| GPU T_frame (ms) | 22.1 | 29.6 | 44.8 |
+
+Each extra light adds about 62 ms to a CPU frame and 7.6 ms to a GPU frame. The median tree renders at T_frame 76.9 ms (CPU) and 10.4 ms (GPU), against 174.3 and 22.1 ms for LBVH, so it is 2.3× and 2.1× faster at render time here. The 640×480 T_frame is 35.9 ms on the CPU and 5.5 ms on the GPU. T_br for these dimensions has spreads of 15% to 60% on the laptop and is in the CSVs but not quoted.
 
 ## Nov 23 rerun, before the materials (commit 13321a5)
 

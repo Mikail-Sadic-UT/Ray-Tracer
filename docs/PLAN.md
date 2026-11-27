@@ -64,7 +64,7 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 
 - **Scenes (#72):** download without `gh`, Vista mirror path, cross-platform hash check.
 - **Kernel tuning (optional):** the profile shows the lit BVH kernel is latency- and divergence-bound at 128 registers (25% theoretical occupancy on the GH200, no spills; [RESULTS.md](RESULTS.md#profiling-gh200)). The 2× target is met and the kernel is 5.9 of the GPU's 17.0 ms T_br at 1M, so there is little to gain in T_br.
-- **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 rounds, on the laptop and Vista. Done on Vista on Nov 27 (`sweep.py final`, `PRESET=final`; [BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)); the laptop run is still to do. Node-hour log rows for the jobs so far (1142824, 1142829, 1142842, 1164735) through `scripts/tacc/node_hours.sh`.
+- **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 rounds, on the laptop and Vista. Done on Vista and on the laptop on Nov 27 (`sweep.py final`, `PRESET=final`; [BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal); [RESULTS.md](RESULTS.md#laptop-run-rtx-4070-laptop-nov-27)). Node-hour log rows for the jobs so far (1142824, 1142829, 1142842, 1164735) through `scripts/tacc/node_hours.sh`.
 - **Quality review:** done Nov 27 (Mikail reviewed the pictures; one reviewer, where [BENCHMARKING.md](BENCHMARKING.md#quality-protocol) asks for two or more, so the report should say so). Still to do: the report's validation section.
 - **Report, slides, release:** reproducible release with the scene archive, commit hash, and exact commands. Dates in the ROADMAP schedule.
 
@@ -94,6 +94,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 
 | Item | PR |
 |---|---|
+| Laptop sweep and final runs at `f9bdc3a`, run twice (the run with the lower 1M spread is reported): 2.94× CPU / GPU at 1M, PCIe transfers cost about 11 ms of the GPU's 68 ms T_br | `mikail/laptop-results` |
 | Nov 27 Vista run of `dev`: final ratios (all three targets met at every size, 2.43× at 1M), GH200 profile, light-count and extra benchmarks, walkthrough videos; `env.sh` puts Nsight on `PATH`; `extra.py` survives a broken ffmpeg | #93 and this branch |
 | Extra benchmarks: `scripts/tacc/extra.py` (CPU against GPU at the top thread count on `terrain_10k`, `map_crew`, `dragon_gold` and `balls`, and the house walkthrough at 1080p and 4K, with CPU = GPU byte checks and the video), `PRESET=extra`; `rt_gen --layout terrain` (IC8); `scenes/extra/balls.json` from `scripts/bench/make_balls.py`; `rt_render --path` prints the total frame time. Laptop: every still and walkthrough frame CPU = GPU byte-identical | `mikail/extra-benchmarks` |
 | Final-run and profiling tooling: `sweep.py final` (CPU\* and GPU\* from a sweep, 5 interleaved rounds, `final.csv` with roles), `ratios.py` reads final runs by role, `scripts/tacc/profile.sh` (cuobjdump, Nsight Systems, Nsight Compute), `sweep.sbatch` steps `final` and `profile` and a `ratios.md` per step; laptop profile in RESULTS.md | `mikail/final-runs` |
