@@ -99,7 +99,7 @@ A faster kernel would come from less divergence or latency, such as sorting rays
 
 ### Extra benchmarks
 
-CPU at 72 threads against the GPU at B = 72, lbvh, lit, medians of 5 runs for the stills. See [BENCHMARKING.md](BENCHMARKING.md#extra-benchmarks) for what each one is and how it is checked. Spread above 10% on `terrain_10k` (18%) and `map_crew` (22%) comes from GPU T_br.
+CPU at 72 threads against the GPU at B = 72, lbvh, lit, medians of 5 runs for the stills. See [BENCHMARKING.md](BENCHMARKING.md#extra-benchmarks) for what each one is and how it is checked. Renders of `terrain_10k`, `balls`, `dragon_gold` and the three `bench_*` scenes are in the release [`results-nov27`](https://github.com/Mikail-Sadic-UT/Ray-Tracer/releases/tag/results-nov27). Spread above 10% on `terrain_10k` (18%) and `map_crew` (22%) comes from GPU T_br.
 
 | Scene | Primitives | Resolution | CPU T_br | GPU T_br | CPU / GPU | CPU T_frame | GPU T_frame | CPU / GPU | CPU = GPU |
 |---|---:|---|---:|---:|---:|---:|---:|---:|---|

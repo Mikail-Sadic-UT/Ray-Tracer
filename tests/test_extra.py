@@ -66,7 +66,7 @@ class Plan(unittest.TestCase):
                 code = extra.main(['plan', '--machine', 'laptop', '--scenes', d])
             self.assertEqual(code, 1)
             self.assertIn('map_crew', err.getvalue())
-            self.assertIn('--layout terrain', err.getvalue())
+            self.assertIn('fetch_scenes.sh scenes-extra-v1', err.getvalue())
 
     def test_unknown_only(self):
         with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):

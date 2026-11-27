@@ -15,8 +15,8 @@ Walkthrough (rt_render --path, one preparation, then one timed frame per camera)
     house        house.json along house_walk.json, 1920x1080 and 3840x2160
 
 DIRS is an os.pathsep-separated list searched in order for <name>.json; the default is
-scenes/generated, scenes/meshes and scenes/extra. terrain_10k is generated with
-`rt_gen --layout terrain --primitives 10000 --out scenes/generated/terrain_10k`; the mesh
+scenes/generated, scenes/meshes and scenes/extra. terrain_10k is the published scene set
+scenes-extra-v1 (`bash scripts/fetch_scenes.sh scenes-extra-v1`, which checks its hashes); the mesh
 scenes are local (scenes/meshes is not in git; see USER_GUIDE "Meshes") and have to be copied to
 Vista. A scene that is not found fails the run before anything is measured, unless it is left
 out with --only.
@@ -327,8 +327,8 @@ def check_scenes(args):
             missing.append(n)
     if missing:
         raise sweep.SweepError(
-            f'not found in {args.scenes}: {", ".join(missing)}. terrain_10k: rt_gen --layout '
-            'terrain --primitives 10000 --out scenes/generated/terrain_10k; the mesh scenes '
+            f'not found in {args.scenes}: {", ".join(missing)}. terrain_10k: bash scripts/'
+            'fetch_scenes.sh scenes-extra-v1 (a generated scene is fetched, never regenerated); the mesh scenes '
             'come from scenes/meshes on the laptop (copy them to Vista); or leave them out '
             'with --only')
 

@@ -65,8 +65,9 @@ if [[ "$PRESET" != verify ]]; then
           --out "$dest" || status=1
         ;;
       extra)
-        # terrain_10k and the mesh scenes are copied in from the laptop, never generated here
-        # (INTERFACES §2 "Generator determinism"); extra.py names any that are missing.
+        # terrain_10k comes from `fetch_scenes.sh scenes-extra-v1` and the mesh scenes are copied
+        # in from the laptop; none is generated here (INTERFACES §2 "Generator determinism").
+        # extra.py names any that are missing.
         python3 scripts/tacc/extra.py run --machine vista \
           --scenes "$RT_SCENE_DEST:$RT_REPO/scenes/meshes:$RT_REPO/scenes/extra" \
           --rt-render "$RT_BUILD/apps/rt_render/rt_render" --frames "${FRAMES:-240}" \

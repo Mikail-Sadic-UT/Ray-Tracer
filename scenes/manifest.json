@@ -122,6 +122,47 @@
         ],
         "mirror": "TBD (C12, Vista shared storage)"
       }
+    },
+    {
+      "set": "scenes-extra-v1",
+      "name": "terrain_10k",
+      "command": "rt_gen --layout terrain --primitives 10000 --out terrain_10k",
+      "generator_env": {
+        "host": "El-Studiobook (laptop, i9-13980HX, WSL2 kernel 6.18.58.1-microsoft-standard-WSL2)",
+        "os": "Ubuntu 24.04.5 LTS (x86_64)",
+        "glibc": "2.39",
+        "compiler": "g++ 13.3.0",
+        "flags": "-O3 -DNDEBUG -std=c++17 -march=native; -ffp-contract=off on generator.cpp and hash.cpp",
+        "build": "cmake -DCMAKE_BUILD_TYPE=Release -DRT_ENABLE_CUDA=ON -DCMAKE_CXX_COMPILER=g++-13",
+        "commit": "2b3e59b"
+      },
+      "primitives": {
+        "spheres": 0,
+        "triangles": 9800
+      },
+      "content_hash": "0x032dec4a8b57a0cf",
+      "scene_hash": "0x71221c8fec1d09e8",
+      "files": [
+        {
+          "path": "terrain_10k.json",
+          "bytes": 2290,
+          "sha256": "9892a7218faf98e048644ab662a2a42386cecbe340e15dbdc7db1adece47b992"
+        },
+        {
+          "path": "terrain_10k.bin.gz",
+          "bytes": 90902,
+          "sha256": "067eed00da7a4a68cae6d04a7e04ae921ff03abd0e54372cfcac40bd2064d826",
+          "uncompressed_sha256": "cb73a17b3aeed0f493cd627cb822857a735dda061546d3ec1ffc6ed63c492293"
+        }
+      ],
+      "archive": {
+        "release": "scenes-extra-v1",
+        "urls": [
+          "https://github.com/Mikail-Sadic-UT/Ray-Tracer/releases/download/scenes-extra-v1/terrain_10k.json",
+          "https://github.com/Mikail-Sadic-UT/Ray-Tracer/releases/download/scenes-extra-v1/terrain_10k.bin.gz"
+        ],
+        "mirror": "none (laptop and Vista copies only)"
+      }
     }
   ]
 }
