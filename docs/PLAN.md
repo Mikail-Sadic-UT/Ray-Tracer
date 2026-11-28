@@ -40,6 +40,34 @@ Done Nov 27 on `gh-dev` (jobs 1175084, 1175157, 1175169): `verify` (ctest 358/35
 3. The extra step needs `terrain_10k` (`bash scripts/fetch_scenes.sh scenes-extra-v1`) and the mesh scenes (`house`, `map_crew` and `dragon_green`, copied from the laptop) in place (BENCHMARKING.md "Extra benchmarks"). The Vista numbers for `dragon_green` and `showcase` were measured on Nov 27 (job 1175611, 12 s): export `PRESET=extra VERIFY=0 EXTRA_ONLY=dragon_green,showcase` and run `sbatch -p gh-dev -t 00:30:00 scripts/tacc/sweep.sbatch`, because `--export=` splits on commas. `ffmpeg` on the compute nodes cannot start, so copy the GPU frames of the house walkthroughs to the laptop and encode them there.
 4. Copy the results out of `$SCRATCH` and update RESULTS.md from them.
 
+## For the report and slides
+
+Everything measured is in the repo; this list says where, and what is not.
+
+**Where each result lives** (all of it in [RESULTS.md](RESULTS.md), tables regenerable with `python3 scripts/tacc/ratios.py docs/data/<csv>`):
+
+- Headline ratios, T_frame and T_app: "Current: Vista run" (final runs, 5 interleaved rounds, `docs/data/vista-final-1175084.csv`) and "Laptop run" (two runs of 5 and 7 rounds, `docs/data/laptop-run{1,2}-*.csv`).
+- Thread scaling, T_br breakdown, light count, BVH method and resolution: the `core` sweeps, `docs/data/vista-core-1175084.csv` and `laptop-run{1,2}-core.csv`. G2 (Nov 13) and Nov 23 numbers are kept as history.
+- GH200 and laptop kernel profiles: RESULTS.md, `docs/data/vista-profile-1175084.txt`. The full Nsight reports (`.nsys-rep`, `.ncu-rep`) exist only in `out/vista-1175084/profile/` on the laptop.
+- Extra benchmarks and the house walkthrough: RESULTS.md "Extra benchmarks" and `docs/data/vista-extra-*`, `laptop-extra-*`.
+- Validation (for the report's validation section): CPU and CUDA images byte-identical on 7 known scenes, 3 benchmark scenes, `terrain_10k`, `showcase`, `dragon_green`, `map_crew`, `house` and every walkthrough frame; ctest 358/358 on both machines; analytic tests, the double-precision oracle, BVH against brute force, `rt_compare` and the goldens ([BENCHMARKING.md](BENCHMARKING.md#quality-protocol)).
+
+**Images and videos.** The release `results-nov27` has renders of `bench_10k_s1`, `bench_100k_s1`, `bench_1m_s1`, `terrain_10k` (1080p), `balls`, `dragon_gold` (the first versions, 4K) and the presentation images `dragon_green` and `showcase` (4K), with provenance files. The presentation images and their commands are also in `out/presentation/final/`. The videos are not in git or a release: `house_1920x1080.mp4` and `house_3840x2160.mp4` (240 frames, 8 s at 30 fps, rendered on the GH200 and encoded on the laptop) are in `out/vista-1175084/extra/videos/`. No benchmark images of `map_crew` or the house are published (third-party models).
+
+**Not in git, only on the laptop** (back up what you need): the whole Vista result directory `out/vista-1175084/` (about 1 GB: Nsight reports, the 4K walkthrough frames, the videos), `out/laptop-*`, `out/presentation/`, and `scenes/meshes/` (third-party models).
+
+**Plots: none exist yet.** [BENCHMARKING.md](BENCHMARKING.md#planned-plots) lists the planned ones and `scripts/plot/` is empty. All their data is in `docs/data/` (matplotlib is installed on the laptop). Every caption must state the quantity, scene hash, machine and thread counts.
+
+**What the report should say** (decisions of Nov 27):
+
+- One reviewer did the side-by-side quality review, where the protocol asks for two or more, backed by the automated checks.
+- Not measured, by decision (no time): `field_clustered`, the seed-2 scene, memory modes (E1), SAH (E3), Embree (E4) and the wavefront pipeline (E5). The laptop's PCIe numbers (11 ms of the GPU's 68 ms T_br at 1M, against 0.8 ms of 17 ms on the GH200) answer the data-movement question without E1.
+- GPU T_app is dominated by CUDA initialization: the first process of a job takes about 375 ms and later ones 120 to 250 ms, so its median is unstable between runs, and the CPU wins T_app at every size. A one-time start of a few hundred ms is paid back after about 15 frames at 1M (T_frame 31.4 ms on the CPU, 6.1 ms on the GPU).
+- The laptop is noisy (8 P-cores plus 16 E-cores, WSL2): its CPU\* is 24 or 32 threads at 1M (24 in the reported run), and rows that last milliseconds spread 50% to 120%.
+- The node-hour log was not filled in, and the link bandwidth (`bandwidthTest`) was not measured; the transfer stages of T_br (`alloc`, `upload`, `download`) are the transfer numbers.
+
+**Still open:** the `dev` to `main` PR and the `final` tag, once the report cites its numbers (they come from `94fadfe` on Vista and `f9bdc3a` or `2b3e59b` on the laptop, so name those commits in the report); issue #72 (no-`gh` download, Vista mirror, cross-platform hash; none blocks the report).
+
 ## Work items
 
 Roughly in the order I expect to do them. Issue numbers are the longer write-ups.
@@ -84,7 +112,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 ## Things to watch
 
 - **Numbers before changes.** Optimizations to Core code must keep CPU and GPU byte-identical and the goldens unchanged. `scripts/tacc/verify.sh` is the quick check on a laptop or Vista node.
-- **Noise.** The sweep records spread. GPU T_app has 13% to 205% spread depending on size. Don't quote a ratio whose spread is above 10% without a rerun.
+- **Noise.** The sweep records spread. GPU T_app has 41% to 174% spread in the Nov 27 sweep (CUDA init), and the laptop's GPU T_br rows at 10K and 100K reach 56% to 119%. Don't quote a ratio whose spread is above 10% without saying so.
 - **Contraction is off project-wide.** Any new numeric code is compiled with `-ffp-contract=off` and `--fmad=false`. Write `fmaf()` where a fused result is wanted.
 - **No libm in shared code.** `tanf`, `sinf`, `powf` and friends round differently in glibc and CUDA, so a call in code that runs on both backends breaks byte-identical images for some inputs. `camera_ray` used `tanf` and did so for about a third of all fields of view (70 degrees among them) until `tan_det`; every scene we ship uses 45 degrees, which happens to agree, so it went unseen. Shared code uses `spec_pow` and `tan_det` (basic IEEE operations only); `test_camera_device` and the shading device tests compare host and device bit for bit.
 - **Megakernel registers.** The lit BVH megakernel is at 128 registers on sm_89 and sm_90 (no spills), the most that still fits two 256-thread blocks per SM. Anything more in `shading.hpp` likely halves occupancy and slows every GPU number; check `cuobjdump --dump-resource-usage` (or `RT_PTXAS_VERBOSE`) before adding to it. The Nov 27 Vista run at 128 registers has GPU T_frame 7% above the 100-register run, the same as the CPU's rise, so the registers have not cost anything visible so far.

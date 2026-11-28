@@ -9,7 +9,7 @@ ECE 379K project. A ray tracer for spheres and triangles that splits work betwee
 | Arek Plate | AWP688 | Member 3 | [AREK.md](docs/members/AREK.md) |
 | Po Han Ai | PA22435 | Member 4 | [PO.md](docs/members/PO.md) |
 
-**Status (Nov 22):** G1 met. The CPU renderer (Lambert + point-light shadows, median BVH, multicore), `rt_gen`, `rt_compare` and CPU timings have landed, and the benchmark scenes are published as `scenes-v1` (`bash scripts/fetch_scenes.sh scenes-v1`). The parallel LBVH builder is available (`--bvh lbvh --build-threads 8`, #38). The CUDA megakernel renders with `--backend cuda` in a CUDA build and matches the CPU byte for byte on the laptop and on a Vista GH node. **G2 met (Nov 13)**; first Vista timings are in [RESULTS.md](docs/RESULTS.md) (1M primitives, after the preparation work of Nov 23: 56× multicore over one core, GPU 2.4× over the best CPU for build-and-render and 5.2× for a prepared frame). Interfaces are frozen and the workflow rules are relaxed from here on (see [WORKFLOW.md](docs/WORKFLOW.md), "Post-G2 note"); the remaining work is in [PLAN.md](docs/PLAN.md). See [ROADMAP.md](docs/ROADMAP.md#status).
+**Status (Nov 27):** Core is built, verified and measured. The CPU and CUDA renderers produce byte-identical images on every benchmark and extra scene, on the laptop and on a Vista GH node. On Vista at 1M primitives the best multicore CPU is 56× faster than one core for build-and-render, the GPU is 2.43× faster than the best CPU and 137× faster than one core, and all three targets of the proposal hold at 10K, 100K and 1M ([RESULTS.md](docs/RESULTS.md); the laptop run is in the same file). The benchmark scenes are published as `scenes-v1` (`bash scripts/fetch_scenes.sh scenes-v1`). Interfaces are frozen and the workflow rules are relaxed (see [WORKFLOW.md](docs/WORKFLOW.md), "Post-G2 note"). The remaining work is the report, the slides and the release, listed in [PLAN.md](docs/PLAN.md#for-the-report-and-slides). See [ROADMAP.md](docs/ROADMAP.md#status).
 
 ## Required deliverable
 
@@ -20,7 +20,7 @@ ECE 379K project. A ray tracer for spheres and triangles that splits work betwee
 5. Validation: analytic tests, independent oracle, BVH vs brute force, image/AOV comparison.
 6. Measurements: application, build-and-render, and prepared-frame times, with scaling and breakdowns.
 
-Extensions (memory modes, Blinn-Phong, SAH, Embree, wavefront, `obj2bin`) start only after the Core gates they depend on pass, in [priority order](docs/ROADMAP.md#extensions-in-priority-order-each-timeboxed). Blinn-Phong highlights and directional lights (E2), mirror reflections and colored glass have landed; see [`known_specular`](scenes/known/known_specular.json), [`known_mirror`](scenes/known/known_mirror.json), [`known_glass`](scenes/known/known_glass.json) (with tinted shadows) and [`known_showcase`](scenes/known/known_showcase.json), which has all of them. `obj2bin` (E6) puts OBJ meshes such as the Stanford dragon into a scene ([user guide](docs/USER_GUIDE.md#render-an-obj-mesh)). OptiX and the other [stretch items](docs/STRETCH.md) are future work.
+Extensions: Blinn-Phong highlights and directional lights (E2), mirror reflections, colored glass and `obj2bin` (E6) landed. Memory modes (E1), SAH (E3), Embree (E4) and the wavefront pipeline (E5) were cut on Nov 27 for lack of time ([PLAN.md](docs/PLAN.md#decisions)). The landed ones: see [`known_specular`](scenes/known/known_specular.json), [`known_mirror`](scenes/known/known_mirror.json), [`known_glass`](scenes/known/known_glass.json) (with tinted shadows) and [`known_showcase`](scenes/known/known_showcase.json), which has all of them. `obj2bin` puts OBJ meshes such as the Stanford dragon into a scene ([user guide](docs/USER_GUIDE.md#render-an-obj-mesh)). OptiX and the other [stretch items](docs/STRETCH.md) are future work.
 
 ## Goals (from proposal)
 
@@ -34,7 +34,7 @@ Hypotheses to evaluate, all measured with the same workload and the same timing 
 
 Fixed 72-thread comparisons are reported alongside, labeled separately ([details](docs/BENCHMARKING.md#targets-from-proposal)).
 
-Output 1920×1080. Median of 5 runs, with spread reported. Quality: no visible differences in side-by-side review by 2+ reviewers, backed by automated checks.
+Output 1920×1080. Median of 5 runs, with spread reported. Quality: no visible differences in side-by-side review by 2+ reviewers (the target of the proposal; the review done on Nov 27 had one reviewer, see [BENCHMARKING.md](docs/BENCHMARKING.md#3-side-by-side-review)), backed by automated checks.
 
 ## Platforms
 
@@ -124,11 +124,11 @@ Expect to find gaps during implementation. Fix them where they show up, and keep
 | [USER_GUIDE.md](docs/USER_GUIDE.md) | Compile, render, change settings, inspect/generate scenes, compare images, collect timings, and troubleshoot |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, ownership vs views, backend lifecycle, GPU pipelines, memory modes, CLI |
 | [INTERFACES.md](docs/INTERFACES.md) | Types, frozen numeric rules, BVH pipeline, file formats, results schema. Frozen at v1.0 (Nov 22) |
-| [PLAN.md](docs/PLAN.md) | Living list of the remaining work after G2: next items, open decisions, what to watch |
+| [PLAN.md](docs/PLAN.md) | Living list: decisions, what is left for the report and slides, where every result and image lives, what to watch |
 | [INTERFACE_CHANGES.md](docs/INTERFACE_CHANGES.md) | Interface additions and changes since the v1.0 freeze, and the rules for recording them |
 | [CONTRACT_NOTES.md](docs/CONTRACT_NOTES.md) | Known gaps in INTERFACES that don't need a change yet, with triggers and owners |
 | [BUILD.md](docs/BUILD.md) | WSL2 and Vista setup, pinned toolchains, CMake options, flags |
-| [RESULTS.md](docs/RESULTS.md) | Preliminary Vista measurements, ratios against the proposal's targets, and what limits them |
+| [RESULTS.md](docs/RESULTS.md) | Vista and laptop measurements (Nov 27), ratios against the proposal's targets, the GH200 profile, the extra benchmarks, and the earlier Nov 23 and G2 runs |
 | [BENCHMARKING.md](docs/BENCHMARKING.md) | Timing quantities, threads, targets, sweeps, memory-mode protocol, quality protocol |
 | [WORKFLOW.md](docs/WORKFLOW.md) | Branching, commit messages, development environment check, PRs, CI, issues, gates |
 | [ROADMAP.md](docs/ROADMAP.md) | Scope, gates, owners, tasks, risks, status |
