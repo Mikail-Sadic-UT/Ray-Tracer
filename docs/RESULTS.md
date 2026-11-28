@@ -1,5 +1,7 @@
 # Preliminary results
 
+**Update, Nov 28:** the megakernel launch tuning (64 registers, 8×16 blocks) changes the GPU numbers below. The final runs and the profile were rerun on Vista with it ([GH200 results](#gh200-vista-nov-28): 1M T_br ratio 2.76×, kernel 3.9 ms). The `core` sweep, the light-count and extra benchmarks and the T_app numbers were not rerun and still describe the 128-register kernel.
+
 **Status:** three sets of Vista measurements. The current one is the Nov 27 run of `dev` at `94fadfe` ([jump to it](#current-vista-run-of-dev-94fadfe-nov-27)): `verify`, the `core` sweep, the interleaved final runs, the Nsight profile and the extra benchmarks. The same runs on the laptop are [below it](#laptop-run-rtx-4070-laptop-nov-27). Before them come a rerun after the preparation work in PR #75 (Nov 23, commit `13321a5`) and the G2 sweep (Nov 13, commit `14db51d`); both are kept as history. The headline ratios come from the final runs, which rerun the selected configurations interleaved ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)); sweep medians are preliminary. Not measured, by decision on Nov 27 (no time): the `field_clustered` and seed-2 scenes, and the extensions (SAH, memory modes, Embree, wavefront).
 
 ## Setup

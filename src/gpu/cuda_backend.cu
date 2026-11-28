@@ -34,8 +34,8 @@ constexpr uint32_t kMinBlocksPerSm = 8;
 /// The megakernel: one thread per pixel, writing its own PixelResult fields. AOV pointers are
 /// null when the AOV was not requested.
 template <class Query, class Shading>
-__global__ void __launch_bounds__(kBlockThreads, kMinBlocksPerSm) megakernel(Camera cam, Scene s, Query q, float* rgb, uint32_t* prim_id,
-                           uint32_t* light_mask) {
+__global__ void __launch_bounds__(kBlockThreads, kMinBlocksPerSm)
+    megakernel(Camera cam, Scene s, Query q, float* rgb, uint32_t* prim_id, uint32_t* light_mask) {
     const uint32_t px = blockIdx.x * blockDim.x + threadIdx.x;
     const uint32_t py = blockIdx.y * blockDim.y + threadIdx.y;
     if (px >= cam.width || py >= cam.height) return;
