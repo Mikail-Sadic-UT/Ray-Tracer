@@ -1,0 +1,79 @@
+profile: host c642-002.vista.tacc.utexas.edu, commit fd4471f
+profile: GPU NVIDIA GH200 120GB, 615.71.09
+profile: RT_CUDA_ARCH=90, B = 72, lit, lbvh, 1920x1080
+profile: nsys NVIDIA Nsight Systems version 2026.4.1.174-264138568610v0
+profile: ncu Version 2026.2.1.0 (build 38283040) (public-release)
+
+Kernel resources (cuobjdump --dump-resource-usage):
+  megakernel<rt::BruteQuery, rt::NormalShading> REG:55 STACK:0 CONSTANT[0]:760
+  megakernel<rt::BruteQuery, rt::LitShading> REG:64 STACK:480 CONSTANT[0]:760
+  megakernel<rt::BvhQuery, rt::NormalShading> REG:64 STACK:512 CONSTANT[0]:792
+  megakernel<rt::BvhQuery, rt::LitShading> REG:64 STACK:1072 CONSTANT[0]:792
+
+== bench_10k_s1
+nsys: kernels (time %, total ns, instances, avg ns, ..., name):
+      100.0          6618708         12  551559.0  551820.5    545884    559580       4085.9  void rt::<unnamed>::megakernel<rt::BvhQuery, rt::LitShading>(rt::C
+nsys: memcpy and memset:
+       91.2          1115128     24   46463.7   44560.0      2208    133215      45950.0  [CUDA memcpy Device-to-Host]
+        7.7            93822     36    2606.2    3088.0       736      4576       1312.4  [CUDA memcpy Host-to-Device]
+        1.1            13312     12    1109.3    1200.0       768      1312        213.3  [CUDA memset]               
+ncu (full, clocks locked to base; times are not benchmark numbers):
+  Duration  us  547.33
+  Registers Per Thread  register/thread  64
+  Theoretical Occupancy  %  50
+  Achieved Occupancy  %  40.98
+  Block Limit Registers  block  8
+  Compute (SM) Throughput  %  65.72
+  Memory Throughput  %  29.59
+  DRAM Throughput  %  2.47
+  L1/TEX Hit Rate  %  94.29
+  L2 Hit Rate  %  99.35
+  Warp Cycles Per Issued Instruction  cycle  9.38
+  Avg. Active Threads Per Warp  22.04
+  Local Memory Spilling Requests  5816848
+
+== bench_100k_s1
+nsys: kernels (time %, total ns, instances, avg ns, ..., name):
+      100.0         17111793         12  1425982.8  1423430.5   1413846   1451991      10908.8  void rt::<unnamed>::megakernel<rt::BvhQuery, rt::LitShading>(rt:
+nsys: memcpy and memset:
+       85.4          1110489     24   46270.4   44480.0      1536    133887      46111.1  [CUDA memcpy Device-to-Host]
+       13.6           176925     36    4914.6    5632.0       736     10464       3296.7  [CUDA memcpy Host-to-Device]
+        1.0            12512     12    1042.7    1168.0       736      1280        236.1  [CUDA memset]               
+ncu (full, clocks locked to base; times are not benchmark numbers):
+  Duration  ms  1.43
+  Registers Per Thread  register/thread  64
+  Theoretical Occupancy  %  50
+  Achieved Occupancy  %  39.25
+  Block Limit Registers  block  8
+  Compute (SM) Throughput  %  66.00
+  Memory Throughput  %  43.17
+  DRAM Throughput  %  1.21
+  L1/TEX Hit Rate  %  97.10
+  L2 Hit Rate  %  99.25
+  Warp Cycles Per Issued Instruction  cycle  8.96
+  Avg. Active Threads Per Warp  14.68
+  Local Memory Spilling Requests  14641664
+
+== bench_1m_s1
+nsys: kernels (time %, total ns, instances, avg ns, ..., name):
+      100.0         46974223         12  3914518.6  3917910.5   3874023   3934695      19537.7  void rt::<unnamed>::megakernel<rt::BvhQuery, rt::LitShading>(rt:
+nsys: memcpy and memset:
+       50.4          1113242     24   46385.1   44592.0      1536    133951      46125.3  [CUDA memcpy Device-to-Host]
+       49.0          1082583     36   30071.8   22816.0       736     82911      29323.1  [CUDA memcpy Host-to-Device]
+        0.6            12256     12    1021.3     960.0       736      1248        173.9  [CUDA memset]               
+ncu (full, clocks locked to base; times are not benchmark numbers):
+  Duration  ms  3.93
+  Registers Per Thread  register/thread  64
+  Theoretical Occupancy  %  50
+  Achieved Occupancy  %  40.44
+  Block Limit Registers  block  8
+  Compute (SM) Throughput  %  62.36
+  Memory Throughput  %  60.99
+  DRAM Throughput  %  1.09
+  L1/TEX Hit Rate  %  97.05
+  L2 Hit Rate  %  97.91
+  Warp Cycles Per Issued Instruction  cycle  9.79
+  Avg. Active Threads Per Warp  10.16
+  Local Memory Spilling Requests  39596891
+
+profile: 0 failure(s); reports in /scratch/11832/el_mikster/rt-results/final-profile-1176636/profile
