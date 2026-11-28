@@ -138,6 +138,27 @@ The videos (`house_1920x1080.mp4`, `house_3840x2160.mp4`) are not in git. `ffmpe
 - `field_clustered` and the seed-2 scene are not measured; they were dropped on Nov 27 for lack of time.
 - The SAH extension, memory modes, Embree and the wavefront pipeline were not built (cut on Nov 27), so there is nothing to compare them against.
 
+## Megakernel launch tuning (laptop, experimental branch)
+
+Branch `mikail/kernel-tuning`, RTX 4070 Laptop (`sm_89`), lit LBVH megakernel, B = 32. Two launch changes, no change to the render code: 8×16 blocks instead of 16×16, and `__launch_bounds__(128, 8)`, which caps the kernel at 64 registers instead of 128. Images are bit-identical to the old kernel on all three `bench_*` scenes, `balls`, `showcase` and `known_glass`, and all 358 tests pass. **Not yet measured on the GH200**, so the Vista numbers above are for the old kernel.
+
+Kernel time under Nsight Compute (clocks locked to base, one launch, ms):
+
+| Variant | known_glass | showcase | balls | bench_10k_s1 | bench_100k_s1 | bench_1m_s1 |
+|---|---:|---:|---:|---:|---:|---:|
+| 16×16, 128 registers (old) | 2.03 | 17.00 | 26.00 | 3.74 | 8.33 | 21.53 |
+| 16×16, 64 registers | 1.69 | 14.50 | 22.08 | 2.96 | 5.80 | 14.87 |
+| **8×16, 64 registers (new)** | 1.79 | 14.42 | 22.19 | 1.98 | 5.33 | 14.46 |
+| 8×8, 64 registers | 1.90 | 15.07 | 23.44 | 2.53 | 5.30 | 14.40 |
+
+Without a profiler (median of 7 prepared runs, 1920×1080), the kernel went from 3.15 / 8.00 / 20.14 ms to 1.99 / 5.27 / 14.34 ms at 10K / 100K / 1M, and T_frame from 5.47 / 10.14 / 23.12 ms to 4.53 / 7.63 / 16.79 ms.
+
+1. **The register cap gives most of the gain.** At 64 registers, occupancy goes from 26% to 57% at 1M. The lit BVH kernel then spills: its stack frame grows from 832 to 1072 bytes, but local memory stays in L1, and the extra warps hide more latency. Lower caps (56, 48, 40) raise occupancy further but stop paying off at 1M (14.4, 16.5, 17.5 ms), because spill traffic grows.
+2. **Warp shape cuts divergence a little.** With 8-wide blocks each warp covers an 8×4 tile instead of a 16×2 strip. Active threads per warp go from 9.66 to 10.12 at 1M (19.9 to 21.9 at 10K), and instructions executed drop about 5 to 9%.
+3. The brute-force lit kernel (`--bvh none`, testing only) also drops to 64 registers and spills more (stack 320 to 480 bytes).
+
+The GH200 has a 256 KB L1 per SM (128 KB on the laptop) and 64 warps per SM rather than 48, so the best cap may differ there. Run `scripts/tacc/profile.sh` and the final runs on Vista before quoting these numbers.
+
 ## Laptop run (RTX 4070 Laptop, Nov 27)
 
 The same sweep and final runs on the development laptop, from a clean reboot. Machine: `El-Studiobook`, i9-13980HX (8 P-cores and 16 E-cores, 32 threads), RTX 4070 Laptop GPU (8 GB, `sm_89`, driver 621.40, PCIe), WSL2 Ubuntu 24.04, plugged in with the maximum performance profile. Build: `dev` at `f9bdc3a`, clean, CUDA 13.3, Release, contraction off. Settings as in [Setup](#setup), with the laptop thread counts of [BENCHMARKING.md](BENCHMARKING.md#sweeps) (CPU 1, 2, 4, 8, 16, 24, 32; GPU build threads 1, 8, 32). The `core` sweep has 47 points. The final runs are 24 configurations in interleaved rounds, and were done **twice**: run 1 with 5 rounds and run 2 with 7. Data: [laptop-run1-core.csv](data/laptop-run1-core.csv), [laptop-run1-final.csv](data/laptop-run1-final.csv), [laptop-run2-core.csv](data/laptop-run2-core.csv), [laptop-run2-final.csv](data/laptop-run2-final.csv) and the two plans.

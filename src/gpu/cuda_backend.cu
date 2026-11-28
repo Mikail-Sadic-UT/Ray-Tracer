@@ -17,14 +17,24 @@
 #include "trace/traverse.hpp"
 namespace rt {
 namespace {
-/// Thread block of the megakernel: 16x16 pixels, as the CPU tiles. Tuning is G3 work.
-constexpr uint32_t kBlockX = 16;
+/// Thread block of the megakernel: 8x16 pixels, so each warp covers an 8x4 tile. Square-ish warp
+/// tiles keep neighbouring rays more coherent than the 16x2 strips of a 16-wide block (about 9%
+/// fewer instructions), and 128-thread blocks free their SM slots sooner than 256-thread ones
+/// when a few slow pixels finish last. Measured on the RTX 4070 Laptop (docs/RESULTS.md,
+/// "Megakernel launch tuning").
+constexpr uint32_t kBlockX = 8;
 constexpr uint32_t kBlockY = 16;
+constexpr uint32_t kBlockThreads = kBlockX * kBlockY;
+/// Minimum resident blocks per SM requested from the compiler. 8 blocks of 128 threads cap the
+/// kernel at 64 registers per thread (65536 / 1024). The lit BVH kernel then spills a little to
+/// local memory, which stays in L1, and occupancy roughly doubles: the kernel is
+/// latency-bound, so more warps to switch between wins over the extra local traffic.
+constexpr uint32_t kMinBlocksPerSm = 8;
 
 /// The megakernel: one thread per pixel, writing its own PixelResult fields. AOV pointers are
 /// null when the AOV was not requested.
 template <class Query, class Shading>
-__global__ void megakernel(Camera cam, Scene s, Query q, float* rgb, uint32_t* prim_id,
+__global__ void __launch_bounds__(kBlockThreads, kMinBlocksPerSm) megakernel(Camera cam, Scene s, Query q, float* rgb, uint32_t* prim_id,
                            uint32_t* light_mask) {
     const uint32_t px = blockIdx.x * blockDim.x + threadIdx.x;
     const uint32_t py = blockIdx.y * blockDim.y + threadIdx.y;
