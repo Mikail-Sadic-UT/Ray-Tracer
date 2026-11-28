@@ -12,9 +12,9 @@ Vista GH200, 1M primitives, 1080p, LBVH (T_br, median of 5 interleaved rounds; `
 
 | Target | Now | Note |
 |---|---:|---|
-| ~10×: 1 core / best CPU | 56.2× | Met (was 29.8× at G2) |
-| ~2×: best CPU / GPU | 2.43× | **Met at 1M** (was 1.46× at G2); 5.76× at 10K and 3.60× at 100K, with spread at most 6% |
-| ~20×: 1 core / GPU | 137× | Met (was 43.4× at G2) |
+| ~10×: 1 core / best CPU | 56.7× | Met (was 29.8× at G2) |
+| ~2×: best CPU / GPU | 2.76× | **Met at 1M** (was 1.46× at G2); 6.90× at 10K and 4.51× at 100K, with spread at most 6%. Final runs of the 64-register kernel on Nov 28 (job 1176636); the Nov 27 kernel gave 2.43× |
+| ~20×: 1 core / GPU | 157× | Met (was 43.4× at G2) |
 
 The 2× target was missed at G2 because of preparation, not rendering (47 ms of the GPU's 53.8 ms). PR #75 (#68, #67) cut preparation to 10.0 ms at B = 72, and the Nov 23 and Nov 27 Vista runs measure 2.40× and 2.43× at 1M; the materials and the 128-register kernel changed T_frame by 7% on both backends and did not move the ratio. Layout (7.0 ms at B = 72, grows past 16 threads) is now the largest preparation stage; at about 2 ms the ratio would be near 3×.
 
@@ -27,7 +27,7 @@ G3 is an internal checkpoint (target Nov 18, now past; [ROADMAP](ROADMAP.md#gate
 | Preparation scaling, B = 1 to 72 | Done at all three sizes ([RESULTS.md](RESULTS.md)) | |
 | CPU render scaling | Done at all three sizes (70× on 72 threads at 1M) | |
 | GPU breakdown | Done: T_br components, and the kernel-level view on the laptop and the GH200 | |
-| Profiling (`-Xptxas -v`, Nsight) | Done on both machines: 128 registers, no spills, latency- and divergence-bound ([RESULTS.md](RESULTS.md#profiling-gh200)); Nsight and the GPU counters work on a GH node | |
+| Profiling (`-Xptxas -v`, Nsight) | Done on both machines: latency- and divergence-bound at 128 registers ([RESULTS.md](RESULTS.md#profiling-gh200)); the launch tuning of Nov 28 (64 registers, 8×16 blocks) makes the GH200 kernel 34% faster ([RESULTS.md](RESULTS.md#gh200-vista-nov-28)); Nsight and the GPU counters work on a GH node | |
 | Preliminary 10× / 2× / 20× ratios, with spread | Done: all three met at every size, from the final runs (Nov 27) | |
 | Scope and extensions reviewed | Done (Nov 27): no further extensions, no clustered or seed-2 scenes | |
 
@@ -91,7 +91,7 @@ Roughly in the order I expect to do them. Issue numbers are the longer write-ups
 ### Later
 
 - **Scenes (#72):** download without `gh`, Vista mirror path, cross-platform hash check.
-- **Kernel tuning (optional):** the profile shows the lit BVH kernel is latency- and divergence-bound at 128 registers (25% theoretical occupancy on the GH200, no spills; [RESULTS.md](RESULTS.md#profiling-gh200)). The 2× target is met and the kernel is 5.9 of the GPU's 17.0 ms T_br at 1M, so there is little to gain in T_br.
+- **Kernel tuning (done Nov 28):** the profile showed the lit BVH kernel latency- and divergence-bound at 128 registers (25% theoretical occupancy on the GH200; [RESULTS.md](RESULTS.md#profiling-gh200)). A 64-register cap and 8×16 blocks cut the kernel at 1M from 5.9 to 3.9 ms on the GH200 and T_br from 17.1 to 14.8 ms ([RESULTS.md](RESULTS.md#gh200-vista-nov-28)). Divergence (about 10 of 32 threads active at 1M) is untouched; only ray sorting or a wavefront pipeline would change it.
 - **Final runs (C14):** interleaved reruns of the 1-core baseline, best CPU, best GPU, and fixed-72 configurations, 5 rounds, on the laptop and Vista. Done on Vista and on the laptop on Nov 27 (`sweep.py final`, `PRESET=final`; [BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal); [RESULTS.md](RESULTS.md#laptop-run-rtx-4070-laptop-nov-27)). Node-hour log rows for the jobs so far (1142824, 1142829, 1142842, 1164735) through `scripts/tacc/node_hours.sh`.
 - **Quality review:** done Nov 27 (Mikail reviewed the pictures; one reviewer, where [BENCHMARKING.md](BENCHMARKING.md#quality-protocol) asks for two or more, so the report should say so). Still to do: the report's validation section.
 - **Report, slides, release:** reproducible release with the scene archive, commit hash, and exact commands. Dates in the ROADMAP schedule. The `final` tag (PR `dev` to `main`, [WORKFLOW.md](WORKFLOW.md#checkpoints-and-check-ins)) waits for the report: the numbers in RESULTS.md come from `94fadfe` (Vista) and `f9bdc3a` (laptop), and the tag should sit on the commit the report cites.
@@ -115,7 +115,7 @@ Not planned. Listed so they are not lost; each can be pulled into the plan if it
 - **Noise.** The sweep records spread. GPU T_app has 41% to 174% spread in the Nov 27 sweep (CUDA init), and the laptop's GPU T_br rows at 10K and 100K reach 56% to 119%. Don't quote a ratio whose spread is above 10% without saying so.
 - **Contraction is off project-wide.** Any new numeric code is compiled with `-ffp-contract=off` and `--fmad=false`. Write `fmaf()` where a fused result is wanted.
 - **No libm in shared code.** `tanf`, `sinf`, `powf` and friends round differently in glibc and CUDA, so a call in code that runs on both backends breaks byte-identical images for some inputs. `camera_ray` used `tanf` and did so for about a third of all fields of view (70 degrees among them) until `tan_det`; every scene we ship uses 45 degrees, which happens to agree, so it went unseen. Shared code uses `spec_pow` and `tan_det` (basic IEEE operations only); `test_camera_device` and the shading device tests compare host and device bit for bit.
-- **Megakernel registers.** The lit BVH megakernel is at 128 registers on sm_89 and sm_90 (no spills), the most that still fits two 256-thread blocks per SM. Anything more in `shading.hpp` likely halves occupancy and slows every GPU number; check `cuobjdump --dump-resource-usage` (or `RT_PTXAS_VERBOSE`) before adding to it. The Nov 27 Vista run at 128 registers has GPU T_frame 7% above the 100-register run, the same as the CPU's rise, so the registers have not cost anything visible so far.
+- **Megakernel registers.** The lit BVH megakernel is capped at 64 registers (`__launch_bounds__(128, 8)`, 8 blocks of 128 threads per SM) on sm_89 and sm_90, and spills to local memory (stack frame 1072 bytes), which stays in L1. Code added to `shading.hpp` costs more spill traffic and not occupancy; check `cuobjdump --dump-resource-usage` and the spill count in Nsight Compute before adding to it. The Nov 27 Vista run at 128 registers has GPU T_frame 7% above the 100-register run, the same as the CPU's rise, so the registers have not cost anything visible so far.
 - **Node hours.** Vista jobs go in the node-hour log ([BENCHMARKING.md](BENCHMARKING.md#node-hour-budget)).
 
 ## Done since G2

@@ -1,5 +1,7 @@
 # Preliminary results
 
+**Update, Nov 28:** the megakernel launch tuning (64 registers, 8×16 blocks) changes the GPU numbers below. The final runs and the profile were rerun on Vista with it ([GH200 results](#gh200-vista-nov-28): 1M T_br ratio 2.76×, kernel 3.9 ms). The `core` sweep, the light-count and extra benchmarks and the T_app numbers were not rerun and still describe the 128-register kernel.
+
 **Status:** three sets of Vista measurements. The current one is the Nov 27 run of `dev` at `94fadfe` ([jump to it](#current-vista-run-of-dev-94fadfe-nov-27)): `verify`, the `core` sweep, the interleaved final runs, the Nsight profile and the extra benchmarks. The same runs on the laptop are [below it](#laptop-run-rtx-4070-laptop-nov-27). Before them come a rerun after the preparation work in PR #75 (Nov 23, commit `13321a5`) and the G2 sweep (Nov 13, commit `14db51d`); both are kept as history. The headline ratios come from the final runs, which rerun the selected configurations interleaved ([BENCHMARKING.md](BENCHMARKING.md#targets-from-proposal)); sweep medians are preliminary. Not measured, by decision on Nov 27 (no time): the `field_clustered` and seed-2 scenes, and the extensions (SAH, memory modes, Embree, wavefront).
 
 ## Setup
@@ -137,6 +139,57 @@ The videos (`house_1920x1080.mp4`, `house_3840x2160.mp4`) are not in git. `ffmpe
 - GPU\* for T_frame at 1M is B = 8 only because the three B values differ by noise.
 - `field_clustered` and the seed-2 scene are not measured; they were dropped on Nov 27 for lack of time.
 - The SAH extension, memory modes, Embree and the wavefront pipeline were not built (cut on Nov 27), so there is nothing to compare them against.
+
+## Megakernel launch tuning (laptop, experimental branch)
+
+Branch `mikail/kernel-tuning`, RTX 4070 Laptop (`sm_89`), lit LBVH megakernel, B = 32. Two launch changes, no change to the render code: 8×16 blocks instead of 16×16, and `__launch_bounds__(128, 8)`, which caps the kernel at 64 registers instead of 128. Images are bit-identical to the old kernel on all three `bench_*` scenes, `balls`, `showcase` and `known_glass`, and all 358 tests pass. The GH200 numbers are in the [next subsection](#gh200-vista-nov-28); the Vista tables above are still for the old kernel.
+
+Kernel time under Nsight Compute (clocks locked to base, one launch, ms):
+
+| Variant | known_glass | showcase | balls | bench_10k_s1 | bench_100k_s1 | bench_1m_s1 |
+|---|---:|---:|---:|---:|---:|---:|
+| 16×16, 128 registers (old) | 2.03 | 17.00 | 26.00 | 3.74 | 8.33 | 21.53 |
+| 16×16, 64 registers | 1.69 | 14.50 | 22.08 | 2.96 | 5.80 | 14.87 |
+| **8×16, 64 registers (new)** | 1.79 | 14.42 | 22.19 | 1.98 | 5.33 | 14.46 |
+| 8×8, 64 registers | 1.90 | 15.07 | 23.44 | 2.53 | 5.30 | 14.40 |
+
+Without a profiler (median of 7 prepared runs, 1920×1080), the kernel went from 3.15 / 8.00 / 20.14 ms to 1.99 / 5.27 / 14.34 ms at 10K / 100K / 1M, and T_frame from 5.47 / 10.14 / 23.12 ms to 4.53 / 7.63 / 16.79 ms.
+
+1. **The register cap gives most of the gain.** At 64 registers, occupancy goes from 26% to 57% at 1M. The lit BVH kernel then spills: its stack frame grows from 832 to 1072 bytes, but local memory stays in L1, and the extra warps hide more latency. Lower caps (56, 48, 40) raise occupancy further but stop paying off at 1M (14.4, 16.5, 17.5 ms), because spill traffic grows.
+2. **Warp shape cuts divergence a little.** With 8-wide blocks each warp covers an 8×4 tile instead of a 16×2 strip. Active threads per warp go from 9.66 to 10.12 at 1M (19.9 to 21.9 at 10K), and instructions executed drop about 5 to 9%.
+3. The brute-force lit kernel (`--bvh none`, testing only) also drops to 64 registers and spills more (stack 320 to 480 bytes).
+
+### GH200 (Vista, Nov 28)
+
+Same-day comparison of `dev` (`0d6cf57`, job `1176602`, node `c642-011`) and this branch (`fd4471f`, job `1176636`, node `c642-002`): `final` and `profile` presets, the final runs choosing CPU\* and GPU\* from the Nov 27 sweep ([vista-core-1175084.csv](data/vista-core-1175084.csv)), 5 interleaved rounds, `gh-dev` nodes. `verify.sh` passes in both (0 failures; CPU and CUDA images byte-identical on all known and benchmark scenes). Data: [dev final](data/vista-final-dev-1176602.csv), [kernel final](data/vista-final-kernel-1176636.csv), [dev profile](data/vista-profile-dev-1176602.txt), [kernel profile](data/vista-profile-kernel-1176636.txt). The CPU numbers differ by 1 to 3% between the two nodes, which is the node-to-node noise.
+
+| Lit LBVH megakernel, 1920×1080, B = 72 | 10K | 100K | 1M |
+|---|---:|---:|---:|
+| Kernel, nsys average, `dev` → this branch (ms) | 0.839 → 0.552 | 2.329 → 1.426 | 5.909 → 3.915 |
+| Kernel, ncu at base clocks (ms) | 0.84 → 0.55 | 2.32 → 1.43 | 5.91 → 3.93 |
+| GPU T_frame, fixed B = 72 (ms) | 1.0 → 0.7 | 2.4 → 1.5 | 6.1 → 4.0 |
+| GPU T_br, fixed B = 72 (ms) | 2.1 → 1.8 | 4.5 → 3.6 | 17.1 → 14.8 |
+| CPU\* / GPU\*, T_br | 5.82× → 6.90× | 3.63× → 4.51× | 2.43× → 2.76× |
+| CPU\* / GPU\*, T_frame | 7.75× → 11.13× | 5.93× → 9.38× | 5.18× → 7.68× |
+
+Registers and occupancy at 1M (`ncu --set full`):
+
+| | `dev` | This branch |
+|---|---:|---:|
+| Registers per thread / stack frame (bytes) | 128 / 832 | 64 / 1072 |
+| Theoretical / achieved occupancy | 25% / 19.5% | 50% / 40.4% |
+| Compute (SM) throughput | 42% | 62% |
+| Memory throughput / DRAM throughput | 38% / 0.3% | 61% / 1.1% |
+| L1/TEX hit rate / L2 hit rate | 99.4% / 96.9% | 97.1% / 97.9% |
+| Warp cycles per issued instruction | 7.1 | 9.8 |
+| Active threads per warp (of 32) | 9.8 | 10.2 |
+| Local memory spilling requests | 0 | 39.6 million |
+
+1. **The register cap carries over to the GH200 and gains more than on the laptop.** The kernel is 34% faster at 1M and 39% faster at 100K. Occupancy doubles, and more warps are in flight, so each warp waits longer between instructions (9.8 cycles against 7.1) but the SM issues more in total (SM throughput 42% to 62%).
+2. **The spills cost little.** There are 39.6 million spill requests per launch at 1M, but L1 still hits 97% and DRAM throughput is 1%. Memory throughput (the busiest unit, probably L1) rises from 38% to 61%, so there is less room left than before.
+3. **Divergence barely changes on this GPU.** Active threads per warp go from 9.8 to 10.2 at 1M and from 20.1 to 22.0 at 10K. The 8-wide blocks help a little, as on the laptop; the register cap does the rest.
+4. **The T_br ratio gains less than the kernel does**, as RESULTS predicted: at 1M the render is 3.9 of 14.8 ms, so a 2.0 ms kernel saving gives 2.43× to 2.76×. All three targets were already met, and still are.
+5. Only a cap of 64 registers (`__launch_bounds__(128, 8)`) and 8×16 blocks were run on the GH200. The laptop sweep showed 56 registers as slightly faster at 1M, and the GH200 may differ; this was not tried.
 
 ## Laptop run (RTX 4070 Laptop, Nov 27)
 
