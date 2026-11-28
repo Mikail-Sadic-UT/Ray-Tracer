@@ -138,6 +138,21 @@ The videos (`house_1920x1080.mp4`, `house_3840x2160.mp4`) are not in git. `ffmpe
 - `field_clustered` and the seed-2 scene are not measured; they were dropped on Nov 27 for lack of time.
 - The SAH extension, memory modes, Embree and the wavefront pipeline were not built (cut on Nov 27), so there is nothing to compare them against.
 
+## LBVH huge pages (laptop, experimental branch)
+
+Branch `mikail/lbvh-perf` (#68). The LBVH scratch buffers of 2 MB or more, and `Bvh::nodes` and `Bvh::prim_refs`, are now advised for transparent huge pages (`madvise(MADV_HUGEPAGE)`). The tree, the images and `bvh_stats` are unchanged, and all 358 tests pass. The advice is used only when the base page is 4 KB and the huge page is 2 MB, so it does nothing on a kernel with 64 KB pages. **Check `getconf PAGESIZE` on a Vista node before expecting a gain there.**
+
+Laptop (i9-13980HX under WSL2, THP `madvise`), bench_1m_s1, `OMP_PROC_BIND=close OMP_PLACES=cores`, B = 16, medians of 15 builds (`RT_BVH_STAGES=1`, ms):
+
+| | build | layout | of which emit | of which free |
+|---|---:|---:|---:|---:|
+| `dev` | 16.4 to 17.0 | 16.0 to 16.8 | 9.9 to 10.4 | 5.6 to 5.9 |
+| huge pages | 15.9 to 17.0 | 9.4 to 11.2 | 8.0 to 10.0 | 0.5 to 0.6 |
+
+Freeing about 200 MB of scratch drops from about 6 ms to 0.5 ms, because 2 MB pages mean 512 times fewer TLB shootdowns when a multi-threaded process unmaps memory. Emit gains a little: the serial zero fill of `Bvh::nodes` takes 2.9 to 3.1 ms instead of 3.8 to 3.9 ms. The build stages don't change measurably (refit may be about 1 ms slower at B = 32). In interleaved prepared runs at 1920×1080, B = R = 16, GPU T_br went from 68.2 / 70.5 / 70.6 ms to 64.8 / 66.0 / 65.4 ms over three rounds. CPU T_br is dominated by the 16-thread render there, and its spread hides the change.
+
+What is left in layout: the serial zero fill of `Bvh::nodes` (about 3 ms), avoidable only if `Bvh::nodes` stops being a value-initialized `std::vector<BvhNode>`, which is an interface change (PLAN.md). Refit (about 9 ms at B = 16) is now the largest build stage.
+
 ## Laptop run (RTX 4070 Laptop, Nov 27)
 
 The same sweep and final runs on the development laptop, from a clean reboot. Machine: `El-Studiobook`, i9-13980HX (8 P-cores and 16 E-cores, 32 threads), RTX 4070 Laptop GPU (8 GB, `sm_89`, driver 621.40, PCIe), WSL2 Ubuntu 24.04, plugged in with the maximum performance profile. Build: `dev` at `f9bdc3a`, clean, CUDA 13.3, Release, contraction off. Settings as in [Setup](#setup), with the laptop thread counts of [BENCHMARKING.md](BENCHMARKING.md#sweeps) (CPU 1, 2, 4, 8, 16, 24, 32; GPU build threads 1, 8, 32). The `core` sweep has 47 points. The final runs are 24 configurations in interleaved rounds, and were done **twice**: run 1 with 5 rounds and run 2 with 7. Data: [laptop-run1-core.csv](data/laptop-run1-core.csv), [laptop-run1-final.csv](data/laptop-run1-final.csv), [laptop-run2-core.csv](data/laptop-run2-core.csv), [laptop-run2-final.csv](data/laptop-run2-final.csv) and the two plans.

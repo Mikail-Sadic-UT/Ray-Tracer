@@ -3,13 +3,19 @@
 #include "bvh/bvh.hpp"
 
 #include <omp.h>
+#if defined(__linux__)
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <functional>
 #include <limits>
 #include <new>
@@ -23,24 +29,69 @@
 namespace rt {
 namespace {
 
+/// Transparent huge page size if it is 2 MB, else 0 (huge-page advice off). The LBVH build
+/// touches a few hundred MB of fresh memory at 1M primitives. With 4 KB pages, the first-touch
+/// page faults and the TLB shootdowns when a multi-threaded process frees that memory were
+/// about a third of the layout stage on the laptop (#68). Kernels with 64 KB base pages have
+/// 512 MB huge pages, too large for these buffers, and already fault 16x less often.
+size_t huge_page_size() {
+#if defined(__linux__) && defined(MADV_HUGEPAGE)
+    static const size_t size = [] {
+        if (sysconf(_SC_PAGESIZE) != 4096) return size_t{0};
+        std::ifstream in("/sys/kernel/mm/transparent_hugepage/hpage_pmd_size");
+        size_t bytes = 0;
+        return in >> bytes && bytes == (size_t{2} << 20) ? bytes : size_t{0};
+    }();
+    return size;
+#else
+    return 0;
+#endif
+}
+
+/// Advises the kernel to back the whole huge pages inside `[data, data + bytes)` with
+/// transparent huge pages. Advice only: it never changes the contents, and it is ignored when
+/// THP is set to `never`.
+void advise_huge_pages(const void* data, size_t bytes) {
+#if defined(__linux__) && defined(MADV_HUGEPAGE)
+    const size_t page = huge_page_size();
+    if (page == 0) return;
+    const uintptr_t begin = reinterpret_cast<uintptr_t>(data);
+    const uintptr_t first = (begin + page - 1) & ~(page - 1);
+    const uintptr_t last = (begin + bytes) & ~(page - 1);
+    if (last > first) madvise(reinterpret_cast<void*>(first), last - first, MADV_HUGEPAGE);
+#else
+    (void)data;
+    (void)bytes;
+#endif
+}
+
+/// Resizes @p v to @p size value-initialized elements, with huge-page advice on its storage
+/// first: `reserve` allocates without touching the memory, so `resize` faults it in after.
+template <typename T>
+void resize_huge(std::vector<T>& v, size_t size) {
+    v.reserve(size);
+    advise_huge_pages(v.data(), v.capacity() * sizeof(T));
+    v.resize(size);
+}
+
 /// Uninitialized scratch storage for trivially destructible build data. A `std::vector`
 /// would value-initialize every element on one thread before the parallel loops write it;
 /// at 1M primitives that serial fill was ~30 ms of the LBVH build (#68). Every element must
-/// be written (placement new for non-trivial types) before it is read.
+/// be written (placement new for non-trivial types) before it is read. Buffers of at least
+/// one huge page are aligned to it and advised for huge pages (huge_page_size()).
 template <typename T>
 class Scratch {
     static_assert(std::is_trivially_destructible<T>::value, "Scratch never runs destructors");
 
    public:
-    explicit Scratch(size_t size)
-        : data_(size ? static_cast<T*>(::operator new(size * sizeof(T))) : nullptr), size_(size) {}
-    ~Scratch() { ::operator delete(data_); }
+    explicit Scratch(size_t size) : data_(allocate(size)), size_(size) {}
+    ~Scratch() { release(); }
     Scratch(const Scratch&) = delete;
     Scratch& operator=(const Scratch&) = delete;
 
     /// Frees the storage early, so the release is timed with the stage that used it.
     void reset() {
-        ::operator delete(data_);
+        release();
         data_ = nullptr;
         size_ = 0;
     }
@@ -51,6 +102,25 @@ class Scratch {
     const T& operator[](size_t i) const { return data_[i]; }
 
    private:
+    static bool huge(size_t size) {
+        const size_t page = huge_page_size();
+        return page != 0 && size * sizeof(T) >= page;
+    }
+    static T* allocate(size_t size) {
+        if (size == 0) return nullptr;
+        if (!huge(size)) return static_cast<T*>(::operator new(size * sizeof(T)));
+        void* p = ::operator new(size * sizeof(T), std::align_val_t{huge_page_size()});
+        advise_huge_pages(p, size * sizeof(T));
+        return static_cast<T*>(p);
+    }
+    void release() {
+        if (data_ == nullptr) return;
+        if (huge(size_))
+            ::operator delete(data_, std::align_val_t{huge_page_size()});
+        else
+            ::operator delete(data_);
+    }
+
     T* data_;
     size_t size_;
 };
@@ -484,7 +554,7 @@ void detail::layout_lbvh(const BuildPrim* prims, uint32_t* order, LbvhNode* node
     if (!counts_ready || result.stats.fallbacks != 0) count_layout(nodes, 0, max_leaf_size, counts);
     mark("recover");
     const uint32_t task_min = layout_task_min(count, threads);
-    result.prim_refs.resize(static_cast<size_t>(count));
+    resize_huge(result.prim_refs, static_cast<size_t>(count));
     PrimRef* refs = result.prim_refs.data();
 #pragma omp parallel num_threads(threads)
     {
@@ -492,7 +562,7 @@ void detail::layout_lbvh(const BuildPrim* prims, uint32_t* order, LbvhNode* node
         // prim_refs. Leaves cover sorted ranges, so prim_refs is the sorted order mapped to
         // refs. Dynamic chunks let the resizing thread skip its share.
 #pragma omp single nowait
-        result.nodes.resize(counts[0].nodes);
+        resize_huge(result.nodes, counts[0].nodes);
         // This loop's implicit barrier also orders the resize before emit.
 #pragma omp for schedule(dynamic, 16384)
         for (int64_t i = 0; i < count; ++i) refs[i] = prims[order[i]].ref;
